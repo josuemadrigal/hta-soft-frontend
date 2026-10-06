@@ -1,0 +1,61 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Amarillo del logo de Light a Candle. Sobre blanco no se lee como texto: para enlaces y
+     etiquetas se usa marca-700 (ámbar oscuro); el amarillo va en fondos, barras y botones. */
+  --color-marca-50: #fffbe0;
+  --color-marca-100: #fff3b0;
+  --color-marca-200: #ffe970;
+  --color-marca-500: #fed801;
+  --color-marca-600: #f2c900;
+  --color-marca-700: #7a5c00;
+  --color-marca-900: #14120f;
+
+  --color-fondo: #f6f5f2;
+  --color-superficie: #ffffff;
+  --color-borde: #e5e2dc;
+  --color-tinta: #1d1b18;
+  --color-tenue: #6b665e;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-fondo text-tinta font-sans text-[15px];
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-tinta;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Impresión (informe para donantes): hoja carta, sin fondos de la app, sin cortar tarjetas a la mitad. */
+@media print {
+  @page {
+    size: letter;
+    margin: 14mm 12mm;
+  }
+  body {
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .no-imprimir,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+  .sin-cortar {
+    break-inside: avoid;
+  }
+  .salto-antes {
+    break-before: page;
+  }
+}
