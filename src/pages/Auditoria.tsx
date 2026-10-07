@@ -5,8 +5,8 @@ import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useAuditoria, useFiltrosAuditoria } from '../api/consultas';
 import { restaurarRegistro, type FiltroAuditoria } from '../api/recursos';
-import type { MotivoBaja, RegistroAuditoria } from '../api/tipos';
-import { MOTIVOS_BAJA } from '../lib/etiquetas';
+import type { MotivoBaja, MotivoInasistencia, RegistroAuditoria } from '../api/tipos';
+import { MOTIVOS_BAJA, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { BotonesTrimestre } from '../components/Periodo';
@@ -23,6 +23,9 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   CLOSE: { texto: 'Cerró', color: '#15803d' },
   BAJA: { texto: 'Dio de baja', color: '#6b665e' },
   VIEW: { texto: 'Abrió la ficha', color: '#6b665e' },
+  NO_VINO: { texto: 'No vino', color: '#6b665e' },
+  DESCARGA: { texto: 'Descargó para usar sin internet', color: '#7c3aed' },
+  NO_VINO_DESHECHO: { texto: 'Quitó "No vino"', color: '#6b665e' },
   EXPORT: { texto: 'Exportó', color: '#7c3aed' },
   LOGIN: { texto: 'Inició sesión', color: '#6b665e' },
   BLOQUEO: { texto: 'Cuenta bloqueada', color: '#dc2626' },
@@ -109,6 +112,14 @@ function pacienteDe(r: RegistroAuditoria, d: Record<string, unknown>): number | 
 function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.action === 'VIEW') return 'Abrió la ficha del paciente';
   if (!r.details) return '—';
+  if (r.action === 'DESCARGA') {
+    const x = JSON.parse(r.details) as { batey: string; pacientes: number };
+    return `Descargó ${x.batey} (${x.pacientes} fichas) en su dispositivo para usar sin internet`;
+  }
+  if (r.action === 'NO_VINO') {
+    const x = JSON.parse(r.details) as { codigo: string; nombre: string; fecha: string; motivo: MotivoInasistencia; nota?: string };
+    return `${x.codigo} · ${x.nombre}: no vino a la jornada del ${fecha(`${x.fecha}T12:00:00`)} (${MOTIVOS_INASISTENCIA[x.motivo].toLowerCase()})${x.nota ? ` · ${x.nota}` : ''}`;
+  }
   let d: Record<string, unknown>;
   try {
     d = JSON.parse(r.details);

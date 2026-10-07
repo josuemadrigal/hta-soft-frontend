@@ -8,6 +8,7 @@ import { useComunidades, useDetalleJornada, useJornadas, useResponsables, useSug
 import { cancelarJornada, cerrarJornada, crearJornada, editarJornada } from '../api/recursos';
 import type { DetalleJornada, EstadoJornada, Jornada } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
+import { MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
 import { useConfirmar } from '../components/confirmar';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
@@ -441,7 +442,7 @@ function Detalle({ d }: { d: DetalleJornada }) {
         {[
           { t: 'Esperados', v: r.esperados, ayuda: `de ${r.activos} activos` },
           { t: 'Atendidos', v: r.atendidos, ayuda: r.atendidos - r.atendidosEsperados > 0 ? `${r.atendidos - r.atendidosEsperados} fuera de lista` : undefined },
-          { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, color: r.faltan ? 'text-red-600' : '' },
+          { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, color: r.faltan ? 'text-red-600' : '', ayuda: r.noVinieron ? `${r.noVinieron} marcados "No vino"` : undefined },
           { t: 'Controlados', v: r.controlados, ayuda: r.atendidos ? `${Math.round((r.controlados / r.atendidos) * 100)}% de los atendidos` : undefined },
           { t: 'Pacientes nuevos', v: r.nuevos },
         ].map((k) => (
@@ -522,7 +523,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
                   <li key={p.id}>
                     <Link to={`/pacientes/${p.id}`} className="flex gap-3 px-5 py-2.5 hover:bg-fondo">
                       <span className="w-20 font-mono text-xs text-tenue">{p.codigo}</span>
-                      <span>{p.nombre}</span>
+                      <span className="flex-1">{p.nombre}</span>
+                      {p.motivo && <span className="text-xs text-tenue">{MOTIVOS_INASISTENCIA[p.motivo]}</span>}
                     </Link>
                   </li>
                 ))}
@@ -578,7 +580,13 @@ function Detalle({ d }: { d: DetalleJornada }) {
                   </td>
                   <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{p.atendio ?? '—'}</td>
                   <td className="px-5 py-2.5">
-                    {p.atendidoHoy ? <Insignia color="#15803d">Atendido</Insignia> : <Insignia color={planificada ? '#b45309' : '#dc2626'}>{planificada ? 'Por ver' : 'No vino'}</Insignia>}
+                    {p.atendidoHoy ? (
+                      <Insignia color="#15803d">Atendido</Insignia>
+                    ) : p.noVino ? (
+                      <Insignia color="#6b665e">No vino · {MOTIVOS_INASISTENCIA[p.noVino].toLowerCase()}</Insignia>
+                    ) : (
+                      <Insignia color={planificada ? '#b45309' : '#6b665e'}>{planificada ? 'Por ver' : 'No vino'}</Insignia>
+                    )}
                   </td>
                 </tr>
               ))}

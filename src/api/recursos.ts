@@ -18,6 +18,7 @@ import type {
   DetalleJornada,
   SugerenciaJornada,
   Paciente,
+  MotivoInasistencia,
   MiPanel,
   FiltrosAuditoria,
   Genero,
@@ -102,6 +103,8 @@ export type DatosReceta = Pick<
   'visitId' | 'medicationId' | 'dailyDose' | 'daysUntilNextVisit' | 'bufferDays' | 'patientSupplyRemaining'
 >;
 export type DatosVisita = {
+  /** Id generado en el dispositivo: evita duplicados al reenviar (modo sin internet). */
+  clienteId?: string;
   patientId: number;
   doctorId: number;
   visitDate: string;
@@ -269,3 +272,8 @@ export const descargarPdfDonantes = (anio: number, trimestre: number | null) =>
 export const guardarTextoDonantes = (anio: number, trimestre: number | null, texto: string) =>
   enviar<{ texto: string }>('/reports/donantes/texto', 'PUT', { anio, trimestre, texto });
 export const indicadoresBateyes = () => api<IndicadorBatey[]>('/reports/bateyes');
+
+/* No vino */
+export type DatosNoVino = { fecha: string; motivo: MotivoInasistencia; nota?: string; clienteId?: string };
+export const marcarNoVino = (id: number, d: DatosNoVino) => enviar<unknown>(`/patients/${id}/no-vino`, 'POST', d);
+export const quitarNoVino = (id: number, fecha: string) => enviar<unknown>(`/patients/${id}/no-vino/${fecha}`, 'DELETE');

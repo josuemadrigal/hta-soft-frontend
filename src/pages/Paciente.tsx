@@ -17,7 +17,7 @@ import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
 import { Avatar, Boton, Cargando, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
-import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, SAL, TABACO, TIPOS_VISITA } from '../lib/etiquetas';
+import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, SAL, TABACO, TIPOS_VISITA } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
 
 const ejeFecha = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', year: '2-digit' });
@@ -437,6 +437,22 @@ export function Paciente() {
               <Dato etiqueta="Registrado">{fecha(p.registrationDate)}</Dato>
             </dl>
           </Tarjeta>
+          {!!p.inasistencias?.length && (
+            <Tarjeta titulo={`No vino (${p.inasistencias.length})`}>
+              <ul className="divide-y divide-borde text-sm">
+                {p.inasistencias.map((i) => (
+                  <li key={i.fecha} className="px-5 py-2">
+                    <span className="tabular">{fecha(`${i.fecha.slice(0, 10)}T12:00:00`)}</span>
+                    <span className="block text-xs text-tenue">
+                      {MOTIVOS_INASISTENCIA[i.motivo]}
+                      {i.nota && ` · ${i.nota}`}
+                      {i.userName && ` · lo marcó ${i.userName}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Tarjeta>
+          )}
           <Tarjeta titulo="Hábitos">
             <dl className="grid grid-cols-2 gap-4 p-5">
               <Dato etiqueta="Sal">{SAL[p.saltIntake]}</Dato>

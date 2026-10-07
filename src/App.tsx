@@ -29,6 +29,7 @@ import { MapaBateyes } from './pages/MapaBateyes';
 import { BajaPaciente } from './pages/BajaPaciente';
 import { UsuarioEditor, Usuarios } from './pages/Usuarios';
 import { Visitas } from './pages/Visitas';
+import { Sincronizacion } from './pages/Sincronizacion';
 
 function Protegida({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
@@ -54,6 +55,7 @@ export function App() {
         }
       >
         <Route index element={<Panel />} />
+        <Route path="sincronizacion" element={<Sincronizacion />} />
         <Route path="jornada" element={<ConPermiso permiso="visitas.registrar"><Jornada /></ConPermiso>} />
         <Route path="jornadas" element={<ConPermiso permiso="pacientes.ver"><Jornadas /></ConPermiso>} />
         <Route path="jornadas/nueva" element={<ConPermiso permiso="jornadas.planificar"><JornadaEditor /></ConPermiso>} />

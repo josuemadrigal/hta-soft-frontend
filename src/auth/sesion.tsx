@@ -5,6 +5,7 @@ import { iniciarSesion, obtenerYo } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useConfiguracion } from '../api/consultas';
 import { toast } from 'sonner';
+import { borrarDatosGuardados } from '../offline/datos';
 
 type ContextoSesion = {
   usuario: Usuario | null;
@@ -25,7 +26,8 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   const salir = useCallback(() => {
     guardarSesion(null);
     setUsuario(null);
-    cliente.clear();
+    // Datos de salud: lo guardado para usar sin internet se borra al salir (la cola de pendientes no).
+    void borrarDatosGuardados(cliente);
   }, [cliente]);
 
   // Lo guardado puede estar viejo (otro admin le cambió el rol o lo desactivó).
@@ -68,6 +70,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       }
     };
     const revisar = () => {
+      // Sin internet no se cierra: no se podría volver a entrar y se perdería lo descargado para
+      // la jornada. Si el tiempo se cumplió, se cierra en cuanto vuelva la conexión.
+      if (!navigator.onLine) return;
       if (Date.now() - leer() > minutos * 60_000) {
         salir();
         toast.info(`Se cerró la sesión tras ${minutos} minutos sin actividad.`);
@@ -78,7 +83,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     const eventos = ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const;
     for (const e of eventos) window.addEventListener(e, marcar, { passive: true });
     const reloj = window.setInterval(revisar, 30_000);
+    window.addEventListener('online', revisar);
     return () => {
+      window.removeEventListener('online', revisar);
       for (const e of eventos) window.removeEventListener(e, marcar);
       window.clearInterval(reloj);
     };
@@ -87,7 +94,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   useEffect(() => {
     const alExpirar = () => {
       setUsuario(null);
-      cliente.clear();
+      void borrarDatosGuardados(cliente);
     };
     window.addEventListener(EVENTO_SESION_EXPIRADA, alExpirar);
     return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, alExpirar);

@@ -6,12 +6,13 @@ import { useFieldArray, useForm, useWatch, type Control, type UseFormRegister } 
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useConfigPA, useMedicamentos } from '../api/consultas';
-import { crearVisita } from '../api/recursos';
+import { crearVisita, type DatosVisita } from '../api/recursos';
+import { agregarPendiente, esFaltaDeConexion, nuevoId } from '../offline/cola';
 import type { ConfigPA, Medicamento, Paciente, Receta, Visita } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { alertasClinicas } from '../lib/alertas';
 import { opciones, TIPOS_VISITA } from '../lib/etiquetas';
-import { clasificar, cn, colorCumplimiento, DIA_MS } from '../lib/formato';
+import { clasificar, cn, colorCumplimiento, DIA_MS, nombreCompleto } from '../lib/formato';
 import { ListaAlertas, useUmbrales } from './Alertas';
 import { HistorialVisitas } from './HistorialVisitas';
 import { AreaTexto, Boton, Campo, Cargando, Casilla, comoNumero, Entrada, InsigniaCategoria, Selector, Tarjeta } from './ui';
@@ -169,7 +170,8 @@ type Props = {
   paciente: Paciente;
   /** En la jornada va en un modal: una sola columna, sin resumen lateral fijo. */
   enModal?: boolean;
-  alGuardar: (v: Visita) => void;
+  /** Sin visita cuando quedó guardada sin internet (se envía después). */
+  alGuardar: (v?: Visita) => void;
 };
 
 /** Los <select> precargados necesitan sus opciones al montarse, si no se quedan en "Elegir…". */
@@ -247,8 +249,9 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
     setError(null);
     const fecha = new Date(datos.visitDate);
     const dias = diasDe(datos);
-    try {
-      const v = await crearVisita({
+    const visita: DatosVisita = {
+        // Mismo id si se reenvía (sin internet o tras un corte): el servidor no la duplica.
+        clienteId: nuevoId(),
         patientId: paciente.id,
         doctorId: usuario!.id,
         visitDate: fecha.toISOString(),
@@ -268,13 +271,30 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
         notes: datos.notes || undefined,
         prescriptionText: datos.prescriptionText || undefined,
         prescriptions: datos.recetas.map((r) => ({ ...r, medicationId: Number(r.medicationId), daysUntilNextVisit: dias })),
+    };
+    // Sin internet: se guarda en el dispositivo y se envía sola al volver la conexión.
+    const guardarSinInternet = async () => {
+      await agregarPendiente({
+        id: visita.clienteId!,
+        tipo: 'visita',
+        ruta: '/visits',
+        metodo: 'POST',
+        cuerpo: visita,
+        resumen: { pacienteId: paciente.id, paciente: `${nombreCompleto(paciente)} · ${paciente.patientCode}`, detalle: `Visita del ${fecha.toLocaleDateString('es-DO')} · PA ${s ?? '—'}/${d ?? '—'}` },
       });
+      toast.success('Sin conexión: la visita quedó guardada en este dispositivo y se enviará sola al volver la señal.');
+      alGuardar();
+    };
+    if (!navigator.onLine) return guardarSinInternet();
+    try {
+      const v = await crearVisita(visita);
       for (const k of [['paciente', paciente.id], ['pacientes'], ['visitas'], ['stats'], ['jornada'], ['medicamentos']]) {
         cliente.invalidateQueries({ queryKey: k });
       }
       toast.success('Visita registrada');
       alGuardar(v);
     } catch (err) {
+      if (esFaltaDeConexion(err)) return guardarSinInternet();
       const m = err instanceof Error ? err.message : '';
       const sinStock = m.match(/^Insufficient stock for (.+)\. Required: (\d+), Available: (\d+)/);
       setError(

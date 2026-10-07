@@ -133,10 +133,12 @@ export type ResumenJornada = {
   atendidos: number;
   atendidosEsperados: number;
   faltan: number;
+  /** De los que faltan, cuántos se marcaron "No vino" */
+  noVinieron?: number;
   controlados: number;
   nuevos: number;
   entregadas?: { medicamento: string; pastillas: number }[];
-  faltantes?: { id: number; codigo: string; nombre: string }[];
+  faltantes?: { id: number; codigo: string; nombre: string; motivo?: MotivoInasistencia | null }[];
 };
 
 export type DetalleJornada = {
@@ -155,6 +157,7 @@ export type DetalleJornada = {
     birthDateIsEstimated: boolean;
     atendidoHoy: boolean;
     esperado: boolean;
+    noVino: MotivoInasistencia | null;
     ultimaVisita: string | null;
     presion: string | null;
     categoria: ConfigPA | null;
@@ -261,6 +264,7 @@ export type Paciente = {
   detalleBaja?: string | null;
   bajaRegistradaPor?: string | null;
   consentimientoDatos?: boolean;
+  inasistencias?: Inasistencia[];
   consentimientoFecha?: string | null;
   consentimientoRegistradoPor?: string | null;
 };
@@ -356,7 +360,11 @@ export type EstadisticasRonda = {
 };
 
 /** Paciente de la lista de jornada: trae solo su última visita. */
-export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[] };
+export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[]; inasistencias: Inasistencia[] };
+
+export type MotivoInasistencia = 'NO_ESTABA' | 'TRABAJANDO' | 'VIAJE' | 'ENFERMO' | 'NO_QUISO' | 'SE_MUDO' | 'OTRO';
+/** "No vino" a la jornada de ese día */
+export type Inasistencia = { id?: number; fecha: string; motivo: MotivoInasistencia; nota?: string | null; userName?: string | null };
 
 type Indicadores = {
   visitas: number;

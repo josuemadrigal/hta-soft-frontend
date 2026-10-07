@@ -1,14 +1,20 @@
-import { CalendarDays, CheckCircle2, ClipboardPlus, MapPin, Search, UserPlus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { CalendarDays, CheckCircle2, ClipboardPlus, CloudDownload, MapPin, Search, UserPlus, UserX } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useComunidades, useJornada, useJornadas } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
-import type { PacienteJornada } from '../api/tipos';
+import { marcarNoVino, quitarNoVino, type DatosNoVino } from '../api/recursos';
+import type { Inasistencia, MotivoInasistencia, PacienteJornada } from '../api/tipos';
+import { MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
+import { agregarPendiente, descartarPendiente, esFaltaDeConexion, nuevoId, usePendientes } from '../offline/cola';
+import { descargarJornada, jornadasDescargadas, useEnLinea } from '../offline/datos';
 import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tarjeta, Vacio } from '../components/ui';
 import { asistencia } from '../lib/asistencia';
-import { cn, edadTexto, fecha, nombreCompleto, tensionDe } from '../lib/formato';
+import { cn, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
 
-type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo';
+type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino';
 
 /** Asistencia (lib/asistencia.ts): "Pendiente" aún no viene en esta ronda; "No asiste desde…" lleva más de 6 meses sin venir. */
 const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> = {
@@ -17,11 +23,13 @@ const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> 
   nuevo: { texto: 'Sin visitas', color: '#6b665e', orden: 2 },
   hoy: { texto: 'Visto hoy', color: '#15803d', orden: 3 },
   ronda: { texto: 'Visto en la ronda', color: '#7a5c00', orden: 4 },
+  noVino: { texto: 'No vino', color: '#6b665e', orden: 5 },
 };
 
 const FILTROS = [
   { valor: 'pendientes', texto: 'Por ver' },
   { valor: 'hoy', texto: 'Vistos hoy' },
+  { valor: 'novino', texto: 'No vinieron' },
   { valor: 'todos', texto: 'Todos' },
 ] as const;
 
@@ -30,8 +38,13 @@ function inicioRonda() {
   return new Date(h.getFullYear(), Math.floor(h.getMonth() / 3) * 3, 1);
 }
 
-function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date): Estado {
+/** Pendientes en este dispositivo (sin enviar): visitas y "No vino" de hoy. */
+type Locales = { visitas: Set<number>; noVino: Map<number, MotivoInasistencia> };
+
+function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales): Estado {
+  if (locales.visitas.has(p.id)) return 'hoy';
   const u = p.clinicalVisits[0];
+  if (!(u && new Date(u.visitDate) >= hoy) && (locales.noVino.has(p.id) || p.inasistencias?.some((i) => i.fecha.slice(0, 10) === hoyYmd()))) return 'noVino';
   if (!u) return 'nuevo';
   const visita = new Date(u.visitDate);
   if (visita >= hoy) return 'hoy';
@@ -54,18 +67,89 @@ export function Jornada() {
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
   const planHoy = hoyPlan.data?.find((j) => j.communityId === comunidadId);
 
+  // Lo registrado en este dispositivo que aún no se envía (sin internet)
+  const pendientes = usePendientes();
+  const enLinea = useEnLinea();
+  const locales = useMemo<Locales>(() => {
+    const visitas = new Set<number>();
+    const noVino = new Map<number, MotivoInasistencia>();
+    for (const x of pendientes) {
+      if (x.tipo === 'visita') visitas.add(x.resumen.pacienteId);
+      if (x.tipo === 'no-vino') noVino.set(x.resumen.pacienteId, (x.cuerpo as DatosNoVino).motivo);
+    }
+    return { visitas, noVino };
+  }, [pendientes]);
+  const cliente = useQueryClient();
+
+  /** Cambia la marca de "No vino" en la lista guardada (se ve al instante, también sin internet). */
+  const ajustarLista = (pacienteId: number, marca: Inasistencia | null) =>
+    cliente.setQueryData<PacienteJornada[]>(['jornada', comunidadId], (l) =>
+      l?.map((p) => (p.id === pacienteId ? { ...p, inasistencias: marca ? [marca] : (p.inasistencias ?? []).filter((i) => i.fecha.slice(0, 10) !== hoyYmd()) } : p)),
+    );
+
+  const marcarNoVinoEn = async (p: PacienteJornada, motivo: MotivoInasistencia) => {
+    const datos: DatosNoVino = { fecha: hoyYmd(), motivo, clienteId: nuevoId() };
+    ajustarLista(p.id, { fecha: datos.fecha, motivo });
+    const enCola = () =>
+      agregarPendiente({
+        id: datos.clienteId!,
+        tipo: 'no-vino',
+        ruta: `/patients/${p.id}/no-vino`,
+        metodo: 'POST',
+        cuerpo: datos,
+        resumen: { pacienteId: p.id, paciente: `${nombreCompleto(p)} · ${p.patientCode}`, detalle: `No vino (${MOTIVOS_INASISTENCIA[motivo].toLowerCase()}) el ${fecha(`${datos.fecha}T12:00:00`)}` },
+      });
+    try {
+      if (!navigator.onLine) await enCola();
+      else await marcarNoVino(p.id, datos);
+      toast.success(`${nombreCompleto(p)}: no vino (${MOTIVOS_INASISTENCIA[motivo].toLowerCase()})`, {
+        action: { label: 'Deshacer', onClick: () => void deshacerNoVino(p) },
+      });
+    } catch (e) {
+      if (esFaltaDeConexion(e)) {
+        await enCola();
+        toast.success(`${nombreCompleto(p)}: no vino. Se enviará al volver la señal.`);
+      } else {
+        ajustarLista(p.id, null);
+        toast.error(e instanceof Error ? e.message : 'No se pudo marcar');
+      }
+    }
+  };
+
+  const deshacerNoVino = async (p: PacienteJornada) => {
+    ajustarLista(p.id, null);
+    // Si todavía no se había enviado, basta con sacarlo de la cola.
+    const enCola = pendientes.find((x) => x.tipo === 'no-vino' && x.resumen.pacienteId === p.id);
+    if (enCola) return descartarPendiente(enCola.id);
+    const quitar = () =>
+      agregarPendiente({
+        id: nuevoId(),
+        tipo: 'quitar-no-vino',
+        ruta: `/patients/${p.id}/no-vino/${hoyYmd()}`,
+        metodo: 'DELETE',
+        resumen: { pacienteId: p.id, paciente: `${nombreCompleto(p)} · ${p.patientCode}`, detalle: 'Quitar "No vino" de hoy' },
+      });
+    try {
+      if (!navigator.onLine) await quitar();
+      else await quitarNoVino(p.id, hoyYmd());
+    } catch (e) {
+      if (esFaltaDeConexion(e)) await quitar();
+      else toast.error(e instanceof Error ? e.message : 'No se pudo deshacer');
+    }
+  };
+
   const filas = useMemo(() => {
     const ronda = inicioRonda();
     const hoy = new Date(new Date().setHours(0, 0, 0, 0));
     return (lista.data ?? [])
-      .map((p) => ({ p, estado: estadoDe(p, ronda, hoy) }))
+      .map((p) => ({ p, estado: estadoDe(p, ronda, hoy, locales) }))
       // Dentro de cada estado, la visita más reciente primero (los que faltan desde hace poco se recuperan más fácil).
       .sort(
         (a, b) =>
           ESTADOS[a.estado].orden - ESTADOS[b.estado].orden ||
           new Date(b.p.clinicalVisits[0]?.visitDate ?? 0).getTime() - new Date(a.p.clinicalVisits[0]?.visitDate ?? 0).getTime(),
       );
-  }, [lista.data]);
+  }, [lista.data, locales]);
 
   // Médicos que figuran como último en atender a alguien de este batey
   const medicosDelBatey = [
@@ -79,12 +163,14 @@ export function Jornada() {
 
   const vistos = filas.filter((f) => f.estado === 'hoy' || f.estado === 'ronda').length;
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
+  const noVinieron = filas.filter((f) => f.estado === 'noVino').length;
   const q = busqueda.trim().toLowerCase();
   const visibles = filas.filter(({ p, estado }) => {
     if (medico && p.lastDoctorId !== medico) return false;
     if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
-    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda';
+    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino';
     if (filtro === 'hoy') return estado === 'hoy';
+    if (filtro === 'novino') return estado === 'noVino';
     return true;
   });
 
@@ -140,7 +226,9 @@ export function Jornada() {
               <span className="font-medium">
                 {vistos} de {filas.length} vistos en la ronda
               </span>
-              <span className="text-tenue">{vistosHoy} hoy</span>
+              <span className="text-tenue">
+                {vistosHoy} hoy{noVinieron > 0 && ` · ${noVinieron} no vinieron`}
+              </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-black/[0.06]">
               <div className="h-full rounded-full bg-marca-500 transition-all" style={{ width: `${filas.length ? (vistos / filas.length) * 100 : 0}%` }} />
@@ -148,6 +236,8 @@ export function Jornada() {
           </div>
         )}
       </div>
+
+      {comunidadId && <DescargarBatey comunidadId={comunidadId} total={lista.data?.length} enLinea={enLinea} />}
 
       {!comunidadId ? (
         <Tarjeta>
@@ -222,9 +312,32 @@ export function Jornada() {
                         '—'
                       )}
                     </div>
-                    <Insignia color={estado === 'sinVenir' && asistencia(u?.visitDate).masDeUnAno ? '#6b665e' : e.color} className="ml-13 justify-center sm:ml-0 sm:w-40">
-                      {estado === 'sinVenir' && u ? asistencia(u.visitDate).texto : e.texto}
+                    <Insignia
+                      color={locales.visitas.has(p.id) ? '#a16207' : estado === 'sinVenir' && asistencia(u?.visitDate).masDeUnAno ? '#6b665e' : e.color}
+                      className="ml-13 justify-center sm:ml-0 sm:w-40"
+                    >
+                      {locales.visitas.has(p.id)
+                        ? 'Registrada · sin enviar'
+                        : estado === 'noVino'
+                          ? `No vino · ${MOTIVOS_INASISTENCIA[locales.noVino.get(p.id) ?? p.inasistencias?.find((i) => i.fecha.slice(0, 10) === hoyYmd())?.motivo ?? 'NO_ESTABA'].toLowerCase()}`
+                          : estado === 'sinVenir' && u
+                            ? asistencia(u.visitDate).texto
+                            : e.texto}
                     </Insignia>
+                    {estado === 'noVino' ? (
+                      <Boton
+                        variante="fantasma"
+                        className="h-8 px-2 text-xs"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          void deshacerNoVino(p);
+                        }}
+                      >
+                        Deshacer
+                      </Boton>
+                    ) : (
+                      estado !== 'hoy' && estado !== 'ronda' && <MenuNoVino alElegir={(m) => void marcarNoVinoEn(p, m)} />
+                    )}
                     <Boton
                       variante={estado === 'hoy' ? 'secundario' : 'primario'}
                       className="ml-auto h-8 sm:ml-0"
@@ -245,5 +358,82 @@ export function Jornada() {
       )}
 
     </>
+  );
+}
+
+/** Botón "No vino" con el motivo (menú pequeño, no un formulario: es un toque en la jornada). */
+function MenuNoVino({ alElegir }: { alElegir: (m: MotivoInasistencia) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const cerrar = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
+    document.addEventListener('mousedown', cerrar);
+    return () => document.removeEventListener('mousedown', cerrar);
+  }, [abierto]);
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <Boton variante="secundario" className="h-8 px-3 text-xs" icono={<UserX className="size-3.5" />} onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
+        No vino
+      </Boton>
+      {abierto && (
+        <ul className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-borde bg-superficie py-1 text-sm shadow-lg">
+          <li className="px-3 py-1.5 text-xs text-tenue">¿Por qué no vino?</li>
+          {(Object.keys(MOTIVOS_INASISTENCIA) as MotivoInasistencia[]).map((m) => (
+            <li key={m}>
+              <button
+                className="w-full px-3 py-2 text-left hover:bg-fondo"
+                onClick={() => {
+                  setAbierto(false);
+                  alElegir(m);
+                }}
+              >
+                {MOTIVOS_INASISTENCIA[m]}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Deja el batey en el dispositivo para trabajar sin internet (lista, fichas y catálogos). */
+function DescargarBatey({ comunidadId, total, enLinea }: { comunidadId: number; total?: number; enLinea: boolean }) {
+  const cliente = useQueryClient();
+  const [avance, setAvance] = useState<{ hechos: number; total: number } | null>(null);
+  const [cuando, setCuando] = useState(() => jornadasDescargadas()[comunidadId] ?? null);
+  useEffect(() => setCuando(jornadasDescargadas()[comunidadId] ?? null), [comunidadId]);
+  const descargar = async () => {
+    try {
+      const n = await descargarJornada(cliente, comunidadId, (hechos, t) => setAvance({ hechos, total: t }));
+      setCuando(new Date().toISOString());
+      toast.success(`Listo: ${n} pacientes disponibles sin internet en este dispositivo.`);
+    } catch (e) {
+      toast.error(`No se pudo descargar: ${e instanceof Error ? e.message : 'error'}`);
+    } finally {
+      setAvance(null);
+    }
+  };
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-4 py-3 text-sm">
+      <CloudDownload className="size-4 shrink-0 text-tenue" />
+      <span className="flex-1 text-tenue">
+        {avance ? (
+          <>
+            Descargando fichas… <strong className="text-tinta">{avance.hechos}</strong> de {avance.total}
+          </>
+        ) : cuando ? (
+          <>
+            Disponible sin internet · descargado el <strong className="text-tinta">{fechaYHora(cuando)}</strong>
+          </>
+        ) : (
+          <>Para trabajar sin señal en el batey, descárgalo antes de salir{total ? ` (${total} pacientes)` : ''}.</>
+        )}
+      </span>
+      <Boton variante="secundario" className="h-8 text-xs" cargando={!!avance} disabled={!enLinea} onClick={() => void descargar()}>
+        {cuando ? 'Actualizar' : 'Descargar para usar sin internet'}
+      </Boton>
+    </div>
   );
 }

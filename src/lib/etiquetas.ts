@@ -1,5 +1,6 @@
 import type {
   MotivoBaja,
+  MotivoInasistencia,
   CategoriaPA,
   ConfigPA,
   ConsumoAlcohol,
@@ -50,3 +51,13 @@ export function colorCategoria(c: Pick<ConfigPA, 'categoryName' | 'colorHex'> | 
 
 export const opciones = <K extends string>(mapa: Record<K, string>) =>
   (Object.entries(mapa) as [K, string][]).map(([value, label]) => ({ value, label }));
+
+export const MOTIVOS_INASISTENCIA: Record<MotivoInasistencia, string> = {
+  NO_ESTABA: 'No estaba en casa',
+  TRABAJANDO: 'Estaba trabajando',
+  VIAJE: 'De viaje',
+  ENFERMO: 'Enfermo u hospitalizado',
+  NO_QUISO: 'No quiso venir',
+  SE_MUDO: 'Se mudó',
+  OTRO: 'Otro motivo',
+};

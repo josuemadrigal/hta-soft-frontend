@@ -22,7 +22,11 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { CloudOff, RefreshCw } from 'lucide-react';
+import { useConfirmar } from './confirmar';
+import { useEstadoSincronizacion, usePendientes } from '../offline/cola';
+import { useEnLinea } from '../offline/datos';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useSesion } from '../auth/sesion';
 import { cn, nombreCompleto } from '../lib/formato';
 import { Avatar } from './ui';
@@ -66,6 +70,22 @@ const SECCIONES: { titulo: string; enlaces: Enlace[] }[] = [
 
 function Navegacion({ alNavegar }: { alNavegar?: () => void }) {
   const { usuario, tiene, salir } = useSesion();
+  const pendientes = usePendientes();
+  const confirmar = useConfirmar();
+  // Cerrar sesión borra lo descargado, pero no lo registrado sin internet (se envía al volver a entrar).
+  const pedirSalir = async () => {
+    if (
+      pendientes.length &&
+      !(await confirmar({
+        titulo: 'Hay registros sin enviar',
+        mensaje: `${pendientes.length} ${pendientes.length === 1 ? 'registro hecho' : 'registros hechos'} sin internet todavía no ${pendientes.length === 1 ? 'se ha enviado' : 'se han enviado'}. Quedan guardados en este dispositivo y se enviarán cuando alguien vuelva a entrar con conexión.`,
+        confirmar: 'Cerrar sesión',
+        peligro: false,
+      }))
+    )
+      return;
+    salir();
+  };
   return (
     <div className="flex h-full flex-col">
       <div className="px-5 pt-5 pb-4">
@@ -116,7 +136,7 @@ function Navegacion({ alNavegar }: { alNavegar?: () => void }) {
             <p className="truncate text-sm font-medium">{nombreCompleto(usuario)}</p>
             <p className="truncate text-xs text-tenue">{usuario.role?.name}</p>
           </div>
-          <button onClick={salir} className="rounded-md p-2 text-tenue hover:bg-black/5 hover:text-tinta" title="Cerrar sesión" aria-label="Cerrar sesión">
+          <button onClick={() => void pedirSalir()} className="rounded-md p-2 text-tenue hover:bg-black/5 hover:text-tinta" title="Cerrar sesión" aria-label="Cerrar sesión">
             <LogOut className="size-4" />
           </button>
         </div>
@@ -157,8 +177,36 @@ export function Layout() {
       )}
 
       <main key={pathname} className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-9 print:max-w-none print:p-0">
+        <AvisoConexion />
         <Outlet />
       </main>
     </div>
+  );
+}
+
+/** Barra de conexión: sin internet, o con registros esperando a enviarse. */
+function AvisoConexion() {
+  const enLinea = useEnLinea();
+  const pendientes = usePendientes();
+  const estado = useEstadoSincronizacion();
+  const conError = pendientes.filter((p) => p.error).length;
+  if (enLinea && !pendientes.length) return null;
+  return (
+    <Link
+      to="/sincronizacion"
+      className={cn(
+        'mb-4 flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm print:hidden',
+        !enLinea ? 'border-amber-300 bg-marca-50' : conError ? 'border-red-200 bg-red-50 text-red-800' : 'border-borde bg-superficie',
+      )}
+    >
+      {enLinea ? <RefreshCw className={cn('size-4 shrink-0', estado.sincronizando && 'animate-spin')} /> : <CloudOff className="size-4 shrink-0" />}
+      <span className="flex-1">
+        {!enLinea ? <strong>Sin conexión.</strong> : estado.sincronizando ? 'Enviando lo registrado sin internet…' : null}{' '}
+        {pendientes.length > 0
+          ? `${pendientes.length} ${pendientes.length === 1 ? 'registro guardado' : 'registros guardados'} en este dispositivo${conError ? `, ${conError} con error` : ''}.`
+          : 'Puedes seguir registrando en los bateyes descargados: se enviará solo al volver la señal.'}
+      </span>
+      <span className="text-xs font-medium underline">Ver</span>
+    </Link>
   );
 }
