@@ -29,7 +29,7 @@ const cliente = new QueryClient({
 
 // Lo registrado sin internet se envía solo; al terminar se refresca lo que cambió.
 alTerminarSincronizacion(() => {
-  for (const k of ['jornada', 'paciente', 'pacientes', 'visitas', 'stats', 'medicamentos', 'jornadas']) void cliente.invalidateQueries({ queryKey: [k] });
+  for (const k of ['jornada', 'paciente', 'pacientes', 'visitas', 'stats', 'medicamentos', 'jornadas', 'entregas']) void cliente.invalidateQueries({ queryKey: [k] });
 });
 iniciarSincronizacion();
 

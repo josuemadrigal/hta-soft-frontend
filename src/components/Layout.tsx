@@ -13,6 +13,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  PackageCheck,
   Pill,
   Settings,
   Stethoscope,
@@ -40,6 +41,7 @@ const SECCIONES: { titulo: string; enlaces: Enlace[] }[] = [
       { a: '/', texto: 'Panel', icono: LayoutDashboard },
       { a: '/jornadas', texto: 'Jornadas', icono: CalendarDays, permiso: 'pacientes.ver' },
       { a: '/jornada', texto: 'Registro en jornada', icono: Tent, permiso: 'visitas.registrar' },
+      { a: '/entregas', texto: 'Entregas', icono: PackageCheck, permiso: 'entregas.registrar' },
       { a: '/pacientes', texto: 'Pacientes', icono: Users, permiso: 'pacientes.ver' },
       { a: '/visitas', texto: 'Visitas', icono: ClipboardList, permiso: 'pacientes.ver' },
       { a: '/medicamentos', texto: 'Inventario', icono: Pill },
@@ -131,11 +133,16 @@ function Navegacion({ alNavegar }: { alNavegar?: () => void }) {
 
       {usuario && (
         <div className="flex items-center gap-3 border-t border-borde px-4 py-4">
-          <Avatar persona={usuario} foto={usuario.photoUrl} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-sm font-medium">{nombreCompleto(usuario)}</p>
-            <p className="truncate text-xs text-tenue">{usuario.role?.name}</p>
-          </div>
+          <Link to="/cuenta" className="-m-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 hover:bg-black/5" title="Mi cuenta">
+            <span className="relative">
+              <Avatar persona={usuario} foto={usuario.photoUrl} />
+              {!usuario.emailVerificadoEn && <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full border-2 border-superficie bg-amber-500" title="Correo sin confirmar" />}
+            </span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-sm font-medium">{nombreCompleto(usuario)}</span>
+              <span className="block truncate text-xs text-tenue">{usuario.emailVerificadoEn ? usuario.role?.name : 'Confirma tu correo'}</span>
+            </span>
+          </Link>
           <button onClick={() => void pedirSalir()} className="rounded-md p-2 text-tenue hover:bg-black/5 hover:text-tinta" title="Cerrar sesión" aria-label="Cerrar sesión">
             <LogOut className="size-4" />
           </button>

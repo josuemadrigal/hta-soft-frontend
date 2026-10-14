@@ -8,14 +8,20 @@ export type Asistencia = 'visto' | 'le-toca' | 'sin-venir' | 'sin-visitas';
 
 const mesAnio = new Intl.DateTimeFormat('es-DO', { month: 'short', year: 'numeric' });
 
+/** El mismo día `n` meses antes; si ese mes es más corto, su último día (31 ago → 28 feb, no 3 mar). */
+export function mesesAntes(f: Date, n: number) {
+  const ultimo = new Date(f.getFullYear(), f.getMonth() - n + 1, 0).getDate();
+  return new Date(f.getFullYear(), f.getMonth() - n, Math.min(f.getDate(), ultimo));
+}
+
 export function asistencia(ultimaVisita: string | null | undefined, ahora = new Date()): { clave: Asistencia; texto: string; color?: string; masDeUnAno?: boolean } {
   if (!ultimaVisita) return { clave: 'sin-visitas', texto: 'Sin visitas' };
   const u = new Date(ultimaVisita);
   const inicioRonda = new Date(ahora.getFullYear(), Math.floor(ahora.getMonth() / 3) * 3, 1);
-  const corte = new Date(ahora.getFullYear(), ahora.getMonth() - MESES_SIN_VENIR, ahora.getDate());
+  const corte = mesesAntes(ahora, MESES_SIN_VENIR);
   if (u >= inicioRonda) return { clave: 'visto', texto: 'Visto en la ronda', color: '#15803d' };
   if (u >= corte) return { clave: 'le-toca', texto: 'Pendiente', color: '#a16207' };
-  const masDeUnAno = u < new Date(ahora.getFullYear() - 1, ahora.getMonth(), ahora.getDate());
+  const masDeUnAno = u < mesesAntes(ahora, 12);
   return { clave: 'sin-venir', texto: `No asiste desde ${mesAnio.format(u)}`, color: masDeUnAno ? '#6b665e' : '#9a3412', masDeUnAno };
 }
 

@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Camera, Check, KeyRound, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useCatalogoPermisos, useRoles, useUsuario, useUsuarios } from '../api/consultas';
-import { borrarUsuario, crearUsuario, editarUsuario, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
+import { borrarUsuario, crearUsuario, editarUsuario, reenviarConfirmacion, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
@@ -62,7 +62,10 @@ export function Usuarios() {
                       <p className="font-medium">
                         {nombreCompleto(u)} {u.id === yo?.id && <span className="text-xs font-normal text-tenue">(tú)</span>}
                       </p>
-                      <p className="text-xs text-tenue">{u.email}</p>
+                      <p className="text-xs text-tenue">
+                        {u.email}
+                        {!u.emailVerificadoEn && <span className="ml-1.5 text-amber-700">· sin confirmar</span>}
+                      </p>
                     </div>
                   </Link>
                 </td>
@@ -148,7 +151,9 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
       // Un cambio de nombre se propaga a sus visitas y pacientes: se refresca todo lo que lo muestra.
       for (const k of [['usuarios'], ['pacientes'], ['paciente'], ['visitas'], ['jornada'], ['medicos'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
       if (u.id === sesion.usuario?.id) sesion.actualizarUsuario(u);
-      toast.success(usuario ? 'Usuario actualizado' : 'Usuario creado');
+      const r = u as Usuario & { confirmacionEnviada?: boolean };
+      if (!usuario) toast.success(r.confirmacionEnviada ? `Usuario creado. Le enviamos un enlace a ${u.email} para confirmar su correo.` : 'Usuario creado. No se pudo enviar el correo de confirmación: reenvíalo desde su ficha.');
+      else toast.success(u.email !== usuario.email ? `Usuario actualizado. Le enviamos un enlace a ${u.email} para confirmar el correo nuevo.` : 'Usuario actualizado');
       navegar('/usuarios');
     },
     onError: (err) => toast.error(err.message === 'User with this email already exists' ? 'Ya existe un usuario con ese correo.' : err.message),
@@ -175,11 +180,11 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
 
           <Tarjeta titulo={usuario ? 'Cambiar contraseña' : 'Contraseña'}>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <Campo etiqueta={usuario ? 'Nueva contraseña' : 'Contraseña'} error={e.password && 'Mínimo 6 caracteres'} ayuda={usuario ? 'Déjala vacía para no cambiarla.' : 'Mínimo 6 caracteres.'}>
+              <Campo etiqueta={usuario ? 'Nueva contraseña' : 'Contraseña'} error={e.password && 'Entre 8 y 72 caracteres'} ayuda={usuario ? 'Déjala vacía para no cambiarla. Se cerrarán sus sesiones abiertas.' : 'Al menos 8 caracteres.'}>
                 <Entrada
                   type="password"
                   autoComplete="new-password"
-                  {...register('password', { required: !usuario, validate: (v) => !v || v.length >= 6 })}
+                  {...register('password', { required: !usuario, validate: (v) => !v || (v.length >= 8 && v.length <= 72) })}
                   aria-invalid={!!e.password}
                 />
               </Campo>
@@ -239,7 +244,10 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
 
         <aside className="lg:sticky lg:top-6 lg:self-start">
           {usuario ? (
-            <FotoUsuario usuario={usuario} />
+            <div className="space-y-4">
+              <FotoUsuario usuario={usuario} />
+              <CorreoUsuario usuario={usuario} />
+            </div>
           ) : (
             <Tarjeta titulo="Foto">
               <p className="p-5 text-sm text-tenue">Podrás subir la foto después de crear el usuario.</p>
@@ -248,6 +256,35 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
         </aside>
       </form>
     </>
+  );
+}
+
+function CorreoUsuario({ usuario }: { usuario: Usuario }) {
+  const reenviar = useMutation({
+    mutationFn: () => reenviarConfirmacion(usuario.id),
+    onSuccess: (r) => toast.success(r.simulado ? 'Enlace generado: el servidor no tiene correo configurado (está en la consola del backend).' : `Enlace enviado a ${r.email}.`),
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Tarjeta titulo="Correo">
+      <div className="space-y-3 p-5 text-sm">
+        {usuario.emailVerificadoEn ? (
+          <p className="flex items-center gap-2 text-green-800">
+            <MailCheck className="size-4" /> Confirmado el {fecha(usuario.emailVerificadoEn)}
+          </p>
+        ) : (
+          <>
+            <p className="flex items-center gap-2 text-amber-800">
+              <MailWarning className="size-4" /> Sin confirmar
+            </p>
+            <p className="text-tenue">Hasta que lo confirme no puede recibir los resúmenes de las jornadas.</p>
+            <Boton variante="secundario" icono={<Send className="size-4" />} cargando={reenviar.isPending} onClick={() => reenviar.mutate()}>
+              Reenviar enlace
+            </Boton>
+          </>
+        )}
+      </div>
+    </Tarjeta>
   );
 }
 

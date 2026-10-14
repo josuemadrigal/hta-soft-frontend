@@ -8,6 +8,7 @@ import { useComunidad, useComunidades } from '../api/consultas';
 import { crearComunidad, editarComunidad } from '../api/recursos';
 import type { Comunidad } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
+import { useConfirmar } from '../components/confirmar';
 import { SelectorUbicacion } from '../components/Mapa';
 import { Boton, Campo, Cargando, Casilla, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tabla, Tarjeta, Vacio } from '../components/ui';
 
@@ -95,8 +96,9 @@ function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
         latitud: ubicacion?.lat ?? null,
         longitud: ubicacion?.lng ?? null,
       };
+      const prefijo = d.abbreviation.trim().toUpperCase();
       return comunidad
-        ? editarComunidad(comunidad.id, base)
+        ? editarComunidad(comunidad.id, prefijo !== comunidad.abbreviation ? { ...base, abbreviation: prefijo } : base)
         : crearComunidad({ ...base, abbreviation: d.abbreviation.trim().toUpperCase(), sequenceCounter: Number(d.sequenceCounter) });
     },
     onSuccess: () => {
@@ -110,11 +112,29 @@ function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
   const e = formState.errors;
   const requerido = { required: true, validate: (v: unknown) => typeof v === 'string' && !!v.trim() };
   const [abrev, seq] = watch(['abbreviation', 'sequenceCounter']);
+  const confirmar = useConfirmar();
 
   return (
     <>
       <EncabezadoPagina titulo={comunidad ? comunidad.name : 'Nuevo batey'} volver={{ a: '/comunidades', texto: 'Bateyes' }} />
-      <form onSubmit={handleSubmit((d) => guardar.mutate(d))} className="max-w-2xl space-y-4">
+      <form
+        onSubmit={handleSubmit(async (d) => {
+          const prefijo = d.abbreviation.trim().toUpperCase();
+          if (
+            comunidad &&
+            prefijo !== comunidad.abbreviation &&
+            !(await confirmar({
+              titulo: `¿Cambiar el prefijo de ${comunidad.abbreviation} a ${prefijo}?`,
+              mensaje: `Los códigos que ya tienen los pacientes no cambian. Los pacientes nuevos de ${comunidad.name} recibirán códigos ${prefijo}, siguiendo la numeración que ya exista con ese prefijo. A un paciente con código de otro batey se le puede regenerar desde su ficha. El cambio queda en Auditoría.`,
+              confirmar: 'Cambiar prefijo',
+              peligro: false,
+            }))
+          )
+            return;
+          guardar.mutate(d);
+        })}
+        className="max-w-2xl space-y-4"
+      >
         <Tarjeta titulo="Batey">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <Campo etiqueta="Nombre" error={e.name && 'Requerido'} className="sm:col-span-2">
@@ -129,13 +149,12 @@ function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
             <Campo
               etiqueta="Prefijo de códigos"
               error={e.abbreviation && 'De 2 a 6 letras o números'}
-              ayuda={comunidad ? 'No se cambia: ya hay códigos emitidos con este prefijo.' : 'Ej.: MG para Magdalena'}
+              ayuda={comunidad ? 'Si lo cambias, los códigos ya emitidos se quedan como están; los nuevos usarán este prefijo.' : 'Ej.: MG para Magdalena'}
             >
               <Entrada
                 className="uppercase"
                 maxLength={6}
-                disabled={!!comunidad}
-                {...register('abbreviation', { required: !comunidad, pattern: comunidad ? undefined : /^[A-Za-z0-9]{2,6}$/ })}
+                {...register('abbreviation', { required: true, pattern: /^[A-Za-z0-9]{2,6}$/ })}
                 aria-invalid={!!e.abbreviation}
               />
             </Campo>

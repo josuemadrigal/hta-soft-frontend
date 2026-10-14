@@ -225,6 +225,9 @@ function Informe({ r }: { r: ReporteDonantes }) {
               <tr className="border-b border-borde text-left text-xs text-tenue">
                 <th className="px-5 py-2 font-medium">Batey</th>
                 <th className="px-3 py-2 text-right font-medium">Pacientes</th>
+                <th className="px-3 py-2 text-right font-medium">Hombres</th>
+                <th className="px-3 py-2 text-right font-medium">Mujeres</th>
+                <th className="px-3 py-2 text-right font-medium whitespace-nowrap" title="Edad promedio, en años">Edad prom.</th>
                 <th className="px-3 py-2 text-right font-medium">Controlados</th>
                 {r.medicamentosNombres.map((m) => (
                   <th key={m} className="px-3 py-2 text-right font-medium whitespace-nowrap" title={m}>
@@ -239,6 +242,9 @@ function Informe({ r }: { r: ReporteDonantes }) {
                 <tr key={b.batey} className="border-b border-borde last:border-0">
                   <td className="px-5 py-1.5 whitespace-nowrap">{b.batey}</td>
                   <td className="px-3 py-1.5 text-right">{miles(b.pacientes)}</td>
+                  <td className="px-3 py-1.5 text-right">{miles(b.hombres)}</td>
+                  <td className="px-3 py-1.5 text-right">{miles(b.mujeres)}</td>
+                  <td className="px-3 py-1.5 text-right">{b.edadPromedio ?? '—'}</td>
                   <td className="px-3 py-1.5 text-right">{formatoIndicador('pct', b.controladosPct)}</td>
                   {r.medicamentosNombres.map((m) => (
                     <td key={m} className="px-3 py-1.5 text-right">

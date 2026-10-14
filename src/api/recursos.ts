@@ -42,6 +42,19 @@ import type {
   ComparacionMedicos,
   Rol,
   Usuario,
+  DestinatarioResumen,
+  ResultadoCorreo,
+  Entrega,
+  EntregasDelPaciente,
+  MotivoReposicion,
+  PacienteConPendientes,
+  PendienteAlGuardar,
+  RecibioEntrega,
+  Parentesco,
+  MotivoDevolucion,
+  DestinoDevolucion,
+  PreparacionJornada,
+  ReporteEntregas,
   Visita,
   VisitaReciente,
 } from './tipos';
@@ -57,6 +70,11 @@ export function query(params: Record<string, string | number | undefined>) {
 export const iniciarSesion = (email: string, password: string) =>
   enviar<Sesion>('/auth/login', 'POST', { email, password });
 export const obtenerYo = () => api<Usuario>('/auth/me');
+/** Devuelve tokens nuevos: las demás sesiones de la cuenta se cierran. */
+export const cambiarContrasena = (actual: string, nueva: string) => enviar<Sesion>('/auth/contrasena', 'PATCH', { actual, nueva });
+export const pedirConfirmacionCorreo = () => enviar<ResultadoCorreo>('/auth/correo/confirmacion', 'POST');
+export const confirmarCorreo = (token: string) => enviar<{ email: string }>('/auth/correo/confirmar', 'POST', { token });
+export const reenviarConfirmacion = (userId: number) => enviar<ResultadoCorreo>(`/users/${userId}/confirmacion-correo`, 'POST');
 
 /* Pacientes */
 export type FiltroPacientes = {
@@ -124,6 +142,8 @@ export type DatosVisita = {
   prescriptionText?: string;
   nextVisitDate?: string;
   prescriptions?: Omit<DatosReceta, 'visitId'>[];
+  /** Entregar los medicamentos al guardar (si no, quedan para la mesa de farmacia). */
+  entregar?: boolean;
 };
 export type FiltroVisitas = {
   page: number;
@@ -140,7 +160,7 @@ export type Atendio = { id: number; firstName: string; lastName: string };
 
 export const listarVisitas = (f: FiltroVisitas) => api<Paginado<Visita>>(`/visits${query({ limit: 20, ...f })}`);
 export const listarQuienesAtienden = () => api<Atendio[]>('/visits/doctors');
-export const crearVisita = (d: DatosVisita) => enviar<Visita>('/visits', 'POST', d);
+export const crearVisita = (d: DatosVisita) => enviar<Visita & { entregada?: boolean; pendientes?: PendienteAlGuardar[] }>('/visits', 'POST', d);
 export const obtenerVisita = (id: number) => api<(Visita & { patient: Paciente }) | null>(`/visits/${id}`);
 /** null borra el valor (p. ej. quitar una toma automática mal anotada). */
 export type CambiosVisita = { [K in keyof Omit<DatosVisita, 'patientId' | 'prescriptions'>]?: DatosVisita[K] | null };
@@ -156,6 +176,10 @@ export type Configuracion = {
   alertaVisitasCumplimiento: number;
   alertaVisitasSinControl: number;
   sesionMinutosInactividad: number;
+  /** 1 = entregar al guardar la visita; 0 = dejar para la mesa de farmacia. */
+  entregaInmediata: number;
+  /** Reposición sin consulta: hasta estos meses desde la última visita. */
+  reposicionMesesMaximo: number;
 };
 export const leerConfiguracion = () => api<Configuracion>('/settings');
 export const guardarConfiguracion = (d: Partial<Configuracion>) => enviar<Configuracion>('/settings', 'PATCH', d);
@@ -189,6 +213,9 @@ export const crearJornada = (d: DatosJornada) => enviar<Jornada>('/jornadas', 'P
 export const editarJornada = (id: number, d: Partial<DatosJornada>) => enviar<Jornada>(`/jornadas/${id}`, 'PATCH', d);
 export const cancelarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cancelar`, 'POST');
 export const cerrarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cerrar`, 'POST');
+export const destinatariosResumen = () => api<{ correoConfigurado: boolean; usuarios: DestinatarioResumen[] }>('/jornadas/destinatarios');
+export type DatosResumen = { destinatarios: number[]; nombres: boolean; nota?: string };
+export const enviarResumenJornada = (id: number, d: DatosResumen) => enviar<ResultadoCorreo>(`/jornadas/${id}/enviar-resumen`, 'POST', d);
 export const borrarMedicamento = (id: number) => enviar<Medicamento>(`/medication/${id}`, 'DELETE');
 
 export const listarConfigPA = () => api<ConfigPA[]>('/blood-pressure-config');
@@ -261,6 +288,7 @@ export const reabrirCaso = (id: number) => enviar<unknown>(`/revision/decisiones
 /* Bajas */
 export const darDeBaja = (id: number, d: { motivo: MotivoBaja; fecha: string; detalle?: string }) => enviar<Paciente>(`/patients/${id}/baja`, 'POST', d);
 export const reactivarPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/reactivar`, 'POST');
+export const regenerarCodigoPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/regenerar-codigo`, 'POST');
 
 /* Metas, donantes, mapa */
 export const metasAnio = (anio: number) => api<MetasAnio>(`/metas/${anio}`);
@@ -274,6 +302,37 @@ export const guardarTextoDonantes = (anio: number, trimestre: number | null, tex
 export const indicadoresBateyes = () => api<IndicadorBatey[]>('/reports/bateyes');
 
 /* No vino */
-export type DatosNoVino = { fecha: string; motivo: MotivoInasistencia; nota?: string; clienteId?: string };
+export type DatosNoVino = {
+  fecha: string;
+  motivo: MotivoInasistencia;
+  nota?: string;
+  clienteId?: string;
+  /** No estaba, pero se le dejó el tratamiento con alguien */
+  tratamiento?: { recibioNombre?: string; recibioParentesco: Parentesco; items: { medicationId: number; cantidad: number }[]; nota?: string };
+};
 export const marcarNoVino = (id: number, d: DatosNoVino) => enviar<unknown>(`/patients/${id}/no-vino`, 'POST', d);
 export const quitarNoVino = (id: number, fecha: string) => enviar<unknown>(`/patients/${id}/no-vino/${fecha}`, 'DELETE');
+
+/* Entregas de medicamentos */
+export type DatosEntrega = {
+  clienteId?: string;
+  patientId: number;
+  recibio?: RecibioEntrega;
+  recibioNombre?: string;
+  nota?: string;
+};
+export const pendientesDeEntrega = (communityId?: number) =>
+  api<{ pacientes: PacienteConPendientes[]; existencia: Record<number, number> }>(`/entregas/pendientes${query({ communityId })}`);
+export const conteoPendientesEntrega = () => api<{ pacientes: number; pastillas: number }>('/entregas/pendientes/conteo');
+export const entregasDeHoy = (communityId?: number) => api<Entrega[]>(`/entregas/hoy${query({ communityId })}`);
+export const entregasDelPaciente = (id: number) => api<EntregasDelPaciente>(`/entregas/paciente/${id}`);
+export const entregarPendientes = (d: DatosEntrega & { items: { prescriptionId: number; cantidad: number }[] }) => enviar<Entrega>('/entregas', 'POST', d);
+export const registrarReposicion = (d: DatosEntrega & { motivo: MotivoReposicion; items: { medicationId: number; cantidad: number }[] }) =>
+  enviar<Entrega>('/entregas/reposicion', 'POST', d);
+export const obtenerEntrega = (id: number) => api<Entrega & { patient: PacienteConPendientes['paciente'] }>(`/entregas/${id}`);
+export type DatosDevolucion = { items: { entregaItemId: number; cantidad: number }[]; motivo: MotivoDevolucion; destino: DestinoDevolucion; nota?: string };
+export const devolverEntrega = (id: number, d: DatosDevolucion) => enviar<Entrega>(`/entregas/${id}/devolucion`, 'POST', d);
+export const reporteEntregas = (f: { desde?: string; hasta?: string; communityId?: number }) => api<ReporteEntregas>(`/entregas/reporte${query(f)}`);
+export const preparacionJornada = (id: number) => api<PreparacionJornada>(`/jornadas/${id}/preparacion`);
+export type SinConsulta = { paciente: { id: number; patientCode: string; firstName: string; lastName: string; batey: string }; rondas: number; ultimaConsulta: string | null; ultimaEntrega: string; con: string | null };
+export const pacientesSinConsulta = () => api<SinConsulta[]>('/entregas/sin-consulta');

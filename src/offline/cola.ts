@@ -3,14 +3,14 @@ import { useSyncExternalStore } from 'react';
 import { enviar, ErrorApi } from '../api/client';
 
 /**
- * Cola de lo que se registró sin internet (visitas, "No vino"). Vive en IndexedDB: sobrevive a
+ * Cola de lo que se registró sin internet (visitas, "No vino", entregas y reposiciones). Vive en IndexedDB: sobrevive a
  * cerrar la pestaña o apagar la tablet, y se envía sola cuando vuelve la conexión.
  *
  * Cada registro lleva un clienteId generado aquí: si el envío se corta a mitad y se repite, el
  * servidor reconoce el id y no duplica la visita ni descuenta dos veces el inventario.
  */
 
-export type TipoPendiente = 'visita' | 'no-vino' | 'quitar-no-vino';
+export type TipoPendiente = 'visita' | 'no-vino' | 'quitar-no-vino' | 'entrega' | 'reposicion';
 
 export type Pendiente = {
   id: string;

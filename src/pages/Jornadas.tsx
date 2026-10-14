@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, MapPin, Package, Pencil, Tent, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, Mail, MapPin, Package, Pencil, Printer, Tent, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -8,7 +8,7 @@ import { useComunidades, useDetalleJornada, useJornadas, useResponsables, useSug
 import { cancelarJornada, cerrarJornada, crearJornada, editarJornada } from '../api/recursos';
 import type { DetalleJornada, EstadoJornada, Jornada } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
-import { MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
+import { conQuien, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
 import { useConfirmar } from '../components/confirmar';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
@@ -404,7 +404,18 @@ function Detalle({ d }: { d: DetalleJornada }) {
         }
         volver={{ a: '/jornadas', texto: 'Jornadas' }}
         acciones={
-          planificada && (
+          <>
+            {j.estado !== 'CANCELADA' && tiene('visitas.registrar') && (
+              <Boton variante="secundario" icono={<Mail className="size-4" />} onClick={() => navegar(`/jornadas/${j.id}/enviar-resumen`)}>
+                Enviar resumen
+              </Boton>
+            )}
+            {planificada && tiene('entregas.registrar') && (
+              <Boton variante="secundario" icono={<Printer className="size-4" />} onClick={() => navegar(`/jornadas/${j.id}/preparacion`)}>
+                Hoja de preparación
+              </Boton>
+            )}
+            {planificada && (
             <>
               {tiene('jornadas.planificar') && (
                 <>
@@ -427,7 +438,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
                 </>
               )}
             </>
-          )
+            )}
+          </>
         }
       />
 
@@ -583,7 +595,10 @@ function Detalle({ d }: { d: DetalleJornada }) {
                     {p.atendidoHoy ? (
                       <Insignia color="#15803d">Atendido</Insignia>
                     ) : p.noVino ? (
-                      <Insignia color="#6b665e">No vino · {MOTIVOS_INASISTENCIA[p.noVino].toLowerCase()}</Insignia>
+                      <Insignia color="#6b665e">
+                        No vino · {MOTIVOS_INASISTENCIA[p.noVino].toLowerCase()}
+                        {p.tratamientoDejado && ` · tratamiento dejado con ${conQuien(p.tratamientoDejado.con, p.tratamientoDejado.parentesco)}`}
+                      </Insignia>
                     ) : (
                       <Insignia color={planificada ? '#b45309' : '#6b665e'}>{planificada ? 'Por ver' : 'No vino'}</Insignia>
                     )}

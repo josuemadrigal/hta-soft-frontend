@@ -58,16 +58,17 @@ export function tensionDe(v: Pick<Visita, 'systolicManual' | 'systolicAuto' | 'd
 
 /** Réplica de BloodPressureConfigService.classify para anticipar la categoría en el formulario. */
 export function clasificar(configs: ConfigPA[], sistolica: number, diastolica: number) {
-  let coincide = configs.filter(
-    (c) =>
-      (sistolica >= c.systolicMin && sistolica <= c.systolicMax) ||
-      (diastolica >= c.diastolicMin && diastolica <= c.diastolicMax),
+  // Cada cifra por separado (como el backend); gana la categoría más grave de las dos.
+  const de = (v: number, min: 'systolicMin' | 'diastolicMin', max: 'systolicMax' | 'diastolicMax') => {
+    const dentro = configs.filter((c) => v >= c[min] && v <= c[max]);
+    // Por encima de todos los rangos: las categorías ya superadas.
+    return dentro.length ? dentro : configs.filter((c) => v >= c[min]);
+  };
+  return [...de(sistolica, 'systolicMin', 'systolicMax'), ...de(diastolica, 'diastolicMin', 'diastolicMax')].reduce<ConfigPA | null>(
+    (a, c) => (!a || c.priority > a.priority ? c : a),
+    null,
   );
-  // Por encima de todos los rangos: la categoría más alta ya superada.
-  if (!coincide.length) coincide = configs.filter((c) => sistolica >= c.systolicMin || diastolica >= c.diastolicMin);
-  return coincide.reduce<ConfigPA | null>((a, c) => (!a || c.priority > a.priority ? c : a), null);
 }
-
 
 /** Verde ≥ 90 %, ámbar ≥ 75 %, rojo por debajo. */
 export const colorCumplimiento = (p: number) => (p >= 90 ? 'text-green-700' : p >= 75 ? 'text-amber-700' : 'text-red-600');

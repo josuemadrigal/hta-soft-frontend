@@ -1,0 +1,11 @@
+# Nada de secretos ni compilados locales dentro de la imagen.
+.git
+.github
+.env
+.env.*
+node_modules
+dist
+coverage
+*.tsbuildinfo
+*.log
+.DS_Store

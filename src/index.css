@@ -52,6 +52,12 @@
   [data-sonner-toaster] {
     display: none !important;
   }
+  /* Las sombras salen como manchas grises en papel. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+  }
   .sin-cortar {
     break-inside: avoid;
   }

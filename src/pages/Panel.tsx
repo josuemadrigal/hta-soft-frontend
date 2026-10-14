@@ -1,4 +1,6 @@
-import { AlertTriangle, ArrowRight, CalendarCheck, CalendarPlus, Tent, HeartPulse, SearchX, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, ArrowRight, CalendarCheck, CalendarPlus, Tent, HeartPulse, Pill, SearchX, Users } from 'lucide-react';
+import { conteoPendientesEntrega, pacientesSinConsulta } from '../api/recursos';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { MiPanelVista } from '../components/MiPanel';
@@ -142,6 +144,8 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
   const { tiene } = useSesion();
   const stats = useEstadisticasPanel(batey);
   const alertas = useAlertasInventario();
+  const porEntregar = useQuery({ queryKey: ['entregas', 'conteo'], queryFn: conteoPendientesEntrega });
+  const sinConsulta = useQuery({ queryKey: ['entregas', 'sin-consulta'], queryFn: pacientesSinConsulta });
   const proximas = useJornadas({ desde: hoyYmd(), estado: 'PLANIFICADA', communityId: batey });
   const ronda = useRonda(batey);
   const tendencia = useTendencia(batey);
@@ -228,6 +232,33 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
     inv?.porVencer.length && `${inv.porVencer.length} por vencer`,
     s.lowStockMedications.length && `${s.lowStockMedications.map((m) => `${m.name} ${m.concentration}`).join(', ')} bajo el mínimo`,
   ].filter(Boolean);
+  if (porEntregar.data?.pacientes && tiene('entregas.registrar')) {
+    pendientes.push({
+      icono: <Pill className="size-4" />,
+      texto: (
+        <>
+          <strong>{porEntregar.data.pacientes === 1 ? '1 paciente' : `${miles(porEntregar.data.pacientes)} pacientes`}</strong> con medicamentos pendientes de entregar (
+          {miles(porEntregar.data.pastillas)} pastillas).
+        </>
+      ),
+      a: '/entregas',
+      tono: 'aviso',
+    });
+  }
+  const sinVer = sinConsulta.data ?? [];
+  if (sinVer.length) {
+    pendientes.push({
+      icono: <Pill className="size-4" />,
+      texto: (
+        <>
+          <strong>{sinVer.length === 1 ? `${sinVer[0].paciente.firstName} ${sinVer[0].paciente.lastName}` : `${sinVer.length} pacientes`}</strong>{' '}
+          {sinVer.length === 1 ? 'lleva' : 'llevan'} 2 rondas o más recibiendo el tratamiento sin consulta: que los vea un médico en la próxima jornada.
+        </>
+      ),
+      a: sinVer.length === 1 ? `/pacientes/${sinVer[0].paciente.id}` : '/reportes/entregas#sin-consulta',
+      tono: 'aviso',
+    });
+  }
   if (inventario.length) pendientes.push({ icono: <AlertTriangle className="size-4" />, texto: <>Inventario: {inventario.join(' · ')}.</>, a: '/medicamentos', tono: 'aviso' });
 
   return (
@@ -420,9 +451,12 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
                 <ul className="space-y-2">
                   {sinJornada.slice(0, (proximas.data ?? []).length ? 4 : 7).map((c) => (
                     <li key={c.communityId} className="flex items-center gap-3 text-sm">
-                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                      <span className="tabular text-xs text-tenue">
-                        {miles(c.pending)} pendientes · última visita {fecha(c.lastVisit)}
+                      {/* Nombre y cifras en dos líneas: en una sola, con poco ancho, el nombre desaparecía. */}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{c.name}</span>
+                        <span className="tabular block truncate text-xs text-tenue">
+                          {miles(c.pending)} pendientes · última visita {fecha(c.lastVisit)}
+                        </span>
                       </span>
                       {tiene('jornadas.planificar') && (
                         <Link to={`/jornadas/nueva?batey=${c.communityId}`} className="rounded-md border border-borde px-2 py-1 text-xs font-medium hover:bg-fondo">

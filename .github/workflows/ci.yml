@@ -1,0 +1,91 @@
+name: Frontend · validar y publicar
+
+on:
+  # Toda rama se valida al subirla, no solo main: los errores se ven antes del PR.
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hta-frontend-${{ github.ref }}
+  # En ramas de trabajo un push nuevo deja obsoleto el anterior; en main no se
+  # cancela nada para no dejar una imagen a medio publicar.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  validate:
+    name: Validar web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          # Vitest 5 pide Node 22.12+; la misma versión que la imagen de Docker.
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # --if-present: el proyecto aún no tiene script `lint`; en cuanto se
+      # agregue, la CI lo empieza a correr sin tocar este archivo.
+      - name: Ejecutar lint
+        run: npm run lint --if-present
+
+      # `build` ya incluye `tsc --noEmit`, así que también revisa tipos.
+      - name: Compilar web
+        run: npm run build
+
+      - name: Ejecutar pruebas
+        run: npm run test --if-present
+
+  publish:
+    name: Publicar imagen web
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v6
+
+      - name: Iniciar sesión en Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Preparar etiquetas
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/hta-soft-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=long
+
+      - name: Construir y publicar
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # Despliegue: todavía no hay servidor. Cuando exista, agregar un job `deploy`
+  # (needs: publish) como el de sigse-eduard/.github/workflows/frontend.yml:
+  # cambiar FRONTEND_VERSION=sha-${{ github.sha }} en el .env del servidor,
+  # `docker compose pull/up -d frontend`, comprobar que la web responde y volver
+  # a la imagen anterior si falla. El compose vive en el repo del backend.

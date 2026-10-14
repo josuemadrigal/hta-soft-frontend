@@ -26,7 +26,7 @@ export const persistidor = createAsyncStoragePersister({
 });
 
 /** Solo lo que sirve en la jornada; reportes y auditoría siempre se piden al servidor. */
-const SE_GUARDAN = new Set(['jornada', 'paciente', 'comunidades', 'config-pa', 'medicamentos', 'configuracion', 'jornadas', 'yo']);
+const SE_GUARDAN = new Set(['jornada', 'paciente', 'comunidades', 'config-pa', 'medicamentos', 'configuracion', 'jornadas', 'yo', 'entregas']);
 export const guardarConsulta = (q: Query) => q.state.status === 'success' && SE_GUARDAN.has(String(q.queryKey[0]));
 
 /** Borra del dispositivo todo lo guardado (al cerrar sesión). La cola de pendientes no se toca. */
@@ -77,6 +77,8 @@ export async function descargarJornada(cliente: QueryClient, comunidadId: number
   ]);
   // Marcado como descarga: en Auditoría queda un solo registro en vez de uno por ficha.
   const descarga = { headers: { 'x-descarga-jornada': '1' } };
+  // Lo pendiente de entregar en el batey, para la mesa de farmacia sin señal.
+  await cliente.fetchQuery({ queryKey: ['entregas', 'pendientes', comunidadId], queryFn: () => r.pendientesDeEntrega(comunidadId), ...fresco }).catch(() => undefined);
   const pacientes = await cliente.fetchQuery({ queryKey: ['jornada', comunidadId], queryFn: () => api<PacienteJornada[]>(`/patients/jornada/${comunidadId}`, descarga), ...fresco });
   let hechos = 0;
   alAvanzar(0, pacientes.length);

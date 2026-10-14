@@ -668,7 +668,7 @@ function Unir({ a, b, caso }: { a: Paciente; b: Paciente; caso: string | null })
   const pedir = async () => {
     const ok = await confirmar({
       titulo: `¿Unir ${drop.patientCode} dentro de ${keep.patientCode}?`,
-      mensaje: `Las ${(drop === a ? va : vb).length} visitas de ${drop.patientCode} pasan a ${keep.patientCode} y la ficha ${drop.patientCode} se elimina. Teléfono, cédula y casa se copian si ${keep.patientCode} no los tiene. Se puede deshacer desde Auditoría.`,
+      mensaje: `Las ${(drop === a ? va : vb).length} visitas de ${drop.patientCode} pasan a ${keep.patientCode} y la ficha ${drop.patientCode} se elimina. Teléfono y casa se copian si ${keep.patientCode} no los tiene. Se puede deshacer desde Auditoría.`,
       confirmar: 'Unir fichas',
       peligro: false,
     });

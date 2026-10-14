@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, Download, FileSpreadsheet, HeartHandshake, PieChart, Users, X } from 'lucide-react';
+import { AlertTriangle, Download, FileSpreadsheet, HeartHandshake, PieChart, Pill, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -353,6 +353,9 @@ export function Reportes() {
             <Boton variante="secundario" icono={<HeartHandshake className="size-4" />} onClick={() => navegar('/reportes/donantes')}>
               Informe para donantes
             </Boton>
+            <Boton variante="secundario" icono={<Pill className="size-4" />} onClick={() => navegar('/reportes/entregas')}>
+              Entregas de medicamentos
+            </Boton>
             <Boton icono={<FileSpreadsheet className="size-4" />} cargando={excel.isPending} onClick={() => excel.mutate()}>
               Descargar Excel
             </Boton>
@@ -378,7 +381,7 @@ export function Reportes() {
             <span className="mx-2 hidden h-6 w-px bg-borde sm:block" />
             <BotonesTrimestre desde={desde} hasta={hasta} onCambiar={(r) => cambiar(r)} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
             <label className="flex items-center gap-2 text-sm text-tenue">
               Desde
               <Entrada type="date" value={desde} onChange={(e) => cambiar({ desde: e.target.value })} />

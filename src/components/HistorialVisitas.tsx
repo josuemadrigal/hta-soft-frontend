@@ -73,7 +73,17 @@ export function HistorialVisitas({ visitas, cuantas = 5 }: { visitas: Visita[]; 
                     <li key={r.id} className="flex justify-between gap-2">
                       <span className="truncate">
                         {r.medication?.name} {r.medication?.concentration}
-                        <span className="text-tenue"> · {r.dailyDose}/día · {r.quantityDispensed} entregadas</span>
+                        <span className="text-tenue">
+                          {' '}
+                          · {r.dailyDose}/día ·{' '}
+                          {r.cantidadIndicada && r.quantityDispensed < r.cantidadIndicada ? (
+                            <span className="text-amber-800">
+                              {r.quantityDispensed} de {r.cantidadIndicada} entregadas
+                            </span>
+                          ) : (
+                            `${r.quantityDispensed} entregadas`
+                          )}
+                        </span>
                       </span>
                       {r.adherencePercentage !== null && (
                         <span className={cn('tabular shrink-0 font-medium', colorCumplimiento(Number(r.adherencePercentage)))}>{Math.round(Number(r.adherencePercentage))}%</span>

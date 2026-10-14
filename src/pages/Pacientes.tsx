@@ -80,7 +80,7 @@ export function Pacientes() {
           <div className="flex flex-wrap gap-3">
             <div className="relative min-w-60 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-tenue" />
-              <Entrada value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nombre, código, cédula o número de casa" className="pl-9" />
+              <Entrada value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nombre, código o número de casa" className="pl-9" />
             </div>
             <Selector
               className="w-auto min-w-44"

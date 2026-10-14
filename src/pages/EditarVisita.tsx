@@ -162,7 +162,7 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
         </p>
       )}
 
-      <form onSubmit={handleSubmit((x) => guardar.mutate(x))} className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <form onSubmit={handleSubmit((x) => guardar.mutate(x))} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
           <Tarjeta titulo="Presión arterial (mmHg)" accion={<span className="text-xs text-tenue">Deja vacío para borrar un valor mal anotado</span>}>
             <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
@@ -233,7 +233,7 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
           )}
         </div>
 
-        <aside className="lg:sticky lg:top-6 lg:self-start">
+        <aside className="xl:sticky xl:top-6 xl:self-start">
           <Tarjeta titulo="Resumen">
             <dl className="space-y-4 p-5">
               <div>

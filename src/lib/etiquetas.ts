@@ -1,4 +1,9 @@
 import type {
+  DestinoDevolucion,
+  Parentesco,
+  MotivoDevolucion,
+  MotivoReposicion,
+  RecibioEntrega,
   MotivoBaja,
   MotivoInasistencia,
   CategoriaPA,
@@ -61,3 +66,47 @@ export const MOTIVOS_INASISTENCIA: Record<MotivoInasistencia, string> = {
   SE_MUDO: 'Se mudó',
   OTRO: 'Otro motivo',
 };
+
+export const MOTIVOS_REPOSICION: Record<MotivoReposicion, string> = {
+  FAMILIAR_RECOGE: 'Un familiar las recoge',
+  SE_LE_ACABARON: 'Se le acabaron antes de la jornada',
+  SE_DEJO_CON_ALGUIEN: 'No estaba: se le dejó con alguien',
+  // Ya no se ofrece (se confundía con la visita domiciliaria); queda para leer lo viejo.
+  DOMICILIO: 'Entrega a domicilio',
+  OTRO: 'Otro motivo',
+};
+
+export const RECIBIO_ENTREGA: Record<RecibioEntrega, string> = {
+  PACIENTE: 'El paciente',
+  FAMILIAR: 'Un familiar',
+  OTRO: 'Otra persona',
+};
+
+export const MOTIVOS_DEVOLUCION: Record<MotivoDevolucion, { texto: string; ayuda: string }> = {
+  CORRECCION: { texto: 'Se registró de más', ayuda: 'Las pastillas no llegaron a salir: vuelven al inventario y lo que faltaba queda pendiente otra vez.' },
+  PACIENTE_DEVOLVIO: { texto: 'El paciente las devolvió', ayuda: 'Cambio de tratamiento, fallecimiento, le sobraron… No queda nada pendiente.' },
+};
+
+export const DESTINOS_DEVOLUCION: Record<DestinoDevolucion, { texto: string; ayuda: string }> = {
+  INVENTARIO: { texto: 'Vuelven al inventario', ayuda: 'Al mismo lote del que salieron.' },
+  DESCARTE: { texto: 'Se descartan', ayuda: 'Dañadas, vencidas o en mal estado. Queda en el kárdex.' },
+};
+
+export const PARENTESCOS: Record<Parentesco, string> = {
+  HIJO: 'Hijo/a',
+  PAREJA: 'Esposo/a',
+  HERMANO: 'Hermano/a',
+  PADRE: 'Padre/Madre',
+  VECINO: 'Vecino/a',
+  OTRO: 'Otro',
+};
+
+/** Los que se ofrecen al dejar el tratamiento. PADRE queda solo para mostrar registros anteriores. */
+export const PARENTESCOS_OPCIONES: Parentesco[] = ['HIJO', 'PAREJA', 'HERMANO', 'VECINO', 'OTRO'];
+
+/** Sin nombre, solo el parentesco: "su hijo/a", "un vecino/a", "otra persona". */
+const sinNombre = (p: Parentesco) => (p === 'OTRO' ? 'otra persona' : p === 'VECINO' ? 'un vecino/a' : `su ${PARENTESCOS[p].toLowerCase()}`);
+
+/** "Rosa (hijo/a)" / "su hijo/a" / "alguien" */
+export const conQuien = (nombre: string | null | undefined, parentesco: Parentesco | null | undefined) =>
+  nombre ? `${nombre}${parentesco ? ` (${PARENTESCOS[parentesco].toLowerCase()})` : ''}` : parentesco ? sinNombre(parentesco) : 'alguien';

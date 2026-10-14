@@ -5,8 +5,8 @@ import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useAuditoria, useFiltrosAuditoria } from '../api/consultas';
 import { restaurarRegistro, type FiltroAuditoria } from '../api/recursos';
-import type { MotivoBaja, MotivoInasistencia, RegistroAuditoria } from '../api/tipos';
-import { MOTIVOS_BAJA, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
+import type { MotivoBaja, MotivoInasistencia, MotivoReposicion, Parentesco, RegistroAuditoria } from '../api/tipos';
+import { conQuien, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION } from '../lib/etiquetas';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { BotonesTrimestre } from '../components/Periodo';
@@ -32,9 +32,13 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   REACTIVAR: { texto: 'Reactivó', color: '#15803d' },
+  CAMBIO_CODIGO: { texto: 'Cambió el código', color: '#a16207' },
   CANCEL: { texto: 'Canceló', color: '#6b665e' },
+  ENTREGA: { texto: 'Entregó medicamentos', color: '#15803d' },
+  REPOSICION: { texto: 'Repuso sin consulta', color: '#a16207' },
+  DEVOLUCION: { texto: 'Devolución', color: '#2563eb' },
 };
-const ENTIDADES: Record<string, string> = { Patient: 'Paciente', User: 'Usuario', ClinicalVisit: 'Visita', Prescription: 'Receta', Configuracion: 'Configuración', Jornada: 'Jornada', Meta: 'Metas', Medication: 'Medicamento', Community: 'Batey', Sesion: 'Sesión', Reporte: 'Reporte' };
+const ENTIDADES: Record<string, string> = { Patient: 'Paciente', User: 'Usuario', ClinicalVisit: 'Visita', Prescription: 'Receta', Configuracion: 'Configuración', Jornada: 'Jornada', Meta: 'Metas', Medication: 'Medicamento', Community: 'Batey', Sesion: 'Sesión', Reporte: 'Reporte', Entrega: 'Entrega', Role: 'Rol' };
 
 /** Nombre legible de cada campo de la visita. */
 const CAMPOS: Record<string, string> = {
@@ -117,14 +121,25 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     return `Descargó ${x.batey} (${x.pacientes} fichas) en su dispositivo para usar sin internet`;
   }
   if (r.action === 'NO_VINO') {
-    const x = JSON.parse(r.details) as { codigo: string; nombre: string; fecha: string; motivo: MotivoInasistencia; nota?: string };
-    return `${x.codigo} · ${x.nombre}: no vino a la jornada del ${fecha(`${x.fecha}T12:00:00`)} (${MOTIVOS_INASISTENCIA[x.motivo].toLowerCase()})${x.nota ? ` · ${x.nota}` : ''}`;
+    const x = JSON.parse(r.details) as { codigo: string; nombre: string; fecha: string; motivo: MotivoInasistencia; nota?: string; tratamiento?: { con: string; parentesco: Parentesco | null; medicamentos: string[] } };
+    const t = x.tratamiento ? ` · se le dejó el tratamiento con ${conQuien(x.tratamiento.con, x.tratamiento.parentesco)}: ${x.tratamiento.medicamentos.join(' · ')}` : '';
+    return `${x.codigo} · ${x.nombre}: no vino a la jornada del ${fecha(`${x.fecha}T12:00:00`)} (${MOTIVOS_INASISTENCIA[x.motivo].toLowerCase()})${x.nota ? ` · ${x.nota}` : ''}${t}`;
   }
   let d: Record<string, unknown>;
   try {
     d = JSON.parse(r.details);
   } catch {
     return r.details;
+  }
+  if (r.entity === 'Entrega') {
+    const medicamentos = (d.medicamentos as string[] | undefined)?.join(' · ') ?? '';
+    const motivo = d.motivo ? ` (${MOTIVOS_REPOSICION[d.motivo as MotivoReposicion].toLowerCase()})` : '';
+    const dev = d.devolucion as { motivo: string; destino: string; nota?: string; medicamentos: string[] } | undefined;
+    if (r.action === 'DEVOLUCION' && dev) {
+      const que = dev.motivo === 'CORRECCION' ? 'Corrigió la entrega' : dev.destino === 'DESCARTE' ? 'El paciente devolvió (se descartaron)' : 'El paciente devolvió (al inventario)';
+      return `${d.paciente}: ${que} · ${dev.medicamentos.join(' · ')}${dev.nota ? ` · ${dev.nota}` : ''}`;
+    }
+    return `${d.paciente}: ${medicamentos}${motivo} · recibió ${d.recibio}`;
   }
   if (r.entity === 'User' && r.action === 'DELETE') {
     const n = Number(d.visitasReasignadas ?? 0);
@@ -142,6 +157,8 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
       alertaVisitasCumplimiento: 'Alerta: visitas con cumplimiento bajo',
       alertaVisitasSinControl: 'Alerta: visitas seguidas sin control',
       sesionMinutosInactividad: 'Cierre de sesión por inactividad (min)',
+      entregaInmediata: 'Entregar al guardar la visita (1 = sí)',
+      reposicionMesesMaximo: 'Reposición sin consulta: meses desde la última visita',
     };
     const cambios = Object.keys(b).filter((k) => a[k] !== b[k]);
     return cambios.length ? cambios.map((k) => `${NOMBRES[k] ?? k}: ${a[k] ?? '—'} → ${b[k]}`).join(' · ') : 'Sin cambios';
@@ -165,6 +182,9 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   }
   if (r.entity === 'Patient' && r.action === 'BAJA') {
     return `${d.codigo} · ${d.nombre}: ${MOTIVOS_BAJA[d.motivo as MotivoBaja] ?? d.motivo} el ${fecha(`${d.fecha}T12:00:00`)}${d.detalle ? ` · ${d.detalle}` : ''}`;
+  }
+  if (r.entity === 'Patient' && r.action === 'CAMBIO_CODIGO') {
+    return `${d.nombre}: ${d.anterior} → ${d.codigo} (${d.batey})`;
   }
   if (r.entity === 'Patient' && r.action === 'REACTIVAR') {
     const b = (d.bajaAnterior ?? {}) as { motivo?: MotivoBaja; fecha?: string };

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { EVENTO_SESION_EXPIRADA, guardarSesion, leerSesion } from '../api/client';
+import { EVENTO_SESION_EXPIRADA, guardarSesion, leerSesion, type Sesion } from '../api/client';
 import { iniciarSesion, obtenerYo } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useConfiguracion } from '../api/consultas';
@@ -15,6 +15,8 @@ type ContextoSesion = {
   salir: () => void;
   /** Tras editar el propio perfil (foto, nombre) para que la barra lateral lo refleje. */
   actualizarUsuario: (u: Partial<Usuario>) => void;
+  /** Tokens nuevos tras cambiar la contraseña (los anteriores dejan de valer). */
+  reemplazarSesion: (s: Sesion) => void;
 };
 
 const Contexto = createContext<ContextoSesion | null>(null);
@@ -79,7 +81,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       }
     };
     revisar();
-    marcar();
+    // Sin conexión, revisar() no cierra: tampoco se cuenta como actividad haber abierto la app,
+    // para que al volver la conexión se cierre si el tiempo ya se había cumplido.
+    if (navigator.onLine) marcar();
     const eventos = ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const;
     for (const e of eventos) window.addEventListener(e, marcar, { passive: true });
     const reloj = window.setInterval(revisar, 30_000);
@@ -123,6 +127,10 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         const sesion = leerSesion();
         if (sesion) guardarSesion({ ...sesion, user: { ...sesion.user, ...cambios } });
         setUsuario((u) => (u ? { ...u, ...cambios } : u));
+      },
+      reemplazarSesion(nueva) {
+        guardarSesion(nueva);
+        setUsuario(nueva.user);
       },
     }),
     [usuario, salir],

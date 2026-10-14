@@ -16,6 +16,7 @@ const ORIGENES: Record<OrigenLote, string> = { DONACION: 'Donación', COMPRA: 'C
 const TIPOS: Record<MovimientoInventario['tipo'], { texto: string; color: string }> = {
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   SALIDA_VISITA: { texto: 'Dispensado', color: '#1d1b18' },
+  SALIDA_REPOSICION: { texto: 'Reposición', color: '#1d1b18' },
   DEVOLUCION: { texto: 'Devolución', color: '#2563eb' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   VENCIDO: { texto: 'Vencido', color: '#dc2626' },

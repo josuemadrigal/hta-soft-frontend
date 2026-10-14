@@ -35,7 +35,13 @@ export type Usuario = {
   photoUrl?: string | null;
   isActive: boolean;
   createdAt: string;
+  /** Cuándo confirmó su correo (null: sin confirmar). */
+  emailVerificadoEn?: string | null;
+  contrasenaCambiadaEn?: string | null;
 };
+
+export type DestinatarioResumen = { id: number; nombre: string; email: string; rol: string; confirmado: boolean };
+export type ResultadoCorreo = { enviados?: number; simulado: boolean; email?: string; para?: string[] };
 
 export type Comunidad = {
   id: number;
@@ -93,7 +99,7 @@ export type Lote = {
 
 export type MovimientoInventario = {
   id: number;
-  tipo: 'ENTRADA' | 'SALIDA_VISITA' | 'DEVOLUCION' | 'AJUSTE' | 'VENCIDO';
+  tipo: 'ENTRADA' | 'SALIDA_VISITA' | 'SALIDA_REPOSICION' | 'DEVOLUCION' | 'AJUSTE' | 'VENCIDO';
   cantidad: number;
   saldo: number;
   motivo: string | null;
@@ -158,6 +164,7 @@ export type DetalleJornada = {
     atendidoHoy: boolean;
     esperado: boolean;
     noVino: MotivoInasistencia | null;
+    tratamientoDejado?: { con: string | null; parentesco: Parentesco | null } | null;
     ultimaVisita: string | null;
     presion: string | null;
     categoria: ConfigPA | null;
@@ -184,6 +191,9 @@ export type Receta = {
   bufferDays: number;
   patientSupplyRemaining: number;
   totalRequired: number;
+  /** Lo que le corresponde (dosis × días + margen − le quedan). */
+  cantidadIndicada?: number;
+  /** Lo entregado hasta ahora. Si es menos que cantidadIndicada, el resto está pendiente. */
   quantityDispensed: number;
   /** null en la primera receta de ese medicamento: no hay con qué comparar. */
   adherencePercentage: Decimal | null;
@@ -364,7 +374,17 @@ export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassif
 
 export type MotivoInasistencia = 'NO_ESTABA' | 'TRABAJANDO' | 'VIAJE' | 'ENFERMO' | 'NO_QUISO' | 'SE_MUDO' | 'OTRO';
 /** "No vino" a la jornada de ese día */
-export type Inasistencia = { id?: number; fecha: string; motivo: MotivoInasistencia; nota?: string | null; userName?: string | null };
+export type Inasistencia = {
+  id?: number;
+  fecha: string;
+  motivo: MotivoInasistencia;
+  nota?: string | null;
+  userName?: string | null;
+  /** Si se le dejó el tratamiento con alguien */
+  entrega?: TratamientoDejado | null;
+};
+export type Parentesco = 'HIJO' | 'PAREJA' | 'HERMANO' | 'PADRE' | 'VECINO' | 'OTRO';
+export type TratamientoDejado = { recibioNombre: string | null; recibioParentesco: Parentesco | null; items?: { cantidad: number; medication?: { name: string; concentration: string } }[] };
 
 type Indicadores = {
   visitas: number;
@@ -530,7 +550,7 @@ export type ReporteDonantes = {
   mismoAnterior: ValoresIndicadores & { etiqueta: string };
   evolucion: { etiqueta: string; controlados: number | null; pacientes: number | null; visitas: number | null }[];
   categorias: { categoria: CategoriaPA; pacientes: number }[];
-  porBatey: { batey: string; pacientes: number; visitas: number; controladosPct: number | null; pastillas: number; pastillasPorMed: Record<string, number> }[];
+  porBatey: { batey: string; pacientes: number; hombres: number; mujeres: number; edadPromedio: number | null; visitas: number; controladosPct: number | null; pastillas: number; pastillasPorMed: Record<string, number> }[];
   medicamentosNombres: string[];
   medicamentos: { medicamento: string; pastillas: number; pacientes: number }[];
   pastillasTotal: number;
@@ -599,3 +619,92 @@ export type MiPanel = {
 };
 
 export type FiltrosAuditoria = { actores: { userId: number; nombre: string }[]; entidades: string[]; acciones: string[] };
+
+/* ─────────── Entregas de medicamentos ─────────── */
+
+export type RecibioEntrega = 'PACIENTE' | 'FAMILIAR' | 'OTRO';
+export type MotivoReposicion = 'FAMILIAR_RECOGE' | 'SE_LE_ACABARON' | 'SE_DEJO_CON_ALGUIEN' | 'DOMICILIO' | 'OTRO';
+type MedicamentoCorto = { id?: number; name: string; concentration: string };
+
+/** Una receta con pastillas por entregar. */
+export type RecetaPendiente = {
+  id: number;
+  medicamento: MedicamentoCorto & { id: number };
+  dosisDiaria?: number;
+  indicada: number;
+  entregada: number;
+  pendiente: number;
+  visitaId: number;
+  visitaFecha: string;
+  atendio?: string | null;
+};
+
+export type PacienteConPendientes = {
+  paciente: { id: number; patientCode: string; firstName: string; lastName: string; address: string | null; photoUrl: string | null; communityId: number };
+  recetas: RecetaPendiente[];
+};
+
+export type Entrega = {
+  id: number;
+  patientId: number;
+  visitId: number | null;
+  tipo: 'VISITA' | 'REPOSICION';
+  fecha: string;
+  entregadoPorNombre: string | null;
+  recibio: RecibioEntrega;
+  recibioNombre: string | null;
+  recibioParentesco?: Parentesco | null;
+  motivo: MotivoReposicion | null;
+  nota: string | null;
+  createdAt: string;
+  items: { id: number; medicationId: number; prescriptionId: number | null; cantidad: number; medication?: MedicamentoCorto; devoluciones?: Devolucion[]; devolvible?: number }[];
+  patient?: PacienteConPendientes['paciente'];
+};
+
+export type EntregasDelPaciente = {
+  pendientes: RecetaPendiente[];
+  entregas: Entrega[];
+  /** Rondas seguidas recibiendo tratamiento sin consulta (alerta desde 2) */
+  sinConsulta: number;
+  reposicion: {
+    permitida: boolean;
+    motivo?: string;
+    mesesMaximo: number;
+    ultimaReceta: { medicationId: number; dailyDose: number; bufferDays?: number; medication: MedicamentoCorto }[];
+  };
+};
+
+/** Lo que devuelve guardar una visita: si se entregó y qué quedó pendiente por falta de inventario. */
+export type PendienteAlGuardar = { medicamento: string; indicada: number; entregada: number };
+
+export type MotivoDevolucion = 'CORRECCION' | 'PACIENTE_DEVOLVIO';
+export type DestinoDevolucion = 'INVENTARIO' | 'DESCARTE';
+export type Devolucion = { id: number; cantidad: number; motivo: MotivoDevolucion; destino: DestinoDevolucion; nota: string | null; userName: string | null; createdAt: string };
+
+/** Hoja de preparación: por paciente, qué meter en su bolsita. */
+export type PreparacionJornada = {
+  jornada: Jornada;
+  pacientes: { id: number; codigo: string; nombre: string; casa: string | null; items: { medicamento: string; dosisDiaria: number; cantidad: number; tipo: 'RONDA' | 'PENDIENTE' }[] }[];
+  totales: { medicamento: string; pastillas: number }[];
+};
+
+export type ReporteEntregas = {
+  periodo: { desde: string; hasta: string };
+  totales: {
+    entregas: number;
+    pacientes: number;
+    pastillas: number;
+    visita: number;
+    mesa: number;
+    reposicion: number;
+    devueltas: number;
+    descartadas: number;
+    recibioOtro: number;
+    pendientesPacientes: number;
+    pendientesPastillas: number;
+  };
+  porBatey: { communityId: number; batey: string; entregas: number; pastillas: number; visita: number; mesa: number; reposicion: number; pendientesPacientes: number; pendientesPastillas: number }[];
+  porPersona: { nombre: string; entregas: number; pastillas: number }[];
+  porMedicamento: { medicamento: string; pastillas: number; visita: number; mesa: number; reposicion: number; devueltas: number; descartadas: number }[];
+  reposicionesPorMotivo: { motivo: MotivoReposicion; entregas: number; pastillas: number }[];
+};

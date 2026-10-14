@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Camera, ChevronDown, ClipboardPlus, GitMerge, Home, Pencil, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
-import { reactivarPaciente } from '../api/recursos';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Camera, ChevronDown, ClipboardPlus, GitMerge, Home, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
+import { entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
 import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
 import { ListaAlertas, useUmbrales } from '../components/Alertas';
@@ -17,7 +17,7 @@ import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
 import { Avatar, Boton, Cargando, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
-import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, SAL, TABACO, TIPOS_VISITA } from '../lib/etiquetas';
+import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
 
 const ejeFecha = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', year: '2-digit' });
@@ -197,7 +197,14 @@ function FilaVisita({ visita }: { visita: Visita }) {
                       {r.medication?.name} <span className="font-normal text-tenue">{r.medication?.concentration}</span>
                     </span>
                     <span className="tabular text-tenue">
-                      {r.dailyDose}/día · {r.daysUntilNextVisit} días · <span className="font-medium text-tinta">{r.quantityDispensed} entregadas</span>
+                      {r.dailyDose}/día · {r.daysUntilNextVisit} días ·{' '}
+                      {r.cantidadIndicada && r.quantityDispensed < r.cantidadIndicada ? (
+                        <span className="font-medium text-amber-800">
+                          {r.quantityDispensed} de {r.cantidadIndicada} entregadas
+                        </span>
+                      ) : (
+                        <span className="font-medium text-tinta">{r.quantityDispensed} entregadas</span>
+                      )}
                       {r.adherencePercentage !== null && (
                         <>
                           {' · '}
@@ -253,6 +260,14 @@ export function Paciente() {
     },
     onError: (e) => toast.error(e.message),
   });
+  const regenerar = useMutation({
+    mutationFn: () => regenerarCodigoPaciente(id),
+    onSuccess: (r) => {
+      for (const k of [['paciente'], ['pacientes'], ['jornada'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success(`Nuevo código: ${r.patientCode}. El anterior quedó en Auditoría.`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const umbrales = useUmbrales();
 
   if (consulta.isPending) return <Cargando />;
@@ -261,6 +276,8 @@ export function Paciente() {
   if (!p) return <Vacio titulo="Paciente no encontrado"><Link to="/pacientes" className="text-marca-700 hover:underline">Volver al listado</Link></Vacio>;
 
   const a = analitica.data && 'bpStats' in analitica.data ? analitica.data : null;
+  // Se registró en un batey y luego se cambió: el código sigue con el prefijo del anterior.
+  const codigoDeOtroBatey = !!p.community?.abbreviation && !new RegExp(`^${p.community.abbreviation}\\d+$`).test(p.patientCode);
   const ultima = p.clinicalVisits?.[0];
   const alertas = ultima ? alertasClinicas(tomaDe(ultima), p.clinicalVisits!.slice(1), umbrales) : [];
   // Visitas viejas no tienen nextVisitDate: se asume la ronda trimestral.
@@ -297,8 +314,9 @@ export function Paciente() {
               </Link>
             )}
           </div>
-          <p className="mt-1 text-sm text-tenue">
-            <span className="font-mono text-tinta">{p.patientCode}</span> · {GENEROS[p.gender]}, {edadTexto(p)} · {p.community?.name}
+          {/* En pantallas chicas la ficha queda abajo: el código se repite aquí para no perderlo. */}
+          <p className="mt-1 text-sm text-tenue lg:hidden">
+            <span className="font-mono font-semibold text-tinta">{p.patientCode}</span> · {p.community?.name}
           </p>
           {proxima && p.status === 'ACTIVE' && (
             <p className="mt-1 text-sm" style={pendiente && asiste.clave === 'sin-venir' ? { color: asiste.color } : undefined}>
@@ -334,6 +352,11 @@ export function Paciente() {
                 </Boton>
               )}
             </>
+          )}
+          {!!p.clinicalVisits?.[0]?.prescriptions?.length && (
+            <Boton variante="secundario" icono={<Printer className="size-4" />} title="Hoja para el paciente: sus medicamentos y la próxima visita" onClick={() => navegar(`/pacientes/${p.id}/indicaciones`)}>
+              Indicaciones
+            </Boton>
           )}
           <Boton variante="secundario" icono={<Pencil className="size-4" />} onClick={() => navegar(`/pacientes/${p.id}/editar`)}>
             Editar
@@ -427,7 +450,45 @@ export function Paciente() {
         <aside className="space-y-4">
           <Tarjeta titulo="Ficha">
             <dl className="grid gap-4 p-5">
-              <Dato etiqueta="Cédula">{p.nationalId || '—'}</Dato>
+              <div className="rounded-lg bg-marca-50 px-4 py-3">
+                <dt className="text-xs text-tenue">Código</dt>
+                <dd className="font-mono text-2xl font-semibold tracking-wide">{p.patientCode}</dd>
+                {codigoDeOtroBatey && puedeRevisar && (
+                  <dd className="mt-1 text-xs text-amber-800">
+                    No es de {p.community!.name} (sus códigos empiezan por {p.community!.abbreviation}).
+                  </dd>
+                )}
+                {codigoDeOtroBatey && puedeRevisar && (
+                  <dd className="mt-2">
+                    <Boton
+                      variante="secundario"
+                      className="h-8 text-xs"
+                      icono={<RefreshCw className="size-3.5" />}
+                      cargando={regenerar.isPending}
+                      onClick={async () => {
+                        if (
+                          await confirmar({
+                            titulo: `¿Darle un código de ${p.community!.name}?`,
+                            mensaje: `${p.patientCode} se reemplaza por el siguiente código ${p.community!.abbreviation} libre. Las visitas y entregas se quedan con el paciente. Si tiene una tarjeta o una hoja impresa con el código anterior, hay que cambiarla. El cambio queda en Auditoría.`,
+                            confirmar: 'Regenerar código',
+                            peligro: false,
+                          })
+                        )
+                          regenerar.mutate();
+                      }}
+                    >
+                      Regenerar código
+                    </Boton>
+                  </dd>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Dato etiqueta="Sexo">{GENEROS[p.gender]}</Dato>
+                <Dato etiqueta="Edad">{edadTexto(p)}</Dato>
+                <Dato etiqueta="Visitas">{p.clinicalVisits?.length ?? 0}</Dato>
+                <Dato etiqueta="Última visita">{ultima ? fecha(ultima.visitDate) : '—'}</Dato>
+              </div>
+              <Dato etiqueta="Último médico">{ultima ? atendio(ultima) : '—'}</Dato>
               <Dato etiqueta="Nacimiento">{p.birthDateIsEstimated ? `Aprox. ${new Date(p.birthDate).getUTCFullYear()}` : fecha(p.birthDate)}</Dato>
               <Dato etiqueta="Teléfono">{p.phoneNumber || '—'}</Dato>
               <Dato etiqueta="Dirección">{p.address || '—'}</Dato>
@@ -437,6 +498,7 @@ export function Paciente() {
               <Dato etiqueta="Registrado">{fecha(p.registrationDate)}</Dato>
             </dl>
           </Tarjeta>
+          <EntregasDelPaciente paciente={p} />
           {!!p.inasistencias?.length && (
             <Tarjeta titulo={`No vino (${p.inasistencias.length})`}>
               <ul className="divide-y divide-borde text-sm">
@@ -479,5 +541,92 @@ export function Paciente() {
       </div>
 
     </>
+  );
+}
+
+/** Medicamentos: lo pendiente de entregar, la reposición sin consulta y las últimas entregas. */
+function EntregasDelPaciente({ paciente: p }: { paciente: TPaciente }) {
+  const { tiene } = useSesion();
+  const navegar = useNavigate();
+  const [todas, setTodas] = useState(false);
+  const consulta = useQuery({ queryKey: ['entregas', 'paciente', p.id], queryFn: () => entregasDelPaciente(p.id) });
+  const d = consulta.data;
+  if (!d || (!d.pendientes.length && !d.entregas.length && !tiene('entregas.registrar'))) return null;
+  const puede = tiene('entregas.registrar') && p.status === 'ACTIVE';
+  const lista = todas ? d.entregas : d.entregas.slice(0, 4);
+
+  return (
+    <Tarjeta titulo="Medicamentos entregados">
+      {d.sinConsulta >= 2 && (
+        <p className="border-b border-borde bg-red-50 px-5 py-3 text-sm text-red-800">
+          Lleva <strong>{d.sinConsulta} rondas</strong> recibiendo el tratamiento sin consulta. Que lo vea un médico en la próxima jornada.
+        </p>
+      )}
+      {d.pendientes.length > 0 && (
+        <div className="border-b border-borde bg-amber-50 px-5 py-3 text-sm">
+          <p className="font-medium text-amber-900">Pendiente de entregar</p>
+          <ul className="mt-1 space-y-0.5 text-amber-900">
+            {d.pendientes.map((r) => (
+              <li key={r.id} className="tabular">
+                {r.medicamento.name} {r.medicamento.concentration}: <strong>{r.pendiente}</strong>{' '}
+                <span className="text-xs text-amber-800">de {r.indicada} · visita del {fecha(r.visitaFecha)}</span>
+              </li>
+            ))}
+          </ul>
+          {puede && (
+            <Boton variante="secundario" className="mt-2 h-9 w-full" onClick={() => navegar(`/entregas?batey=${p.communityId}`)}>
+              Entregar ahora
+            </Boton>
+          )}
+        </div>
+      )}
+      {puede && (
+        <div className="border-b border-borde px-5 py-3">
+          <Boton variante="secundario" className="h-9 w-full" icono={<Pill className="size-4" />} disabled={!d.reposicion.permitida} onClick={() => navegar(`/pacientes/${p.id}/reposicion`)}>
+            Reposición sin consulta
+          </Boton>
+          <p className="mt-1.5 text-xs text-tenue">
+            {d.reposicion.permitida ? 'Un familiar las recoge o se le acabaron antes de la jornada…' : d.reposicion.motivo}
+          </p>
+        </div>
+      )}
+      {d.entregas.length === 0 ? (
+        <p className="px-5 py-3 text-sm text-tenue">Todavía no hay entregas registradas en la app.</p>
+      ) : (
+        <ul className="divide-y divide-borde text-sm">
+          {lista.map((e) => (
+            <li key={e.id} className="px-5 py-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="tabular">{fecha(e.fecha)}</span>
+                {e.tipo === 'REPOSICION' && <Insignia color="#7a5c00">Reposición</Insignia>}
+              </div>
+              <p className="tabular text-xs text-tinta/80">
+                {e.items
+                  .map((i) => {
+                    const devueltas = (i.devoluciones ?? []).reduce((a, d) => a + d.cantidad, 0);
+                    return `${i.medication?.name} ${i.medication?.concentration}: ${i.cantidad}${devueltas ? ` (devueltas ${devueltas})` : ''}`;
+                  })
+                  .join(' · ')}
+              </p>
+              <p className="text-xs text-tenue">
+                {e.motivo && `${MOTIVOS_REPOSICION[e.motivo]} · `}
+                {e.recibio !== 'PACIENTE' && `recibió ${e.recibioNombre ? conQuien(e.recibioNombre, e.recibioParentesco) : RECIBIO_ENTREGA[e.recibio].toLowerCase()} · `}
+                {e.entregadoPorNombre && `entregó ${e.entregadoPorNombre}`}
+              </p>
+              {puede && e.items.some((i) => i.cantidad > (i.devoluciones ?? []).reduce((a, d) => a + d.cantidad, 0)) && (
+                <Link to={`/entregas/${e.id}/devolver`} className="mt-0.5 inline-block text-xs text-tenue underline hover:text-tinta">
+                  Devolver o corregir
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {d.entregas.length > 4 && (
+        <button type="button" className="w-full border-t border-borde px-5 py-2 text-left text-sm text-tenue hover:text-tinta" onClick={() => setTodas((t) => !t)}>
+          {todas ? 'Ver menos' : `Ver las ${d.entregas.length}`}
+        </button>
+      )}
+    </Tarjeta>
   );
 }

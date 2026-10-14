@@ -66,6 +66,7 @@ export function Configuracion() {
         </div>
       </Tarjeta>
       <AjustesAlertas />
+      <AjustesEntregas />
       <AjusteSesion />
     </>
   );
@@ -117,6 +118,64 @@ function AjustesAlertas() {
           ))}
         </div>
         <Boton icono={<Save className="size-4" />} disabled={!cambio || !valido} cargando={guardar.isPending} onClick={() => guardar.mutate()}>
+          Guardar
+        </Boton>
+      </div>
+    </Tarjeta>
+  );
+}
+
+/** Cómo se entregan los medicamentos y cuándo se permite reponer sin consulta. */
+function AjustesEntregas() {
+  const consulta = useConfiguracion();
+  const cliente = useQueryClient();
+  const [inmediata, setInmediata] = useState(1);
+  const [meses, setMeses] = useState<number | ''>('');
+  useEffect(() => {
+    if (consulta.data) {
+      setInmediata(consulta.data.entregaInmediata);
+      setMeses(consulta.data.reposicionMesesMaximo);
+    }
+  }, [consulta.data]);
+  const guardar = useMutation({
+    mutationFn: () => guardarConfiguracion({ entregaInmediata: inmediata, reposicionMesesMaximo: Number(meses) }),
+    onSuccess: () => {
+      cliente.invalidateQueries({ queryKey: ['configuracion'] });
+      toast.success('Guardado. El cambio quedó en Auditoría.');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!consulta.data) return null;
+  const valido = meses !== '' && Number.isInteger(Number(meses)) && Number(meses) >= 1 && Number(meses) <= 24;
+  const cambio = inmediata !== consulta.data.entregaInmediata || meses !== consulta.data.reposicionMesesMaximo;
+  return (
+    <Tarjeta titulo="Entrega de medicamentos" className="mt-4 max-w-2xl">
+      <div className="space-y-4 p-5">
+        <div className="space-y-2">
+          <p className="text-[13px] font-medium text-tinta/80">Al guardar una visita</p>
+          {[
+            { v: 1, t: 'Se entregan en el momento', d: 'Quien atiende entrega las pastillas. Es lo habitual cuando una sola persona hace todo.' },
+            { v: 0, t: 'Quedan para la mesa de farmacia', d: 'Otra persona las entrega desde Entregas y registra quién las recibió.' },
+          ].map((o) => (
+            <label key={o.v} className={cn('flex cursor-pointer gap-3 rounded-lg border px-4 py-3 text-sm', inmediata === o.v ? 'border-tinta bg-marca-50' : 'border-borde hover:bg-fondo')}>
+              <input type="radio" name="entrega" className="mt-0.5 accent-tinta" checked={inmediata === o.v} onChange={() => setInmediata(o.v)} />
+              <span>
+                <span className="font-medium">{o.t}</span>
+                <span className="block text-tenue">{o.d}</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-xs text-tenue">Es solo lo que viene marcado: en cada visita se puede cambiar con "Entregar los medicamentos ahora".</p>
+        </div>
+        <Campo
+          etiqueta="Reposición sin consulta: hasta cuántos meses desde la última visita"
+          error={!valido && meses !== '' ? 'Entre 1 y 24 meses' : undefined}
+          ayuda="Pasado ese tiempo, el paciente necesita una consulta antes de recibir más medicamentos."
+          className="max-w-96"
+        >
+          <Entrada type="number" min={1} max={24} value={meses} onChange={(e) => setMeses(e.target.value === '' ? '' : Number(e.target.value))} />
+        </Campo>
+        <Boton icono={<Save className="size-4" />} disabled={!valido || !cambio} cargando={guardar.isPending} onClick={() => guardar.mutate()}>
           Guardar
         </Boton>
       </div>

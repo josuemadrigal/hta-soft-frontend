@@ -5,13 +5,14 @@ import { useState } from 'react';
 import { useFieldArray, useForm, useWatch, type Control, type UseFormRegister } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { useConfigPA, useMedicamentos } from '../api/consultas';
+import { useConfigPA, useConfiguracion, useMedicamentos } from '../api/consultas';
 import { crearVisita, type DatosVisita } from '../api/recursos';
 import { agregarPendiente, esFaltaDeConexion, nuevoId } from '../offline/cola';
 import type { ConfigPA, Medicamento, Paciente, Receta, Visita } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { alertasClinicas } from '../lib/alertas';
 import { opciones, TIPOS_VISITA } from '../lib/etiquetas';
+import { margenDe } from '../lib/entregas';
 import { clasificar, cn, colorCumplimiento, DIA_MS, nombreCompleto } from '../lib/formato';
 import { ListaAlertas, useUmbrales } from './Alertas';
 import { HistorialVisitas } from './HistorialVisitas';
@@ -30,6 +31,8 @@ const esquema = z
     visitDate: z.string().min(1, 'Requerida'),
     visitType: z.enum(['NEW', 'FOLLOW_UP']),
     isHomeVisit: z.boolean(),
+    /** Entregar los medicamentos al guardar; si no, quedan para la mesa de farmacia. */
+    entregar: z.boolean(),
     weightKg: z.number('Requerido').min(2, 'Revisa el peso').max(350, 'Revisa el peso'),
     heightM: z.number('Requerida').min(0.4, 'En metros, p. ej. 1.68').max(2.5, 'En metros, p. ej. 1.68'),
     systolicManual: entero(40, 300),
@@ -110,7 +113,7 @@ function FilaReceta({
   alQuitar: () => void;
   errores?: Partial<Record<'medicationId' | 'dailyDose' | 'bufferDays' | 'patientSupplyRemaining', { message?: string }>>;
 }) {
-  const [receta, fecha, intervalo, diasOtro] = useWatch({ control, name: [`recetas.${indice}`, 'visitDate', 'intervalo', 'diasOtro'] });
+  const [receta, fecha, intervalo, diasOtro, entregarAhora] = useWatch({ control, name: [`recetas.${indice}`, 'visitDate', 'intervalo', 'diasOtro', 'entregar'] });
   const med = medicamentos.find((m) => m.id === Number(receta.medicationId));
   // Misma cuenta que el backend: dosis × días + margen − lo que le queda.
   const total = (receta.dailyDose || 0) * diasDe({ intervalo, diasOtro }) + (receta.bufferDays || 0);
@@ -140,10 +143,22 @@ function FilaReceta({
         <X className="size-4" />
       </button>
       <div className="tabular col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-tenue sm:col-span-5">
-        <span>
-          Se entregan <strong className={cn('text-tinta', med && med.currentStock < entregar && 'text-red-600')}>{entregar}</strong>
-          {med && ` · quedan ${med.currentStock} en inventario`}
-        </span>
+        {!entregarAhora ? (
+          <span>
+            Le corresponden <strong className="text-tinta">{entregar}</strong> · se entregan en la mesa de farmacia
+          </span>
+        ) : med && med.currentStock < entregar ? (
+          // No alcanza: se entrega lo que hay y el resto queda pendiente (la visita se guarda igual).
+          <span className="text-amber-800">
+            Le corresponden <strong>{entregar}</strong> · hay {Math.max(0, med.currentStock)}: se entregan {Math.max(0, med.currentStock)} y quedan{' '}
+            <strong>{entregar - Math.max(0, med.currentStock)} pendientes</strong>
+          </span>
+        ) : (
+          <span>
+            Se entregan <strong className="text-tinta">{entregar}</strong>
+            {med && ` · quedan ${med.currentStock - entregar} en inventario`}
+          </span>
+        )}
         <span>
           Cumplimiento:{' '}
           {cumplimiento === null ? (
@@ -184,6 +199,7 @@ export function FormularioVisita(props: Props) {
 
 function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Props & { configs: ConfigPA[]; medicamentos: Medicamento[] }) {
   const { usuario } = useSesion();
+  const entregaInmediata = (useConfiguracion().data?.entregaInmediata ?? 1) === 1;
   const cliente = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const historial = paciente.clinicalVisits ?? [];
@@ -195,6 +211,7 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
       visitDate: ahoraLocal(),
       visitType: ultima ? 'FOLLOW_UP' : 'NEW',
       isHomeVisit: false,
+      entregar: entregaInmediata,
       // La estatura casi no cambia: se toma la última registrada.
       heightM: (() => {
         const h = historial.find((v) => v.heightM)?.heightM;
@@ -208,7 +225,8 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
       recetas: (ultima?.prescriptions ?? []).map((r) => ({
         medicationId: String(r.medicationId),
         dailyDose: r.dailyDose,
-        bufferDays: r.bufferDays,
+        // Las recetas importadas del Excel traen 0 días de margen: se proponen los 5 de siempre.
+        bufferDays: margenDe(r),
         patientSupplyRemaining: undefined as unknown as number,
       })),
     },
@@ -271,6 +289,7 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
         notes: datos.notes || undefined,
         prescriptionText: datos.prescriptionText || undefined,
         prescriptions: datos.recetas.map((r) => ({ ...r, medicationId: Number(r.medicationId), daysUntilNextVisit: dias })),
+        entregar: datos.entregar,
     };
     // Sin internet: se guarda en el dispositivo y se envía sola al volver la conexión.
     const guardarSinInternet = async () => {
@@ -288,10 +307,14 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
     if (!navigator.onLine) return guardarSinInternet();
     try {
       const v = await crearVisita(visita);
-      for (const k of [['paciente', paciente.id], ['pacientes'], ['visitas'], ['stats'], ['jornada'], ['medicamentos']]) {
+      for (const k of [['paciente', paciente.id], ['pacientes'], ['visitas'], ['stats'], ['jornada'], ['medicamentos'], ['entregas']]) {
         cliente.invalidateQueries({ queryKey: k });
       }
-      toast.success('Visita registrada');
+      if (v.pendientes?.length) {
+        toast.warning(`Visita registrada. No alcanzó el inventario: quedan pendientes ${v.pendientes.map((p) => `${p.indicada - p.entregada} de ${p.medicamento}`).join(', ')}.`, { duration: 10_000 });
+      } else if (datos.recetas.length && v.entregada === false) {
+        toast.success('Visita registrada. Los medicamentos quedaron para la mesa de farmacia.');
+      } else toast.success('Visita registrada');
       alGuardar(v);
     } catch (err) {
       if (esFaltaDeConexion(err)) return guardarSinInternet();
@@ -355,7 +378,7 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
   );
 
   return (
-    <form onSubmit={enviar} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'lg:grid-cols-[minmax(0,1fr)_300px]')}>
+    <form onSubmit={enviar} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'xl:grid-cols-[minmax(0,1fr)_300px]')}>
       <div className="space-y-4">
         <Tarjeta titulo="Presión arterial (mmHg)" accion={<span className="text-xs text-tenue">La manual manda sobre la automática</span>}>
           <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
@@ -408,6 +431,7 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
           {recetas.fields.length === 0 ? (
             <p className="px-5 py-4 text-sm text-tenue">Sin medicamentos en esta visita.</p>
           ) : (
+            <>
             <ul className="divide-y divide-borde">
               {recetas.fields.map((f, i) => (
                 <FilaReceta
@@ -422,6 +446,11 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
                 />
               ))}
             </ul>
+            <div className="border-t border-borde px-5 py-3">
+              <Casilla etiqueta="Entregar los medicamentos ahora" {...register('entregar')} />
+              <p className="mt-1 ml-6 text-xs text-tenue">Si lo desmarcas, quedan pendientes y se entregan en la mesa de farmacia (Entregas).</p>
+            </div>
+            </>
           )}
         </Tarjeta>
 
@@ -448,7 +477,7 @@ function Formulario({ paciente, enModal, alGuardar, configs, medicamentos }: Pro
         </Tarjeta>
       </div>
 
-      <aside className={cn('space-y-4', !enModal && 'lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto')}>
+      <aside className={cn('space-y-4', !enModal && 'xl:sticky xl:top-6 xl:max-h-[calc(100dvh-3rem)] xl:self-start xl:overflow-y-auto')}>
         {resumen}
         <HistorialVisitas visitas={historial} />
       </aside>

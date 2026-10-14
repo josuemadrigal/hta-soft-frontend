@@ -16,7 +16,6 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 const esquema = z.object({
   firstName: z.string().trim().min(1, 'Requerido'),
   lastName: z.string().trim().min(1, 'Requerido'),
-  nationalId: z.string().trim(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER'], 'Elige una opción'),
   edad: z.string().refine((v) => v === '' || (/^\d+$/.test(v) && Number(v) <= 120), 'Revisa la edad'),
   birthDate: z
@@ -54,7 +53,6 @@ export function FormularioPaciente({
     defaultValues: paciente
       ? {
           ...paciente,
-          nationalId: paciente.nationalId ?? '',
           phoneNumber: paciente.phoneNumber ?? '',
           address: paciente.address ?? '',
           edad: String(edad(paciente.birthDate)),
@@ -65,7 +63,6 @@ export function FormularioPaciente({
       : {
           firstName: '',
           lastName: '',
-          nationalId: '',
           phoneNumber: '',
           address: '',
           edad: '',
@@ -106,7 +103,7 @@ export function FormularioPaciente({
       };
       if (paciente) return editarPaciente(paciente.id, datos);
       // Al crear, los opcionales vacíos no se mandan.
-      for (const k of ['nationalId', 'phoneNumber', 'address'] as const) if (!datos[k]) delete datos[k];
+      for (const k of ['phoneNumber', 'address'] as const) if (!datos[k]) delete datos[k];
       return crearPaciente(datos);
     },
     onSuccess: (p) => {
@@ -138,9 +135,6 @@ export function FormularioPaciente({
           </Campo>
           <Campo etiqueta="Género" error={e.gender?.message}>
             <Selector opciones={opciones(GENEROS)} vacio={paciente ? undefined : 'Elegir…'} {...register('gender')} aria-invalid={!!e.gender} />
-          </Campo>
-          <Campo etiqueta="Cédula" ayuda="Opcional">
-            <Entrada {...register('nationalId')} />
           </Campo>
           <Campo etiqueta="Teléfono" ayuda="Opcional">
             <Entrada type="tel" {...register('phoneNumber')} />

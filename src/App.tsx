@@ -30,6 +30,15 @@ import { BajaPaciente } from './pages/BajaPaciente';
 import { UsuarioEditor, Usuarios } from './pages/Usuarios';
 import { Visitas } from './pages/Visitas';
 import { Sincronizacion } from './pages/Sincronizacion';
+import { MiCuenta } from './pages/MiCuenta';
+import { ConfirmarCorreo } from './pages/ConfirmarCorreo';
+import { EnviarResumen } from './pages/EnviarResumen';
+import { Entregas } from './pages/Entregas';
+import { Reposicion } from './pages/Reposicion';
+import { DevolverEntrega } from './pages/DevolverEntrega';
+import { PantallaReporteEntregas } from './pages/ReporteEntregas';
+import { HojaPreparacion } from './pages/HojaPreparacion';
+import { HojaIndicaciones } from './pages/HojaIndicaciones';
 
 function Protegida({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
@@ -47,6 +56,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/confirmar-correo" element={<ConfirmarCorreo />} />
       <Route
         element={
           <Protegida>
@@ -56,16 +66,23 @@ export function App() {
       >
         <Route index element={<Panel />} />
         <Route path="sincronizacion" element={<Sincronizacion />} />
+        <Route path="cuenta" element={<MiCuenta />} />
         <Route path="jornada" element={<ConPermiso permiso="visitas.registrar"><Jornada /></ConPermiso>} />
+        <Route path="entregas" element={<ConPermiso permiso="entregas.registrar"><Entregas /></ConPermiso>} />
+        <Route path="entregas/:id/devolver" element={<ConPermiso permiso="entregas.registrar"><DevolverEntrega /></ConPermiso>} />
         <Route path="jornadas" element={<ConPermiso permiso="pacientes.ver"><Jornadas /></ConPermiso>} />
         <Route path="jornadas/nueva" element={<ConPermiso permiso="jornadas.planificar"><JornadaEditor /></ConPermiso>} />
         <Route path="jornadas/:id" element={<ConPermiso permiso="pacientes.ver"><JornadaDetalle /></ConPermiso>} />
+        <Route path="jornadas/:id/enviar-resumen" element={<ConPermiso permiso="visitas.registrar"><EnviarResumen /></ConPermiso>} />
+        <Route path="jornadas/:id/preparacion" element={<ConPermiso permiso="entregas.registrar"><HojaPreparacion /></ConPermiso>} />
         <Route path="jornadas/:id/editar" element={<ConPermiso permiso="jornadas.planificar"><JornadaEditor /></ConPermiso>} />
         <Route path="pacientes" element={<ConPermiso permiso="pacientes.ver"><Pacientes /></ConPermiso>} />
         <Route path="pacientes/nuevo" element={<ConPermiso permiso="pacientes.editar"><PacienteEditor /></ConPermiso>} />
         <Route path="pacientes/:id" element={<ConPermiso permiso="pacientes.ver"><Paciente /></ConPermiso>} />
         <Route path="pacientes/:id/editar" element={<ConPermiso permiso="pacientes.editar"><PacienteEditor /></ConPermiso>} />
         <Route path="pacientes/:id/baja" element={<ConPermiso permiso="pacientes.editar"><BajaPaciente /></ConPermiso>} />
+        <Route path="pacientes/:id/indicaciones" element={<ConPermiso permiso="pacientes.ver"><HojaIndicaciones /></ConPermiso>} />
+        <Route path="pacientes/:id/reposicion" element={<ConPermiso permiso="entregas.registrar"><Reposicion /></ConPermiso>} />
         <Route path="pacientes/:id/visita" element={<ConPermiso permiso="visitas.registrar"><NuevaVisita /></ConPermiso>} />
         <Route path="visitas/:id/editar" element={<EditarVisita />} />
         <Route path="revision" element={<ConPermiso permiso="datos.revisar"><RevisionDatos /></ConPermiso>} />
@@ -84,6 +101,7 @@ export function App() {
         <Route path="comunidades/nueva" element={<ConPermiso permiso="comunidades.gestionar"><ComunidadEditor /></ConPermiso>} />
         <Route path="comunidades/:id" element={<ConPermiso permiso="comunidades.gestionar"><ComunidadEditor /></ConPermiso>} />
         <Route path="reportes" element={<ConPermiso permiso="reportes.ver"><Reportes /></ConPermiso>} />
+        <Route path="reportes/entregas" element={<ConPermiso permiso="reportes.ver"><PantallaReporteEntregas /></ConPermiso>} />
         <Route path="reportes/donantes" element={<ConPermiso permiso="reportes.ver"><Donantes /></ConPermiso>} />
         <Route path="metas" element={<ConPermiso permiso="reportes.ver"><Metas /></ConPermiso>} />
         <Route path="mapa" element={<ConPermiso permiso="pacientes.ver"><MapaBateyes /></ConPermiso>} />

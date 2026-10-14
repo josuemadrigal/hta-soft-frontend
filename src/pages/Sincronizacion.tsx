@@ -7,7 +7,7 @@ import { fechaYHora } from '../lib/formato';
 import { descartarPendiente, reintentarPendiente, sincronizar, useEstadoSincronizacion, usePendientes } from '../offline/cola';
 import { useEnLinea } from '../offline/datos';
 
-const TIPOS = { visita: 'Visita', 'no-vino': 'No vino', 'quitar-no-vino': 'Deshacer "No vino"' } as const;
+const TIPOS = { visita: 'Visita', 'no-vino': 'No vino', 'quitar-no-vino': 'Deshacer "No vino"', entrega: 'Entrega', reposicion: 'Reposición' } as const;
 
 /** /sincronizacion — lo registrado sin internet que falta por enviar, y lo que el servidor rechazó. */
 export function Sincronizacion() {
