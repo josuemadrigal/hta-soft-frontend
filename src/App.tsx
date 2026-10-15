@@ -9,6 +9,7 @@ import { Configuracion } from './pages/Configuracion';
 import { EditarVisita } from './pages/EditarVisita';
 import { Jornada } from './pages/Jornada';
 import { Login } from './pages/Login';
+import { OlvideContrasena, RestablecerContrasena } from './pages/RecuperarContrasena';
 import { AjusteInventario, EntradaInventario, MedicamentoDetalle } from './pages/Inventario';
 import { JornadaDetalle, JornadaEditor, Jornadas } from './pages/Jornadas';
 import { MedicamentoEditor, Medicamentos } from './pages/Medicamentos';
@@ -57,6 +58,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/confirmar-correo" element={<ConfirmarCorreo />} />
+      <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+      <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
       <Route
         element={
           <Protegida>

@@ -32,6 +32,8 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   REACTIVAR: { texto: 'Reactivó', color: '#15803d' },
+  RECUPERACION_PEDIDA: { texto: 'Pidió restablecer la contraseña', color: '#6b665e' },
+  CONTRASENA_RESTABLECIDA: { texto: 'Restableció su contraseña', color: '#a16207' },
   CAMBIO_CODIGO: { texto: 'Cambió el código', color: '#a16207' },
   CANCEL: { texto: 'Canceló', color: '#6b665e' },
   ENTREGA: { texto: 'Entregó medicamentos', color: '#15803d' },

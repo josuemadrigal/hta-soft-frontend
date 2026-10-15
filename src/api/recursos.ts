@@ -74,6 +74,8 @@ export const obtenerYo = () => api<Usuario>('/auth/me');
 export const cambiarContrasena = (actual: string, nueva: string) => enviar<Sesion>('/auth/contrasena', 'PATCH', { actual, nueva });
 export const pedirConfirmacionCorreo = () => enviar<ResultadoCorreo>('/auth/correo/confirmacion', 'POST');
 export const confirmarCorreo = (token: string) => enviar<{ email: string }>('/auth/correo/confirmar', 'POST', { token });
+export const olvideContrasena = (email: string) => enviar<{ ok: true }>('/auth/contrasena/olvido', 'POST', { email });
+export const restablecerContrasena = (token: string, nueva: string) => enviar<{ email: string }>('/auth/contrasena/restablecer', 'POST', { token, nueva });
 export const reenviarConfirmacion = (userId: number) => enviar<ResultadoCorreo>(`/users/${userId}/confirmacion-correo`, 'POST');
 
 /* Pacientes */
