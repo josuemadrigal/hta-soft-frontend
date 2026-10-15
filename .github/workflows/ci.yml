@@ -84,8 +84,92 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-  # Despliegue: todavía no hay servidor. Cuando exista, agregar un job `deploy`
-  # (needs: publish) como el de sigse-eduard/.github/workflows/frontend.yml:
-  # cambiar FRONTEND_VERSION=sha-${{ github.sha }} en el .env del servidor,
-  # `docker compose pull/up -d frontend`, comprobar que la web responde y volver
-  # a la imagen anterior si falla. El compose vive en el repo del backend.
+  deploy:
+    name: Desplegar web en el VPS
+    needs: publish
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Un despliegue a la vez en el servidor, sea del API o de la web.
+    concurrency:
+      group: hta-production-deploy
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://app.lightacandledr.org/
+    steps:
+      - name: Configurar acceso SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Actualizar y comprobar salud
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_VERSION: sha-${{ github.sha }}
+        run: |
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$VPS_PORT" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" \
+            "DEPLOY_VERSION='$DEPLOY_VERSION' bash -s" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          cd /var/www/hta-soft
+          test -f .env
+
+          compose() {
+            docker compose --env-file .env -f compose.shared-vps.yml "$@"
+          }
+          env_value() {
+            sed -n "s/^$1=//p" .env | tail -n 1
+          }
+          set_env_value() {
+            if grep -q "^$1=" .env; then
+              sed -i "s/^$1=.*/$1=$2/" .env
+            else
+              printf '%s=%s\n' "$1" "$2" >> .env
+            fi
+          }
+
+          container="$(compose ps -q hta-web)"
+          if [ -z "$container" ]; then
+            echo "No hay un contenedor hta-web corriendo: el primer arranque se hace a mano (docs/DESPLIEGUE.md)."
+            exit 1
+          fi
+          # Copia local de la imagen actual, por si hay que volver a ella.
+          docker image tag "$(docker inspect --format '{{.Image}}' "$container")" josueahp/hta-soft-frontend:rollback-local
+
+          rollback() {
+            trap - ERR
+            echo "El despliegue falló; se vuelve a la imagen anterior."
+            set_env_value FRONTEND_VERSION rollback-local
+            compose up -d hta-web
+          }
+          trap rollback ERR
+
+          set_env_value FRONTEND_VERSION "$DEPLOY_VERSION"
+          compose pull hta-web
+          compose up -d hta-web
+
+          healthy=false
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error https://app.lightacandledr.org/ > /dev/null; then
+              healthy=true
+              break
+            fi
+            sleep 5
+          done
+          [ "$healthy" = true ]
+
+          image_ref="$(docker inspect --format '{{.Config.Image}}' "$(compose ps -q hta-web)")"
+          [ "$image_ref" = "josueahp/hta-soft-frontend:${DEPLOY_VERSION}" ]
+          trap - ERR
+          compose ps hta-web
+          echo "hta-web desplegado con ${DEPLOY_VERSION}; el API sin cambios."
+          REMOTE_SCRIPT
