@@ -44,7 +44,7 @@ const SECCIONES: { titulo: string; enlaces: Enlace[] }[] = [
       { a: '/entregas', texto: 'Entregas', icono: PackageCheck, permiso: 'entregas.registrar' },
       { a: '/pacientes', texto: 'Pacientes', icono: Users, permiso: 'pacientes.ver' },
       { a: '/visitas', texto: 'Visitas', icono: ClipboardList, permiso: 'pacientes.ver' },
-      { a: '/medicamentos', texto: 'Inventario', icono: Pill },
+      { a: '/medicamentos', texto: 'Inventario', icono: Pill, permiso: 'inventario.gestionar' },
     ],
   },
   {

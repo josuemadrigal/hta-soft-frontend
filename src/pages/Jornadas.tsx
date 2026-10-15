@@ -492,9 +492,13 @@ function Detalle({ d }: { d: DetalleJornada }) {
                   {d.llevar.map((m) => (
                     <tr key={m.medicationId} className={cn(m.falta > 0 && 'bg-red-50/60')}>
                       <td className="px-5 py-2.5">
-                        <Link to={`/medicamentos/${m.medicationId}`} className="hover:underline">
-                          {m.medicamento}
-                        </Link>
+                        {tiene('inventario.gestionar') ? (
+                          <Link to={`/medicamentos/${m.medicationId}`} className="hover:underline">
+                            {m.medicamento}
+                          </Link>
+                        ) : (
+                          m.medicamento
+                        )}
                       </td>
                       <td className="tabular px-5 py-2.5 text-right">{m.pacientes}</td>
                       <td className="tabular px-5 py-2.5 text-right font-medium">{miles(m.pastillas)}</td>

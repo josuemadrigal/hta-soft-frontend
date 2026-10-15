@@ -259,7 +259,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
       tono: 'aviso',
     });
   }
-  if (inventario.length) pendientes.push({ icono: <AlertTriangle className="size-4" />, texto: <>Inventario: {inventario.join(' · ')}.</>, a: '/medicamentos', tono: 'aviso' });
+  if (inventario.length && tiene('inventario.gestionar')) pendientes.push({ icono: <AlertTriangle className="size-4" />, texto: <>Inventario: {inventario.join(' · ')}.</>, a: '/medicamentos', tono: 'aviso' });
 
   return (
     <>

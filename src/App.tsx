@@ -94,10 +94,10 @@ export function App() {
         <Route path="revision/unir" element={<ConPermiso permiso="datos.revisar"><UnirPacientes /></ConPermiso>} />
         <Route path="configuracion" element={<ConPermiso permiso="configuracion.gestionar"><Configuracion /></ConPermiso>} />
         <Route path="visitas" element={<ConPermiso permiso="pacientes.ver"><Visitas /></ConPermiso>} />
-        <Route path="medicamentos" element={<Medicamentos />} />
+        <Route path="medicamentos" element={<ConPermiso permiso="inventario.gestionar"><Medicamentos /></ConPermiso>} />
         <Route path="medicamentos/nuevo" element={<ConPermiso permiso="inventario.gestionar"><MedicamentoEditor /></ConPermiso>} />
         <Route path="medicamentos/entrada" element={<ConPermiso permiso="inventario.gestionar"><EntradaInventario /></ConPermiso>} />
-        <Route path="medicamentos/:id" element={<MedicamentoDetalle />} />
+        <Route path="medicamentos/:id" element={<ConPermiso permiso="inventario.gestionar"><MedicamentoDetalle /></ConPermiso>} />
         <Route path="medicamentos/:id/editar" element={<ConPermiso permiso="inventario.gestionar"><MedicamentoEditor /></ConPermiso>} />
         <Route path="medicamentos/:id/ajuste" element={<ConPermiso permiso="inventario.gestionar"><AjusteInventario /></ConPermiso>} />
         <Route path="comunidades" element={<Comunidades />} />
