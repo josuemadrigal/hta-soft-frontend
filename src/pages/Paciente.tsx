@@ -452,7 +452,15 @@ export function Paciente() {
             <dl className="grid gap-4 p-5">
               <div className="rounded-lg bg-marca-50 px-4 py-3">
                 <dt className="text-xs text-tenue">Código</dt>
-                <dd className="font-mono text-2xl font-semibold tracking-wide">{p.patientCode}</dd>
+                <dd className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-2xl font-semibold tracking-wide">{p.patientCode}</span>
+                  {/* Caso extremo, solo el Administrador: escribir el código exacto */}
+                  {puedeRevisar && (
+                    <Link to={`/pacientes/${p.id}/codigo`} className="text-xs text-tenue underline-offset-4 hover:text-tinta hover:underline">
+                      Cambiar
+                    </Link>
+                  )}
+                </dd>
                 {codigoDeOtroBatey && puedeRevisar && (
                   <dd className="mt-1 text-xs text-amber-800">
                     No es de {p.community!.name} (sus códigos empiezan por {p.community!.abbreviation}).

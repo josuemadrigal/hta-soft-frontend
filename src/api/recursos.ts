@@ -165,7 +165,8 @@ export const listarQuienesAtienden = () => api<Atendio[]>('/visits/doctors');
 export const crearVisita = (d: DatosVisita) => enviar<Visita & { entregada?: boolean; pendientes?: PendienteAlGuardar[] }>('/visits', 'POST', d);
 export const obtenerVisita = (id: number) => api<(Visita & { patient: Paciente }) | null>(`/visits/${id}`);
 /** null borra el valor (p. ej. quitar una toma automática mal anotada). */
-export type CambiosVisita = { [K in keyof Omit<DatosVisita, 'patientId' | 'prescriptions'>]?: DatosVisita[K] | null };
+export type RecetaEdicion = { id?: number; medicationId: number; dailyDose: number; bufferDays: number; patientSupplyRemaining: number; entregadas: number };
+export type CambiosVisita = { [K in keyof Omit<DatosVisita, 'patientId' | 'prescriptions'>]?: DatosVisita[K] | null } & { recetas?: RecetaEdicion[] };
 export const editarVisita = (id: number, d: CambiosVisita) => enviar<Visita>(`/visits/${id}`, 'PATCH', d);
 export const borrarVisita = (id: number) => enviar<{ id: number; inventarioDevuelto: boolean }>(`/visits/${id}`, 'DELETE');
 
@@ -291,6 +292,7 @@ export const reabrirCaso = (id: number) => enviar<unknown>(`/revision/decisiones
 export const darDeBaja = (id: number, d: { motivo: MotivoBaja; fecha: string; detalle?: string }) => enviar<Paciente>(`/patients/${id}/baja`, 'POST', d);
 export const reactivarPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/reactivar`, 'POST');
 export const regenerarCodigoPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/regenerar-codigo`, 'POST');
+export const cambiarCodigoPaciente = (id: number, codigo: string) => enviar<Paciente>(`/patients/${id}/codigo`, 'POST', { codigo });
 
 /* Metas, donantes, mapa */
 export const metasAnio = (anio: number) => api<MetasAnio>(`/metas/${anio}`);

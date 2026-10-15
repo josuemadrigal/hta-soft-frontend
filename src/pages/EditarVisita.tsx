@@ -1,17 +1,21 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Lock, Save, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
-import { useConfigPA, useUsuarios, useVisita } from '../api/consultas';
+import { useConfigPA, useMedicamentos, useUsuarios, useVisita } from '../api/consultas';
 import { editarVisita, type CambiosVisita } from '../api/recursos';
 import type { Paciente, Visita } from '../api/tipos';
 import { usePermisosVisita } from '../auth/permisosVisita';
 import { useSesion } from '../auth/sesion';
+import { EditarRecetas, faltaInventario, filasDe, filasExageradas, recetasCambiaron, recetasParaGuardar } from '../components/EditarRecetas';
+import { useConfirmar } from '../components/confirmar';
 import { useEliminarVisita } from '../components/eliminarVisita';
 import { AreaTexto, Boton, Campo, Cargando, Casilla, comoNumero, EncabezadoPagina, Entrada, InsigniaCategoria, Selector, Tarjeta, Vacio } from '../components/ui';
 import { opciones, TIPOS_VISITA } from '../lib/etiquetas';
-import { atendio, clasificar, edadTexto, fecha, fechaYHora, nombreCompleto, num } from '../lib/formato';
+import { mensajeEntrega } from '../lib/entregas';
+import { atendio, clasificar, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num } from '../lib/formato';
 
 type Datos = {
   visitDate: string;
@@ -93,7 +97,17 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
       doctorId: String(visita.doctorId),
     },
   });
+  const confirmar = useConfirmar();
   const [sm, dm, sa, da] = watch(['systolicManual', 'diastolicManual', 'systolicAuto', 'diastolicAuto']);
+  // Medicamentos: se pueden corregir si puede registrar visitas (mueven el inventario).
+  const puedeRecetas = tiene('visitas.registrar');
+  const [filas, setFilas] = useState(() => filasDe(visita.prescriptions));
+  const medicamentos = useMedicamentos().data ?? [];
+  const cambiaronRecetas = puedeRecetas && recetasCambiaron(filas, visita.prescriptions);
+  const sinInventario = cambiaronRecetas && !visita.importada && faltaInventario(filas, visita.prescriptions ?? [], medicamentos);
+  // Días hasta la próxima visita, de las fechas del formulario (como al registrar): 90 si no hay.
+  const [fechaVisita, fechaProxima] = watch(['visitDate', 'nextVisitDate']);
+  const dias = fechaVisita && fechaProxima ? Math.max(1, Math.round((new Date(`${fechaProxima}T12:00:00`).getTime() - new Date(fechaVisita).getTime()) / DIA_MS)) : 90;
   const s = sm ?? sa;
   const d = dm ?? da;
   const categoria = s && d ? clasificar(configs.data ?? [], s, d) : null;
@@ -121,14 +135,19 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
         ...(x.nextVisitDate && { nextVisitDate: new Date(`${x.nextVisitDate}T12:00:00`).toISOString() }),
         ...(esAdmin && Number(x.doctorId) !== visita.doctorId && { doctorId: Number(x.doctorId) }),
       };
+      if (cambiaronRecetas) {
+        const recetas = recetasParaGuardar(filas);
+        if (!recetas) throw new Error('Completa los medicamentos: medicamento, pastillas al día y cantidades.');
+        cambios.recetas = recetas;
+      }
       return editarVisita(visita.id, cambios);
     },
     onSuccess: () => {
-      for (const k of [['visitas'], ['paciente'], ['pacientes'], ['jornada'], ['stats'], ['medicos'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
+      for (const k of [['visitas'], ['paciente'], ['pacientes'], ['jornada'], ['stats'], ['medicos'], ['auditoria'], ['medicamentos'], ['entregas']]) cliente.invalidateQueries({ queryKey: k });
       toast.success('Visita corregida. El cambio quedó registrado en Auditoría.');
       navegar(volver);
     },
-    onError: (e) => toast.error(e.message.includes('No BP Configuration') ? 'Esos valores de presión no caen en ningún rango de la clasificación.' : e.message),
+    onError: (e) => toast.error(e.message.includes('No BP Configuration') ? 'Esos valores de presión no caen en ningún rango de la clasificación.' : mensajeEntrega(e.message)),
   });
 
   const campoNum = (nombre: keyof Datos, etiqueta: string, extra: Record<string, unknown> = {}) => (
@@ -162,7 +181,22 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
         </p>
       )}
 
-      <form onSubmit={handleSubmit((x) => guardar.mutate(x))} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <form
+        onSubmit={handleSubmit(async (x) => {
+          // Un dedo de más (89 → 8960) sacaría miles de pastillas: se confirma antes.
+          const raras = cambiaronRecetas ? filasExageradas(filas, dias, medicamentos) : [];
+          if (
+            raras.length &&
+            !(await confirmar({
+              titulo: '¿Seguro de esas cantidades?',
+              mensaje: `Son mucho más de lo que le corresponde: ${raras.join(' · ')}. ${visita.importada ? '' : 'Esas pastillas salen del inventario. '}Revisa que no sobre un número.`,
+              confirmar: 'Sí, guardar',
+              peligro: true,
+            }))
+          )
+            return;
+          guardar.mutate(x);
+        })} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
           <Tarjeta titulo="Presión arterial (mmHg)" accion={<span className="text-xs text-tenue">Deja vacío para borrar un valor mal anotado</span>}>
             <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
@@ -193,6 +227,24 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
               </div>
             </div>
           </Tarjeta>
+          {puedeRecetas ? (
+            <EditarRecetas recetas={visita.prescriptions} filas={filas} alCambiar={setFilas} dias={dias} importada={!!visita.importada} />
+          ) : !!visita.prescriptions?.length && (
+            <Tarjeta titulo="Medicamentos entregados" accion={<span className="text-xs text-tenue">Para cambiarlos hace falta el permiso de registrar visitas</span>}>
+              <ul className="divide-y divide-borde text-sm">
+                {visita.prescriptions.map((r) => (
+                  <li key={r.id} className="flex justify-between px-5 py-2.5">
+                    <span>
+                      {r.medication?.name} {r.medication?.concentration}
+                    </span>
+                    <span className="tabular text-tenue">
+                      {r.dailyDose}/día · {r.quantityDispensed} entregadas
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Tarjeta>
+          )}
           <Tarjeta titulo="Notas">
             <div className="grid gap-4 p-5">
               <Campo etiqueta="Motivo">
@@ -215,22 +267,6 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
               </div>
             </Tarjeta>
           )}
-          {!!visita.prescriptions?.length && (
-            <Tarjeta titulo="Medicamentos entregados" accion={<span className="text-xs text-tenue">No se editan: ya salieron del inventario</span>}>
-              <ul className="divide-y divide-borde text-sm">
-                {visita.prescriptions.map((r) => (
-                  <li key={r.id} className="flex justify-between px-5 py-2.5">
-                    <span>
-                      {r.medication?.name} {r.medication?.concentration}
-                    </span>
-                    <span className="tabular text-tenue">
-                      {r.dailyDose}/día · {r.quantityDispensed} entregadas
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Tarjeta>
-          )}
         </div>
 
         <aside className="xl:sticky xl:top-6 xl:self-start">
@@ -246,7 +282,8 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
               </div>
             </dl>
             <div className="border-t border-borde p-5">
-              <Boton type="submit" className="w-full" cargando={guardar.isPending} disabled={!formState.isDirty} icono={<Save className="size-4" />}>
+              {sinInventario && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">No hay suficientes pastillas en inventario para lo que se agregó.</p>}
+              <Boton type="submit" className="w-full" cargando={guardar.isPending} disabled={(!formState.isDirty && !cambiaronRecetas) || sinInventario} icono={<Save className="size-4" />}>
                 Guardar corrección
               </Boton>
             </div>

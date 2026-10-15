@@ -28,6 +28,7 @@ import { Donantes } from './pages/Donantes';
 import { Metas } from './pages/Metas';
 import { MapaBateyes } from './pages/MapaBateyes';
 import { BajaPaciente } from './pages/BajaPaciente';
+import { CambiarCodigo } from './pages/CambiarCodigo';
 import { UsuarioEditor, Usuarios } from './pages/Usuarios';
 import { Visitas } from './pages/Visitas';
 import { Sincronizacion } from './pages/Sincronizacion';
@@ -84,6 +85,7 @@ export function App() {
         <Route path="pacientes/:id" element={<ConPermiso permiso="pacientes.ver"><Paciente /></ConPermiso>} />
         <Route path="pacientes/:id/editar" element={<ConPermiso permiso="pacientes.editar"><PacienteEditor /></ConPermiso>} />
         <Route path="pacientes/:id/baja" element={<ConPermiso permiso="pacientes.editar"><BajaPaciente /></ConPermiso>} />
+        <Route path="pacientes/:id/codigo" element={<ConPermiso permiso="datos.revisar"><CambiarCodigo /></ConPermiso>} />
         <Route path="pacientes/:id/indicaciones" element={<ConPermiso permiso="pacientes.ver"><HojaIndicaciones /></ConPermiso>} />
         <Route path="pacientes/:id/reposicion" element={<ConPermiso permiso="entregas.registrar"><Reposicion /></ConPermiso>} />
         <Route path="pacientes/:id/visita" element={<ConPermiso permiso="visitas.registrar"><NuevaVisita /></ConPermiso>} />

@@ -186,7 +186,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     return `${d.codigo} · ${d.nombre}: ${MOTIVOS_BAJA[d.motivo as MotivoBaja] ?? d.motivo} el ${fecha(`${d.fecha}T12:00:00`)}${d.detalle ? ` · ${d.detalle}` : ''}`;
   }
   if (r.entity === 'Patient' && r.action === 'CAMBIO_CODIGO') {
-    return `${d.nombre}: ${d.anterior} → ${d.codigo} (${d.batey})`;
+    return `${d.nombre}: ${d.anterior} → ${d.codigo} (${d.batey}${d.aMano ? ', escrito a mano' : ''})`;
   }
   if (r.entity === 'Patient' && r.action === 'REACTIVAR') {
     const b = (d.bajaAnterior ?? {}) as { motivo?: MotivoBaja; fecha?: string };
