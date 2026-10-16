@@ -160,11 +160,14 @@ export function Pacientes() {
                         <div className="flex items-center gap-3">
                           <Avatar persona={p} foto={p.photoUrl} tamano="size-8" />
                           <div className="min-w-0">
-                            <p className="font-medium whitespace-nowrap">{nombreCompleto(p)}</p>
+                            <p className="flex items-center gap-2 font-medium whitespace-nowrap">
+                              {nombreCompleto(p)}
+                              {/* Fallecido o de baja: igual que en la ficha, al lado del nombre */}
+                              {p.status !== 'ACTIVE' && <Insignia>{ESTADOS[p.status]}</Insignia>}
+                            </p>
                             <p className="text-xs whitespace-nowrap text-tenue">
                               {GENEROS[p.gender]}
                               {p.address && ` · Casa ${p.address}`}
-                              {p.status !== 'ACTIVE' && ` · ${ESTADOS[p.status]}`}
                             </p>
                           </div>
                         </div>
