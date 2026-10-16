@@ -1,8 +1,8 @@
-import { CalendarDays, CheckCircle2, ClipboardPlus, CloudDownload, MapPin, Search, UserPlus, UserX } from 'lucide-react';
+import { CheckCircle2, ClipboardPlus, CloudDownload, MapPin, Search, UserPlus, UserX } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useComunidades, useJornada, useJornadas } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { marcarNoVino, quitarNoVino, type DatosNoVino } from '../api/recursos';
@@ -64,6 +64,22 @@ function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales):
   return asistencia(u.visitDate).clave === 'sin-venir' ? 'sinVenir' : 'pendiente';
 }
 
+const CLAVE_BATEY = 'hta:ultimoBatey';
+const leerUltimoBatey = () => {
+  try {
+    return localStorage.getItem(CLAVE_BATEY);
+  } catch {
+    return null;
+  }
+};
+const guardarUltimoBatey = (id: string) => {
+  try {
+    localStorage.setItem(CLAVE_BATEY, id);
+  } catch {
+    /* sin almacenamiento: no se recuerda */
+  }
+};
+
 export function Jornada() {
   const [params, setParams] = useSearchParams();
   const idPedido = Number(params.get('batey')) || undefined;
@@ -78,6 +94,32 @@ export function Jornada() {
   const lista = useJornada(comunidadId);
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
   const planHoy = hoyPlan.data?.find((j) => j.communityId === comunidadId);
+
+  // Al entrar sin batey elegido se pone solo el de la jornada de hoy (una sola vez: si después lo
+  // cambian o lo quitan, se respeta). Sin internet, el último batey usado en este dispositivo.
+  const autoElegido = useRef(false);
+  const [elegidoSolo, setElegidoSolo] = useState(false);
+  useEffect(() => {
+    if (autoElegido.current || idPedido || !comunidades.data) return;
+    const activo = (id: number | undefined) => !!id && comunidades.data!.some((c) => c.id === id && c.isActive);
+    let id: number | undefined;
+    if (hoyPlan.data) {
+      const deHoy = [...new Set(hoyPlan.data.map((j) => j.communityId))];
+      if (deHoy.length === 1 && activo(deHoy[0])) id = deHoy[0];
+    } else if (hoyPlan.isError || !navigator.onLine) {
+      const ultimo = Number(leerUltimoBatey());
+      if (activo(ultimo)) id = ultimo;
+    } else return; // todavía cargando la jornada de hoy
+    autoElegido.current = true;
+    if (id) {
+      setElegidoSolo(true);
+      setParams({ batey: String(id) }, { replace: true });
+    }
+  }, [idPedido, comunidades.data, hoyPlan.data, hoyPlan.isError, setParams]);
+  // Recordar el batey para la próxima vez (sobre todo sin internet)
+  useEffect(() => {
+    if (comunidadId) guardarUltimoBatey(String(comunidadId));
+  }, [comunidadId]);
 
   // Lo registrado en este dispositivo que aún no se envía (sin internet)
   const pendientes = usePendientes();
@@ -226,22 +268,19 @@ export function Jornada() {
         }
       />
 
-      {planHoy && (
-        <Link to={`/jornadas/${planHoy.id}`} className="mb-4 flex items-center gap-3 rounded-xl border border-amber-300 bg-marca-50 px-5 py-3 text-sm hover:border-amber-400">
-          <CalendarDays className="size-4 shrink-0" />
-          <span>
-            Jornada planificada de hoy en <strong>{planHoy.community.name}</strong>
-            {planHoy.responsable && ` · responsable ${planHoy.responsable.firstName} ${planHoy.responsable.lastName}`}. Ver qué llevar, faltantes y cerrarla.
-          </span>
-        </Link>
-      )}
       {!comunidadId && !!hoyPlan.data?.length && (
         <p className="mb-4 text-sm text-tenue">
           Hoy hay jornada en:{' '}
           {hoyPlan.data.map((j, i) => (
             <span key={j.id}>
               {i > 0 && ', '}
-              <button className="font-medium text-tinta underline" onClick={() => setParams({ batey: String(j.communityId) }, { replace: true })}>
+              <button
+                className="font-medium text-tinta underline"
+                onClick={() => {
+                  autoElegido.current = true;
+                  setParams({ batey: String(j.communityId) }, { replace: true });
+                }}
+              >
                 {j.community.name}
               </button>
             </span>
@@ -254,9 +293,16 @@ export function Jornada() {
           <Selector
             vacio="Elegir batey…"
             value={comunidadId ?? ''}
-            onChange={(e) => setParams(e.target.value ? { batey: e.target.value } : {}, { replace: true })}
+            onChange={(e) => {
+              autoElegido.current = true;
+              setElegidoSolo(false);
+              setParams(e.target.value ? { batey: e.target.value } : {}, { replace: true });
+            }}
             opciones={(comunidades.data ?? []).filter((c) => c.isActive).map((c) => ({ value: c.id, label: c.name }))}
           />
+          {elegidoSolo && comunidadId && (
+            <span className="text-xs text-tenue">{planHoy ? 'Elegido solo: hoy hay jornada aquí. Puedes cambiarlo.' : 'El último batey que usaste. Puedes cambiarlo.'}</span>
+          )}
         </label>
         {comunidadId && lista.data && (
           <div className="min-w-60 flex-1">

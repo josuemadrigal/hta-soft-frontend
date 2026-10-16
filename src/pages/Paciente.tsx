@@ -5,14 +5,14 @@ import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
 import { ListaAlertas, useUmbrales } from '../components/Alertas';
 import { alertasClinicas, tomaDe } from '../lib/alertas';
-import { asistencia } from '../lib/asistencia';
 import { usePermisosVisita } from '../auth/permisosVisita';
 import { useEliminarVisita } from '../components/eliminarVisita';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import { useAnaliticaPaciente, usePaciente, useTensionPaciente } from '../api/consultas';
+import { useAnaliticaPaciente, useJornadas, usePaciente, useTensionPaciente } from '../api/consultas';
+import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
@@ -341,6 +341,8 @@ export function Paciente() {
     onError: (e) => toast.error(e.message),
   });
   const umbrales = useUmbrales();
+  // La próxima jornada planificada en su batey (lo útil si está atrasado).
+  const jornadas = useJornadas({ desde: hoyYmd(), estado: 'PLANIFICADA', communityId: consulta.data?.communityId });
 
   if (consulta.isPending) return <Cargando />;
   if (consulta.isError) return <ErrorCarga error={consulta.error} />;
@@ -354,12 +356,15 @@ export function Paciente() {
   const alertas = ultima ? alertasClinicas(tomaDe(ultima), p.clinicalVisits!.slice(1), umbrales) : [];
   // Visitas viejas no tienen nextVisitDate: se asume la ronda trimestral.
   const proxima = ultima ? new Date(ultima.nextVisitDate ?? new Date(ultima.visitDate).getTime() + 90 * DIA_MS) : null;
-  const asiste = asistencia(ultima?.visitDate);
   const toma = (v: Visita) => ({ s: v.systolicManual ?? v.systolicAuto, d: v.diastolicManual ?? v.diastolicAuto });
   const conToma = (p.clinicalVisits ?? []).filter((v) => toma(v).s && toma(v).d);
   const tomaUltima = conToma[0] ? (toma(conToma[0]) as { s: number; d: number }) : null;
   const tomaPrevia = conToma[1] ? (toma(conToma[1]) as { s: number; d: number }) : null;
+  // Cada cuánto debe venir (el intervalo de su última visita) y cuántas visitas se ha perdido desde que le tocaba.
+  const intervalo = ultima?.nextVisitDate ? Math.max(1, Math.round((new Date(ultima.nextVisitDate).getTime() - new Date(ultima.visitDate).getTime()) / DIA_MS)) : 90;
   const diasParaVolver = proxima ? Math.round((new Date(proxima).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / DIA_MS) : null;
+  const jornadaProxima = (jornadas.data ?? []).filter((j) => j.communityId === p.communityId).sort((x, y) => x.fecha.localeCompare(y.fecha))[0];
+  const visitasPerdidas = diasParaVolver !== null && diasParaVolver < 0 ? 1 + Math.floor(-diasParaVolver / intervalo) : 0;
   const habitos = [
     p.hasFamilyHistory && 'Antecedentes familiares',
     p.smokingStatus !== 'NO' && TABACO[p.smokingStatus],
@@ -490,7 +495,11 @@ export function Paciente() {
                         title={`La anterior fue ${tomaPrevia.s}/${tomaPrevia.d}`}
                       >
                         {tomaUltima.s > tomaPrevia.s ? <ArrowUp className="size-3.5" /> : tomaUltima.s < tomaPrevia.s ? <ArrowDown className="size-3.5" /> : null}
-                        {tomaUltima.s === tomaPrevia.s ? 'Igual que la anterior' : `${Math.abs(tomaUltima.s - tomaPrevia.s)} ${tomaUltima.s > tomaPrevia.s ? 'más' : 'menos'} que la anterior`}
+                        {tomaUltima.s > tomaPrevia.s ? 'Subió' : tomaUltima.s < tomaPrevia.s ? 'Bajó' : 'Igual que antes'}
+                        <span className="font-normal text-tenue">
+                          {' '}
+                          · antes <span className="font-mono">{tomaPrevia.s}/{tomaPrevia.d}</span>
+                        </span>
                       </span>
                     ) : (
                       <span className="text-xs text-tenue">Primera toma</span>
@@ -505,21 +514,39 @@ export function Paciente() {
               )}
             </div>
             <div className="p-5">
-              <p className="text-xs font-medium text-tenue">Próxima visita</p>
               {p.status !== 'ACTIVE' ? (
-                <p className="mt-1 text-sm text-tenue">{ESTADOS[p.status]}: no se programa</p>
+                <>
+                  <p className="text-xs font-medium text-tenue">Próxima visita</p>
+                  <p className="mt-1 text-sm text-tenue">{ESTADOS[p.status]}: no se programa</p>
+                </>
+              ) : proxima && diasParaVolver! < 0 ? (
+                // Atrasado: la fecha que le tocaba ya pasó; lo útil es cuántas se perdió y cuándo hay jornada.
+                <>
+                  <p className="text-xs font-medium text-tenue">Sin asistir</p>
+                  <p className="mt-1 text-xl font-semibold text-red-600">
+                    {visitasPerdidas} visita{visitasPerdidas === 1 ? '' : 's'} sin asistir
+                  </p>
+                  <p className="mt-1 text-sm text-tenue">
+                    Última visita el {fecha(ultima.visitDate)}
+                  </p>
+                  {jornadaProxima ? (
+                    <p className="mt-2 flex items-center gap-1.5 text-sm font-medium">
+                      <CalendarClock className="size-4 text-tenue" />
+                      Próxima jornada en {p.community?.name}: {fecha(jornadaProxima.fecha)}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-tenue">No hay jornada planificada en {p.community?.name}.</p>
+                  )}
+                </>
               ) : proxima ? (
                 <>
+                  <p className="text-xs font-medium text-tenue">Próxima visita</p>
                   <p className="mt-1 flex items-center gap-2 text-xl font-semibold">
                     <CalendarClock className="size-5 text-tenue" />
                     {fecha(proxima.toISOString())}
                   </p>
-                  <p className={cn('mt-1 text-sm font-medium', diasParaVolver! < 0 ? 'text-red-600' : diasParaVolver! <= 7 ? 'text-amber-800' : 'text-tenue')}>
-                    {diasParaVolver === 0
-                      ? 'Le toca hoy'
-                      : diasParaVolver! > 0
-                        ? `En ${diasParaVolver} día${diasParaVolver === 1 ? '' : 's'}`
-                        : `Atrasada ${-diasParaVolver!} día${diasParaVolver === -1 ? '' : 's'}${asiste.clave === 'sin-venir' ? ' · no asiste desde entonces' : ''}`}
+                  <p className={cn('mt-1 text-sm font-medium', diasParaVolver! <= 7 ? 'text-amber-800' : 'text-tenue')}>
+                    {diasParaVolver === 0 ? 'Le toca hoy' : `En ${diasParaVolver} día${diasParaVolver === 1 ? '' : 's'}`}
                   </p>
                   <p className="mt-1.5 text-xs text-tenue">Última visita el {fecha(ultima.visitDate)}</p>
                 </>
