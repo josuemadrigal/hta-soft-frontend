@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Camera, ChevronDown, ClipboardPlus, GitMerge, Home, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
-import { entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
+import { eliminarPaciente, entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
 import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
 import { ListaAlertas, useUmbrales } from '../components/Alertas';
@@ -260,6 +260,17 @@ export function Paciente() {
     },
     onError: (e) => toast.error(e.message),
   });
+  // Eliminar la ficha por completo: solo fichas sin visitas (creadas por error). Solo el Administrador.
+  const eliminarFicha = useMutation({
+    mutationFn: () => eliminarPaciente(id),
+    onSuccess: (r) => {
+      for (const k of [['pacientes'], ['jornada'], ['stats'], ['auditoria'], ['revision']]) cliente.invalidateQueries({ queryKey: k });
+      cliente.removeQueries({ queryKey: ['paciente', id] });
+      toast.success(`Ficha ${r.codigo} eliminada. Queda una copia en Auditoría.`);
+      navegar('/pacientes');
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const regenerar = useMutation({
     mutationFn: () => regenerarCodigoPaciente(id),
     onSuccess: (r) => {
@@ -351,6 +362,27 @@ export function Paciente() {
                   <Split className="size-4" />
                 </Boton>
               )}
+              <Boton
+                variante="fantasma"
+                className="px-2.5 hover:text-red-600"
+                aria-label="Eliminar paciente"
+                cargando={eliminarFicha.isPending}
+                disabled={(p.clinicalVisits?.length ?? 0) > 0}
+                title={(p.clinicalVisits?.length ?? 0) > 0 ? 'Tiene visitas: no se puede eliminar. Únela con su otra ficha o dale de baja.' : 'Eliminar la ficha por completo (creada por error)'}
+                onClick={async () => {
+                  if (
+                    await confirmar({
+                      titulo: `¿Eliminar a ${nombreCompleto(p)} por completo?`,
+                      mensaje: `Se borra la ficha ${p.patientCode} y sus "No vino". Úsalo solo para fichas creadas por error. No se puede deshacer desde la app; queda una copia en Auditoría.`,
+                      confirmar: 'Eliminar paciente',
+                      peligro: true,
+                    })
+                  )
+                    eliminarFicha.mutate();
+                }}
+              >
+                <Trash2 className="size-4" />
+              </Boton>
             </>
           )}
           {!!p.clinicalVisits?.[0]?.prescriptions?.length && (

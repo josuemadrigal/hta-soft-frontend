@@ -185,6 +185,9 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.entity === 'Patient' && r.action === 'BAJA') {
     return `${d.codigo} · ${d.nombre}: ${MOTIVOS_BAJA[d.motivo as MotivoBaja] ?? d.motivo} el ${fecha(`${d.fecha}T12:00:00`)}${d.detalle ? ` · ${d.detalle}` : ''}`;
   }
+  if (r.entity === 'Patient' && r.action === 'DELETE') {
+    return `${d.codigo} · ${d.nombre} (${d.batey}): ficha eliminada`;
+  }
   if (r.entity === 'Patient' && r.action === 'CAMBIO_CODIGO') {
     return `${d.nombre}: ${d.anterior} → ${d.codigo} (${d.batey}${d.aMano ? ', escrito a mano' : ''})`;
   }

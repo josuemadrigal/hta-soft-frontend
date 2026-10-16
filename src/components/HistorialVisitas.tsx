@@ -1,9 +1,11 @@
-import { Home } from 'lucide-react';
+import { ChevronRight, Home } from 'lucide-react';
+import { useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Visita } from '../api/tipos';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, fecha } from '../lib/formato';
 import { COLOR, TOOLTIP } from './graficas';
+import { DetalleVisita } from './DetalleVisita';
 import { Tarjeta } from './ui';
 
 const corta = new Intl.DateTimeFormat('es-DO', { month: 'short', year: '2-digit' });
@@ -11,6 +13,8 @@ const toma = (v: Visita) => ({ s: v.systolicManual ?? v.systolicAuto, d: v.diast
 
 /** Lo que el médico necesita a la vista para comparar mientras registra la visita de hoy. */
 export function HistorialVisitas({ visitas, cuantas = 5 }: { visitas: Visita[]; cuantas?: number }) {
+  // Visita abierta en la ventana de detalle (índice en `visitas`).
+  const [abierta, setAbierta] = useState<number | null>(null);
   if (visitas.length === 0) {
     return (
       <Tarjeta titulo="Visitas anteriores">
@@ -47,7 +51,20 @@ export function HistorialVisitas({ visitas, cuantas = 5 }: { visitas: Visita[]; 
           const { s, d } = toma(v);
           const color = v.bpClassification ? colorCategoria(v.bpClassification) : undefined;
           return (
-            <li key={v.id} className={cn('px-4 py-3 text-sm', i === 0 && 'bg-marca-50/60')}>
+            <li key={v.id} className={cn(i === 0 && 'bg-marca-50/60')}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setAbierta(i)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setAbierta(i);
+                  }
+                }}
+                className="group block w-full cursor-pointer px-4 py-3 text-left text-sm transition outline-none hover:bg-black/[0.03] focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-inset"
+                aria-label={`Ver la visita del ${fecha(v.visitDate)}`}
+              >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-medium">
                   {fecha(v.visitDate)}
@@ -94,10 +111,20 @@ export function HistorialVisitas({ visitas, cuantas = 5 }: { visitas: Visita[]; 
               )}
               <p className="mt-1 text-[11px] text-tenue">Atendió {atendio(v)}</p>
               {v.notes && <p className="mt-1.5 line-clamp-3 text-xs text-tinta/70 italic">“{v.notes}”</p>}
+              <span className="mt-1.5 flex items-center gap-0.5 text-[11px] font-medium text-tenue group-hover:text-tinta">
+                Ver detalle <ChevronRight className="size-3" />
+              </span>
+              </div>
             </li>
           );
         })}
       </ol>
+      {visitas.length > cuantas && (
+        <button type="button" onClick={() => setAbierta(cuantas)} className="w-full border-t border-borde px-4 py-2.5 text-left text-xs font-medium text-tenue hover:bg-black/[0.03] hover:text-tinta">
+          Ver las {visitas.length - cuantas} más antiguas
+        </button>
+      )}
+      {abierta !== null && <DetalleVisita visitas={visitas} indice={abierta} alCambiar={setAbierta} alCerrar={() => setAbierta(null)} />}
     </Tarjeta>
   );
 }

@@ -291,6 +291,7 @@ export const reabrirCaso = (id: number) => enviar<unknown>(`/revision/decisiones
 /* Bajas */
 export const darDeBaja = (id: number, d: { motivo: MotivoBaja; fecha: string; detalle?: string }) => enviar<Paciente>(`/patients/${id}/baja`, 'POST', d);
 export const reactivarPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/reactivar`, 'POST');
+export const eliminarPaciente = (id: number) => enviar<{ id: number; codigo: string }>(`/patients/${id}`, 'DELETE');
 export const regenerarCodigoPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/regenerar-codigo`, 'POST');
 export const cambiarCodigoPaciente = (id: number, codigo: string) => enviar<Paciente>(`/patients/${id}/codigo`, 'POST', { codigo });
 
