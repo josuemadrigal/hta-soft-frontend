@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { useComunidades, useConfigPA, usePacientes, useUltimosMedicos } from '../api/consultas';
 import type { FiltroPacientes } from '../api/recursos';
 import { useSesion } from '../auth/sesion';
-import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Paginacion, porPaginaDe, recordarPorPagina, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, ESTADOS, GENEROS, opciones } from '../lib/etiquetas';
 import { asistencia, SITUACIONES_ASISTENCIA } from '../lib/asistencia';
 import { cn, edadTexto, fecha, nombreCompleto } from '../lib/formato';
@@ -15,6 +15,7 @@ const ORDENES = [
   { value: 'ultima-visita', label: 'Última visita (reciente primero)' },
   { value: 'ausencia', label: 'Más tiempo sin venir primero' },
   { value: 'presion', label: 'Presión más alta primero' },
+  { value: 'visitas', label: 'Más visitas primero' },
 ];
 
 export function Pacientes() {
@@ -25,6 +26,7 @@ export function Pacientes() {
   const num = (k: string) => (params.get(k) ? Number(params.get(k)) : undefined);
   const filtro: FiltroPacientes = {
     page: num('pagina') ?? 1,
+    limit: porPaginaDe(params, 'pacientes', 15),
     search: params.get('q') ?? undefined,
     communityId: num('batey'),
     gender: params.get('genero') ?? undefined,
@@ -149,7 +151,7 @@ export function Pacientes() {
         ) : (
           <>
             <div className={cn('transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
-              <Tabla columnas={['Paciente', 'Código', 'Edad', 'Batey', { texto: 'Última PA', className: 'text-right' }, 'Clasificación', 'Última visita', 'Lo atendió']}>
+              <Tabla columnas={['Paciente', 'Código', 'Edad', 'Batey', { texto: 'Visitas', className: 'text-right' }, 'Última PA', 'Última visita', 'Lo atendió']}>
                 {consulta.data.data.map((p) => {
                   const a = p.status === 'ACTIVE' ? asistencia(p.lastVisitDate) : null;
                   return (
@@ -170,8 +172,22 @@ export function Pacientes() {
                       <td className="px-5 py-3 font-mono text-[13px]">{p.patientCode}</td>
                       <td className="tabular px-5 py-3 whitespace-nowrap">{edadTexto(p)}</td>
                       <td className="px-5 py-3 whitespace-nowrap">{p.community?.name}</td>
-                      <td className="tabular px-5 py-3 text-right font-mono">{p.lastSystolic && p.lastDiastolic ? `${p.lastSystolic}/${p.lastDiastolic}` : '—'}</td>
-                      <td className="px-5 py-3">{p.lastVisitDate ? <InsigniaCategoria config={p.lastBpClassification} /> : <span className="text-tenue">—</span>}</td>
+                      <td className={cn('tabular px-5 py-3 text-right', !p._count?.clinicalVisits && 'text-tenue')}>{p._count?.clinicalVisits ?? '—'}</td>
+                      {/* La presión y su clasificación juntas: ahorra una columna */}
+                      <td className="px-5 py-3 whitespace-nowrap">
+                        {p.lastSystolic && p.lastDiastolic ? (
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="tabular font-mono font-medium">
+                              {p.lastSystolic}/{p.lastDiastolic}
+                            </span>
+                            <InsigniaCategoria config={p.lastBpClassification} />
+                          </div>
+                        ) : p.lastVisitDate ? (
+                          <InsigniaCategoria config={p.lastBpClassification} />
+                        ) : (
+                          <span className="text-tenue">—</span>
+                        )}
+                      </td>
                       <td className="px-5 py-3 whitespace-nowrap">
                         {fecha(p.lastVisitDate)}
                         {a && (a.clave === 'visto' || a.clave === 'sin-venir') && (
@@ -186,7 +202,17 @@ export function Pacientes() {
                 })}
               </Tabla>
             </div>
-            <Paginacion pagina={filtro.page} ultima={consulta.data.meta.lastPage} total={consulta.data.meta.total} alCambiar={(p) => cambiar({ pagina: p })} />
+            <Paginacion
+              pagina={filtro.page}
+              ultima={consulta.data.meta.lastPage}
+              total={consulta.data.meta.total}
+              alCambiar={(p) => cambiar({ pagina: p })}
+              porPagina={filtro.limit}
+              alCambiarPorPagina={(n) => {
+                recordarPorPagina('pacientes', n);
+                cambiar({ por: n });
+              }}
+            />
           </>
         )}
       </Tarjeta>

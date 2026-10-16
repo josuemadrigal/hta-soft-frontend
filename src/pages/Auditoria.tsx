@@ -10,7 +10,7 @@ import { conQuien, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION } from
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { BotonesTrimestre } from '../components/Periodo';
-import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Paginacion, porPaginaDe, recordarPorPagina, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { fecha, fechaYHora, nombreCompleto } from '../lib/formato';
 
 const ACCIONES: Record<string, { texto: string; color: string }> = {
@@ -257,6 +257,7 @@ export function Auditoria() {
   const num = (k: string) => (params.get(k) !== null && params.get(k) !== '' ? Number(params.get(k)) : undefined);
   const filtro: FiltroAuditoria = {
     page: num('pagina') ?? 1,
+    limit: porPaginaDe(params, 'auditoria', 50),
     userId: num('usuario'),
     entity: params.get('registro') || undefined,
     action: params.get('accion') || undefined,
@@ -437,7 +438,17 @@ export function Auditoria() {
                 );
               })}
             </Tabla>
-            <Paginacion pagina={filtro.page} ultima={consulta.data.meta.lastPage} total={consulta.data.meta.total} alCambiar={(p) => cambiar({ pagina: String(p) })} />
+            <Paginacion
+              pagina={filtro.page}
+              ultima={consulta.data.meta.lastPage}
+              total={consulta.data.meta.total}
+              alCambiar={(p) => cambiar({ pagina: String(p) })}
+              porPagina={filtro.limit}
+              alCambiarPorPagina={(n) => {
+                recordarPorPagina('auditoria', n);
+                cambiar({ por: String(n) });
+              }}
+            />
           </>
         )}
       </Tarjeta>

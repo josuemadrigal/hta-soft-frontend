@@ -1,15 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Camera, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useComunidades } from '../api/consultas';
-import { crearPaciente, editarPaciente, type DatosPaciente } from '../api/recursos';
+import { crearPaciente, editarPaciente, quitarFotoPaciente, subirFotoPaciente, type DatosPaciente } from '../api/recursos';
 import type { Paciente } from '../api/tipos';
 import { ALCOHOL, ESTADOS, GENEROS, opciones, SAL, TABACO } from '../lib/etiquetas';
 import { edad, fecha, soloFecha } from '../lib/formato';
-import { Boton, Campo, Casilla, Entrada, Selector, Tarjeta } from './ui';
+import { Avatar, Boton, Campo, Casilla, Entrada, Selector, Tarjeta } from './ui';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -48,6 +49,18 @@ export function FormularioPaciente({
   const cliente = useQueryClient();
   // Si la fecha salió de la edad, se guarda como aproximada (1 de enero de ese año).
   const [estimada, setEstimada] = useState(paciente?.birthDateIsEstimated ?? false);
+  // Foto: se aplica al guardar, junto con los datos. Nueva foto elegida, o quitar la actual.
+  const [fotoNueva, setFotoNueva] = useState<File | null>(null);
+  const [quitarFoto, setQuitarFoto] = useState(false);
+  const [vista, setVista] = useState<string | null>(null);
+  const archivo = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!fotoNueva) return setVista(null);
+    const url = URL.createObjectURL(fotoNueva);
+    setVista(url);
+    return () => URL.revokeObjectURL(url);
+  }, [fotoNueva]);
+  const fotoActual = vista ?? (quitarFoto ? null : (paciente?.photoUrl ?? null));
   const { register, handleSubmit, formState, setValue, watch } = useForm<Entrada_, unknown, Salida>({
     resolver: zodResolver(esquema),
     defaultValues: paciente
@@ -94,17 +107,20 @@ export function FormularioPaciente({
   };
 
   const guardar = useMutation({
-    mutationFn: (d: Salida) => {
+    mutationFn: async (d: Salida) => {
       const { edad: _edad, ...resto } = d;
       const datos: DatosPaciente = {
         ...resto,
         birthDate: new Date(`${d.birthDate}T00:00:00Z`).toISOString(),
         birthDateIsEstimated: estimada,
       };
-      if (paciente) return editarPaciente(paciente.id, datos);
       // Al crear, los opcionales vacíos no se mandan.
-      for (const k of ['phoneNumber', 'address'] as const) if (!datos[k]) delete datos[k];
-      return crearPaciente(datos);
+      if (!paciente) for (const k of ['phoneNumber', 'address'] as const) if (!datos[k]) delete datos[k];
+      let p = paciente ? await editarPaciente(paciente.id, datos) : await crearPaciente(datos);
+      // La foto va aparte (se sube como archivo).
+      if (fotoNueva) p = await subirFotoPaciente(p.id, fotoNueva);
+      else if (quitarFoto && paciente?.photoUrl) p = await quitarFotoPaciente(p.id);
+      return p;
     },
     onSuccess: (p) => {
       for (const k of [['pacientes'], ['paciente', p.id], ['stats'], ['jornada']]) cliente.invalidateQueries({ queryKey: k });
@@ -119,6 +135,54 @@ export function FormularioPaciente({
 
   return (
     <form onSubmit={handleSubmit((d) => guardar.mutate(d))} className="space-y-4" noValidate>
+      <Tarjeta titulo="Foto">
+        <div className="flex flex-wrap items-center gap-5 p-5">
+          <Avatar persona={{ firstName: watch('firstName') || '?', lastName: watch('lastName') || '' }} foto={fotoActual} tamano="size-24 text-2xl" />
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Boton variante="secundario" icono={<Camera className="size-4" />} onClick={() => archivo.current?.click()}>
+                {fotoActual ? 'Cambiar foto' : 'Tomar o elegir foto'}
+              </Boton>
+              {fotoActual && (
+                <Boton
+                  variante="secundario"
+                  className="hover:text-red-600"
+                  icono={<Trash2 className="size-4" />}
+                  onClick={() => {
+                    setFotoNueva(null);
+                    setQuitarFoto(true);
+                    if (archivo.current) archivo.current.value = '';
+                  }}
+                >
+                  Quitar foto
+                </Boton>
+              )}
+            </div>
+            <p className="text-xs text-tenue">
+              {fotoNueva ? 'Foto nueva: se guarda al pulsar ' : quitarFoto && paciente?.photoUrl ? 'Se quitará al pulsar ' : 'En la tableta se puede tomar con la cámara. JPG o PNG, hasta 10 MB. Se aplica al pulsar '}
+              <strong>{paciente ? 'Guardar cambios' : 'Registrar paciente'}</strong>.
+            </p>
+          </div>
+          <input
+            ref={archivo}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(ev) => {
+              const f = ev.target.files?.[0];
+              if (!f) return;
+              if (f.size > 10 * 1024 * 1024) {
+                toast.error('La foto pasa de 10 MB.');
+                ev.target.value = '';
+                return;
+              }
+              setFotoNueva(f);
+              setQuitarFoto(false);
+            }}
+          />
+        </div>
+      </Tarjeta>
+
       <Tarjeta titulo="Datos personales">
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
           <Campo etiqueta="Nombres" error={e.firstName?.message} className="lg:col-span-2">

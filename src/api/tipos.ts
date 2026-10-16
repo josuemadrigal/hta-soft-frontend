@@ -246,6 +246,8 @@ export type Paciente = {
   lastName: string;
   gender: Genero;
   photoUrl: string | null;
+  /** En la lista de pacientes: cuántas visitas tiene. */
+  _count?: { clinicalVisits: number };
   birthDate: string;
   birthDateIsEstimated: boolean;
   phoneNumber: string | null;

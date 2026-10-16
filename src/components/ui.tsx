@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Loader2 } from 'lucide-react';
 import {
   forwardRef,
   useRef,
@@ -257,35 +257,149 @@ export function ErrorCarga({ error }: { error: unknown }) {
   );
 }
 
+/** Páginas a mostrar: la primera, la última y las vecinas de la actual; "…" donde se saltan. */
+export function paginasVisibles(pagina: number, ultima: number): (number | '…')[] {
+  const set = new Set([1, ultima, pagina - 1, pagina, pagina + 1].filter((n) => n >= 1 && n <= ultima));
+  // Cerca de los extremos se muestran unas más, para no poner "…" en lugar de un solo número.
+  if (pagina <= 3) [2, 3, 4].forEach((n) => n <= ultima && set.add(n));
+  if (pagina >= ultima - 2) [ultima - 1, ultima - 2, ultima - 3].forEach((n) => n >= 1 && set.add(n));
+  const orden = [...set].sort((x, y) => x - y);
+  const r: (number | '…')[] = [];
+  orden.forEach((n, i) => {
+    if (i > 0 && n - orden[i - 1] > 1) r.push(n - orden[i - 1] === 2 ? n - 1 : '…');
+    r.push(n);
+  });
+  return r;
+}
+
+export const OPCIONES_POR_PAGINA = [15, 25, 50, 100];
+
 export function Paginacion({
   pagina,
   ultima,
   total,
   alCambiar,
+  porPagina,
+  alCambiarPorPagina,
 }: {
   pagina: number;
   ultima: number;
   total: number;
   alCambiar: (p: number) => void;
+  /** Con esto aparece "Mostrar N por página". */
+  porPagina?: number;
+  alCambiarPorPagina?: (n: number) => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const ultimaP = Math.max(ultima, 1);
+  // Al cambiar de página se vuelve al inicio de la tabla (si no, se queda mirando el pie).
+  const ir = (p: number) => {
+    alCambiar(Math.min(Math.max(1, p), ultimaP));
+    ref.current?.closest('section')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+  const desde = porPagina ? (pagina - 1) * porPagina + 1 : null;
+  const hasta = porPagina ? Math.min(pagina * porPagina, total) : null;
+  const flecha = 'h-8 px-2';
   return (
-    <div className="flex items-center justify-between border-t border-borde px-5 py-3 text-sm text-tenue">
-      <span className="tabular">
-        {total} {total === 1 ? 'registro' : 'registros'}
-      </span>
-      <div className="flex items-center gap-1">
-        <Boton variante="fantasma" className="h-8 px-2" disabled={pagina <= 1} onClick={() => alCambiar(pagina - 1)} aria-label="Anterior">
-          <ChevronLeft className="size-4" />
-        </Boton>
-        <span className="tabular px-2">
-          {pagina} / {Math.max(ultima, 1)}
+    <div ref={ref} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-borde px-5 py-3 text-sm text-tenue">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="tabular">
+          {desde && hasta && total > 0 ? (
+            <>
+              <span className="font-medium text-tinta">
+                {desde.toLocaleString('es-DO')}–{hasta.toLocaleString('es-DO')}
+              </span>{' '}
+              de {total.toLocaleString('es-DO')}
+            </>
+          ) : (
+            <>
+              {total.toLocaleString('es-DO')} {total === 1 ? 'registro' : 'registros'}
+            </>
+          )}
         </span>
-        <Boton variante="fantasma" className="h-8 px-2" disabled={pagina >= ultima} onClick={() => alCambiar(pagina + 1)} aria-label="Siguiente">
-          <ChevronRight className="size-4" />
-        </Boton>
+        {porPagina && alCambiarPorPagina && (
+          <label className="flex items-center gap-2">
+            Mostrar
+            <select
+              value={porPagina}
+              onChange={(e) => alCambiarPorPagina(Number(e.target.value))}
+              className="h-8 rounded-lg border border-borde bg-superficie px-2 text-sm text-tinta outline-none focus:border-tinta/60 focus:ring-3 focus:ring-marca-200"
+            >
+              {[...new Set([...OPCIONES_POR_PAGINA, porPagina])].sort((x, y) => x - y).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            por página
+          </label>
+        )}
       </div>
+      {ultimaP > 1 && (
+        <nav className="flex items-center gap-1" aria-label="Páginas">
+          <Boton variante="fantasma" className={cn(flecha, 'hidden sm:inline-flex')} disabled={pagina <= 1} onClick={() => ir(1)} aria-label="Primera página" title="Primera página">
+            <ChevronsLeft className="size-4" />
+          </Boton>
+          <Boton variante="fantasma" className={flecha} disabled={pagina <= 1} onClick={() => ir(pagina - 1)} aria-label="Anterior" title="Anterior">
+            <ChevronLeft className="size-4" />
+          </Boton>
+          {/* En el teléfono basta "5 / 93"; en pantallas más anchas, los números */}
+          <span className="tabular px-2 sm:hidden">
+            {pagina} / {ultimaP}
+          </span>
+          <span className="hidden items-center gap-1 sm:flex">
+            {paginasVisibles(pagina, ultimaP).map((n, i) =>
+              n === '…' ? (
+                <span key={`e${i}`} className="px-1 text-tenue/70">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => ir(n)}
+                  aria-current={n === pagina ? 'page' : undefined}
+                  className={cn(
+                    'tabular h-8 min-w-8 rounded-lg px-2 text-sm transition',
+                    n === pagina ? 'bg-marca-500 font-semibold text-tinta' : 'text-tinta/80 hover:bg-black/5',
+                  )}
+                >
+                  {n}
+                </button>
+              ),
+            )}
+          </span>
+          <Boton variante="fantasma" className={flecha} disabled={pagina >= ultimaP} onClick={() => ir(pagina + 1)} aria-label="Siguiente" title="Siguiente">
+            <ChevronRight className="size-4" />
+          </Boton>
+          <Boton variante="fantasma" className={cn(flecha, 'hidden sm:inline-flex')} disabled={pagina >= ultimaP} onClick={() => ir(ultimaP)} aria-label="Última página" title="Última página">
+            <ChevronsRight className="size-4" />
+          </Boton>
+        </nav>
+      )}
     </div>
   );
+}
+
+/** Cuántos por página: el de la dirección, si no el último elegido en este dispositivo, si no el de siempre. */
+export function porPaginaDe(params: URLSearchParams, clave: string, defecto: number) {
+  const url = Number(params.get('por'));
+  if (url >= 1 && url <= 200) return url;
+  try {
+    const guardado = Number(localStorage.getItem(`hta:porPagina:${clave}`));
+    if (guardado >= 1 && guardado <= 200) return guardado;
+  } catch {
+    /* sin almacenamiento local: el de siempre */
+  }
+  return defecto;
+}
+
+export function recordarPorPagina(clave: string, n: number) {
+  try {
+    localStorage.setItem(`hta:porPagina:${clave}`, String(n));
+  } catch {
+    /* sin almacenamiento local: solo queda en la dirección */
+  }
 }
 
 /** Tabla con encabezado fijo de estilo; las filas las pone cada pantalla. */

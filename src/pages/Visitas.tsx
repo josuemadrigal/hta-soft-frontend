@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useComunidades, useConfigPA, useQuienesAtienden, useVisitas } from '../api/consultas';
 import { listarVisitas, type FiltroVisitas } from '../api/recursos';
-import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Paginacion, porPaginaDe, recordarPorPagina, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { descargarCsv } from '../lib/copiar';
 import { CATEGORIAS, opciones, TIPOS_VISITA } from '../lib/etiquetas';
 import { atendio, cn, decimal, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
@@ -19,6 +19,7 @@ export function Visitas() {
   const [params, setParams] = useSearchParams();
   const filtro: FiltroVisitas = {
     page: Number(params.get('pagina')) || 1,
+    limit: porPaginaDe(params, 'visitas', 25),
     search: params.get('q') ?? undefined,
     communityId: num(params.get('batey')),
     from: params.get('desde') ?? undefined,
@@ -220,7 +221,17 @@ export function Visitas() {
                 ))}
               </Tabla>
             </div>
-            <Paginacion pagina={filtro.page} ultima={consulta.data.meta.lastPage} total={consulta.data.meta.total} alCambiar={(p) => cambiar({ pagina: p })} />
+            <Paginacion
+              pagina={filtro.page}
+              ultima={consulta.data.meta.lastPage}
+              total={consulta.data.meta.total}
+              alCambiar={(p) => cambiar({ pagina: p })}
+              porPagina={filtro.limit}
+              alCambiarPorPagina={(n) => {
+                recordarPorPagina('visitas', n);
+                cambiar({ por: n });
+              }}
+            />
           </>
         )}
       </Tarjeta>

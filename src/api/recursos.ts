@@ -91,7 +91,7 @@ export type FiltroPacientes = {
   situacion?: 'visto' | 'le-toca' | 'sin-venir' | 'sin-venir-ano' | 'sin-visitas';
   ageMin?: number;
   ageMax?: number;
-  orden?: 'nombre' | 'codigo' | 'ultima-visita' | 'ausencia' | 'presion';
+  orden?: 'nombre' | 'codigo' | 'ultima-visita' | 'ausencia' | 'presion' | 'visitas';
   /** Último médico que lo atendió */
   medico?: number;
 };
@@ -113,6 +113,7 @@ export const subirFotoPaciente = (id: number, archivo: File) => {
   fd.append('file', archivo);
   return enviar<Paciente>(`/patients/${id}/photo`, 'POST', fd);
 };
+export const quitarFotoPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/photo`, 'DELETE');
 export const ultimosMedicos = (communityId?: number) =>
   api<{ id: number; nombre: string; pacientes: number }[]>(`/patients/medicos${query({ communityId })}`);
 export const pacientesJornada = (comunidad: number) => api<PacienteJornada[]>(`/patients/jornada/${comunidad}`);
@@ -160,7 +161,7 @@ export type FiltroVisitas = {
 };
 export type Atendio = { id: number; firstName: string; lastName: string };
 
-export const listarVisitas = (f: FiltroVisitas) => api<Paginado<Visita>>(`/visits${query({ limit: 20, ...f })}`);
+export const listarVisitas = (f: FiltroVisitas) => api<Paginado<Visita>>(`/visits${query({ limit: 25, ...f })}`);
 export const listarQuienesAtienden = () => api<Atendio[]>('/visits/doctors');
 export const crearVisita = (d: DatosVisita) => enviar<Visita & { entregada?: boolean; pendientes?: PendienteAlGuardar[] }>('/visits', 'POST', d);
 export const obtenerVisita = (id: number) => api<(Visita & { patient: Paciente }) | null>(`/visits/${id}`);
@@ -263,8 +264,8 @@ export const listarMedicos = (f: FiltroReporte, eliminados = false) => api<Lista
 export const detalleMedico = (id: number, f: FiltroReporte) => api<DetalleMedico>(`/doctors/${id}${query(f)}`);
 export const compararMedicos = (ids: number[], f: FiltroReporte) => api<ComparacionMedicos>(`/doctors/compare${query({ ...f, ids: ids.join(',') })}`);
 export const restaurarRegistro = (id: number) => enviar<{ visitaId: number; pacienteId: number }>(`/audit-logs/${id}/restaurar`, 'POST');
-export type FiltroAuditoria = { page: number; userId?: number; entity?: string; action?: string; desde?: string; hasta?: string; entityId?: number };
-export const listarAuditoria = (f: FiltroAuditoria) => api<Paginado<RegistroAuditoria>>(`/audit-logs${query({ ...f, limit: 50 })}`);
+export type FiltroAuditoria = { page: number; limit?: number; userId?: number; entity?: string; action?: string; desde?: string; hasta?: string; entityId?: number };
+export const listarAuditoria = (f: FiltroAuditoria) => api<Paginado<RegistroAuditoria>>(`/audit-logs${query({ limit: 50, ...f })}`);
 export const filtrosAuditoria = () => api<FiltrosAuditoria>('/audit-logs/filtros');
 
 /* Revisión de datos */
