@@ -228,6 +228,7 @@ export function Jornada() {
   const vistos = filas.filter((f) => f.estado === 'hoy' || f.estado === 'ronda').length;
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
   const noVinieron = filas.filter((f) => f.estado === 'noVino').length;
+  const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino').length;
   const q = busqueda.trim().toLowerCase();
   const visibles = filas.filter(({ p, estado }) => {
     if (medico && p.lastDoctorId !== medico) return false;
@@ -256,17 +257,7 @@ export function Jornada() {
           alCancelar={() => setDejar(null)}
         />
       )}
-      <EncabezadoPagina
-        titulo="Registro en jornada"
-        descripcion="Registro rápido de visitas en el batey."
-        acciones={
-          comunidadId && (
-            <Boton variante="secundario" icono={<UserPlus className="size-4" />} onClick={() => navegar(`/pacientes/nuevo?batey=${comunidadId}`)}>
-              Paciente nuevo
-            </Boton>
-          )
-        }
-      />
+      <EncabezadoPagina titulo="Registro en jornada" />
 
       {!comunidadId && !!hoyPlan.data?.length && (
         <p className="mb-4 text-sm text-tenue">
@@ -287,41 +278,64 @@ export function Jornada() {
           ))}
         </p>
       )}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <label className="flex min-w-60 flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-tinta/80">Batey</span>
-          <Selector
-            vacio="Elegir batey…"
-            value={comunidadId ?? ''}
-            onChange={(e) => {
-              autoElegido.current = true;
-              setElegidoSolo(false);
-              setParams(e.target.value ? { batey: e.target.value } : {}, { replace: true });
-            }}
-            opciones={(comunidades.data ?? []).filter((c) => c.isActive).map((c) => ({ value: c.id, label: c.name }))}
-          />
-          {elegidoSolo && comunidadId && (
-            <span className="text-xs text-tenue">{planHoy ? 'Elegido solo: hoy hay jornada aquí. Puedes cambiarlo.' : 'El último batey que usaste. Puedes cambiarlo.'}</span>
-          )}
-        </label>
-        {comunidadId && lista.data && (
-          <div className="min-w-60 flex-1">
-            <div className="mb-1.5 flex justify-between text-[13px]">
-              <span className="font-medium">
-                {vistos} de {filas.length} vistos en la ronda
-              </span>
-              <span className="text-tenue">
-                {vistosHoy} hoy{noVinieron > 0 && ` · ${noVinieron} no vinieron`}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-black/[0.06]">
-              <div className="h-full rounded-full bg-marca-500 transition-all" style={{ width: `${filas.length ? (vistos / filas.length) * 100 : 0}%` }} />
-            </div>
-          </div>
-        )}
-      </div>
 
-      {comunidadId && <DescargarBatey comunidadId={comunidadId} total={lista.data?.length} enLinea={enLinea} />}
+      {/* Barra de la jornada: dónde se trabaja, cuánto falta y lo que se prepara antes de salir */}
+      <section className="mb-4 rounded-xl border border-borde bg-superficie p-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+          <label className="flex w-full flex-col gap-1 sm:w-64">
+            <span className="text-[13px] font-medium text-tinta/80">Batey</span>
+            <Selector
+              vacio="Elegir batey…"
+              className="h-10"
+              value={comunidadId ?? ''}
+              onChange={(e) => {
+                autoElegido.current = true;
+                setElegidoSolo(false);
+                setParams(e.target.value ? { batey: e.target.value } : {}, { replace: true });
+              }}
+              opciones={(comunidades.data ?? []).filter((c) => c.isActive).map((c) => ({ value: c.id, label: c.name }))}
+            />
+            {elegidoSolo && comunidadId && <span className="text-xs text-tenue">{planHoy ? 'Jornada de hoy. Puedes cambiarlo.' : 'El último que usaste. Puedes cambiarlo.'}</span>}
+          </label>
+
+          {comunidadId && lista.data && (
+            <div className="min-w-56 flex-1">
+              <p className="flex flex-wrap items-baseline gap-x-2">
+                <span className="tabular text-2xl font-semibold tracking-tight">{vistos}</span>
+                <span className="text-sm text-tenue">de {filas.length} vistos en la ronda</span>
+                <span className="tabular ml-auto text-sm text-tenue">
+                  <strong className="font-semibold text-tinta">{vistosHoy}</strong> hoy
+                  {noVinieron > 0 && (
+                    <>
+                      {' · '}
+                      <strong className="font-semibold text-tinta">{noVinieron}</strong> no vinieron
+                    </>
+                  )}
+                </span>
+              </p>
+              <div
+                className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.06]"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={filas.length}
+                aria-valuenow={vistos}
+                aria-label="Vistos en la ronda"
+              >
+                <div className="h-full rounded-full bg-marca-500 transition-[width] duration-300 ease-out" style={{ width: `${filas.length ? (vistos / filas.length) * 100 : 0}%` }} />
+              </div>
+            </div>
+          )}
+
+          {comunidadId && (
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <DescargarBatey comunidadId={comunidadId} total={lista.data?.length} enLinea={enLinea} />
+              <Boton variante="secundario" className="h-10" icono={<UserPlus className="size-4" />} onClick={() => navegar(`/pacientes/nuevo?batey=${comunidadId}`)}>
+                Paciente nuevo
+              </Boton>
+            </div>
+          )}
+        </div>
+      </section>
 
       {!comunidadId ? (
         <Tarjeta>
@@ -332,29 +346,37 @@ export function Jornada() {
       ) : (
         <Tarjeta>
           <div className="flex flex-wrap items-center gap-3 border-b border-borde p-4">
+            {/* Lo primero es en qué grupo se está: cada pestaña dice cuántos hay */}
+            <div className="grid w-full grid-cols-2 gap-0.5 rounded-lg bg-black/5 p-0.5 text-sm sm:flex lg:w-auto" role="tablist" aria-label="Qué pacientes ver">
+              {FILTROS.map((f) => {
+                const n = f.valor === 'pendientes' ? porVer : f.valor === 'hoy' ? vistosHoy : f.valor === 'novino' ? noVinieron : filas.length;
+                const activo = filtro === f.valor && !q;
+                return (
+                  <button
+                    key={f.valor}
+                    role="tab"
+                    aria-selected={activo}
+                    onClick={() => setFiltro(f.valor)}
+                    className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 whitespace-nowrap transition-colors', activo ? 'bg-superficie font-medium shadow-sm' : 'text-tenue hover:text-tinta')}
+                  >
+                    {f.texto}
+                    <span className={cn('tabular rounded-full px-1.5 text-xs', activo ? 'bg-marca-100 text-marca-700' : 'bg-black/5')}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
             <div className="relative min-w-52 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-tenue" />
-              <Entrada value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, código o casa" className="pl-9" />
+              <Entrada value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre, código o casa" className="h-10 pl-9" aria-label="Buscar paciente" />
             </div>
             <Selector
-              className="w-auto min-w-48"
+              className="h-10 w-full min-w-48 sm:w-auto"
               vacio="Lo atendió: cualquiera"
               value={medico}
               onChange={(e) => setMedico(e.target.value ? Number(e.target.value) : '')}
               opciones={medicosDelBatey.map((m) => ({ value: m.id, label: `${m.nombre} (${m.n})` }))}
               aria-label="Último que lo atendió"
             />
-            <div className="flex rounded-lg bg-black/5 p-0.5 text-sm">
-              {FILTROS.map((f) => (
-                <button
-                  key={f.valor}
-                  onClick={() => setFiltro(f.valor)}
-                  className={cn('rounded-md px-3 py-1.5', filtro === f.valor && !q ? 'bg-superficie font-medium shadow-sm' : 'text-tenue hover:text-tinta')}
-                >
-                  {f.texto}
-                </button>
-              ))}
-            </div>
           </div>
 
           {lista.isPending ? (
@@ -362,85 +384,77 @@ export function Jornada() {
           ) : lista.isError ? (
             <ErrorCarga error={lista.error} />
           ) : visibles.length === 0 ? (
-            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : 'Nadie todavía'} />
+            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : 'Nadie todavía'}>
+              {q ? 'Revisa cómo está escrito o busca por el código o la casa.' : filtro === 'pendientes' ? 'Todos los pacientes de este batey ya se vieron en la ronda.' : undefined}
+            </Vacio>
           ) : (
             <ul className="divide-y divide-borde">
               {visibles.map(({ p, estado }) => {
                 const u = p.clinicalVisits[0];
                 const e = ESTADOS[estado];
+                const sinEnviar = locales.visitas.has(p.id);
+                // El estado solo se muestra cuando dice algo: en "Por ver" todos están pendientes.
+                const aviso = sinEnviar
+                  ? { texto: 'Registrada · sin enviar', color: '#a16207' }
+                  : estado === 'noVino'
+                    ? { texto: textoNoVino(p, locales), color: e.color }
+                    : estado === 'sinVenir' && u
+                      ? { texto: asistencia(u.visitDate).texto, color: asistencia(u.visitDate).masDeUnAno ? '#6b665e' : e.color }
+                      : estado === 'pendiente'
+                        ? null
+                        : { texto: e.texto, color: e.color };
                 return (
                   <li
                     key={p.id}
                     onClick={() => navegar(`/pacientes/${p.id}?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`)}
-                    className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 hover:bg-fondo xl:flex-nowrap"
+                    className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fondo sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 md:grid-cols-[auto_minmax(0,1fr)_13rem_auto]"
                   >
-                    <Avatar persona={p} foto={p.photoUrl} />
-                    {/* Hasta 1280 px (tablet, también acostada con la barra lateral) el nombre ocupa su línea; estado, presión y botones bajan a la siguiente. */}
-                    <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] xl:basis-0">
-                      <p className="truncate font-medium">{nombreCompleto(p)}</p>
+                    <Avatar persona={p} foto={p.photoUrl} tamano="size-10" />
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="truncate font-medium">{nombreCompleto(p)}</span>
+                        {aviso && <Insignia color={aviso.color}>{aviso.texto}</Insignia>}
+                      </p>
                       <p className="truncate text-xs text-tenue">
-                        <span className="font-mono">{p.patientCode}</span> · {edadTexto(p)}
+                        <span className="font-mono text-tinta/70">{p.patientCode}</span> · {edadTexto(p)}
                         {p.address && ` · Casa ${p.address}`}
                       </p>
                     </div>
-                    <div className="hidden w-52 text-right text-xs text-tenue xl:block">
+                    {/* La última toma: lo que el médico quiere ver antes de registrar la de hoy */}
+                    <div className="col-span-2 col-start-1 row-start-2 pl-14 text-xs text-tenue sm:col-span-3 md:col-span-1 md:col-start-auto md:row-start-auto md:pl-0">
                       {u ? (
                         <>
-                          <span className="tabular font-mono text-sm text-tinta">{tensionDe(u)}</span> <InsigniaCategoria config={u.bpClassification} />
-                          <p className="mt-0.5">
+                          <p className="flex items-center gap-2">
+                            <span className="tabular font-mono text-sm font-medium text-tinta">{tensionDe(u)}</span>
+                            <InsigniaCategoria config={u.bpClassification} />
+                          </p>
+                          <p className="mt-0.5 truncate">
                             {fecha(u.visitDate)}
-                            {p.lastDoctorNombre && <span className="block truncate">Atendió {p.lastDoctorNombre}</span>}
+                            {p.lastDoctorNombre && ` · ${p.lastDoctorNombre}`}
                           </p>
                         </>
                       ) : (
-                        '—'
+                        <p>Primera visita</p>
                       )}
                     </div>
-                    <Insignia
-                      color={locales.visitas.has(p.id) ? '#a16207' : estado === 'sinVenir' && asistencia(u?.visitDate).masDeUnAno ? '#6b665e' : e.color}
-                      className="ml-13 justify-center xl:ml-0 xl:w-40"
-                    >
-                      {locales.visitas.has(p.id)
-                        ? 'Registrada · sin enviar'
-                        : estado === 'noVino'
-                          ? textoNoVino(p, locales)
-                          : estado === 'sinVenir' && u
-                            ? asistencia(u.visitDate).texto
-                            : e.texto}
-                    </Insignia>
-                    {u && (
-                      <span className="hidden items-center gap-1.5 text-xs text-tenue md:inline-flex xl:hidden">
-                        <span className="tabular font-mono text-sm text-tinta">{tensionDe(u)}</span>
-                        <InsigniaCategoria config={u.bpClassification} />
-                        <span>· {fecha(u.visitDate)}</span>
-                      </span>
-                    )}
-                    {estado === 'noVino' ? (
+                    <div className="col-span-2 flex items-center gap-2 pl-14 sm:col-span-1 sm:justify-end sm:pl-0" onClick={(ev) => ev.stopPropagation()}>
+                      {estado === 'noVino' ? (
+                        <Boton variante="fantasma" className="h-10 px-3 text-sm" onClick={() => void deshacerNoVino(p)}>
+                          Deshacer
+                        </Boton>
+                      ) : (
+                        // Con permiso de entregar, al elegir el motivo se pregunta si se le deja el tratamiento con alguien.
+                        estado !== 'hoy' && estado !== 'ronda' && <MenuNoVino alElegir={(m) => (tiene('entregas.registrar') ? setDejar({ p, motivo: m }) : void marcarNoVinoEn(p, m))} />
+                      )}
                       <Boton
-                        variante="fantasma"
-                        className="h-10 px-3 text-xs xl:h-8 xl:px-2"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          void deshacerNoVino(p);
-                        }}
+                        variante={estado === 'hoy' || estado === 'ronda' ? 'secundario' : 'primario'}
+                        className="h-10 px-4"
+                        icono={<ClipboardPlus className="size-4" />}
+                        onClick={() => navegar(`/pacientes/${p.id}/visita?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`)}
                       >
-                        Deshacer
+                        {estado === 'hoy' ? 'Otra' : 'Registrar'}
                       </Boton>
-                    ) : (
-                      // Con permiso de entregar, al elegir el motivo se pregunta si se le deja el tratamiento con alguien.
-                      estado !== 'hoy' && estado !== 'ronda' && <MenuNoVino alElegir={(m) => (tiene('entregas.registrar') ? setDejar({ p, motivo: m }) : void marcarNoVinoEn(p, m))} />
-                    )}
-                    <Boton
-                      variante={estado === 'hoy' ? 'secundario' : 'primario'}
-                      className="ml-auto h-10 px-4 xl:ml-0 xl:h-8 xl:px-3.5"
-                      icono={<ClipboardPlus className="size-4" />}
-                      onClick={(e) => {
-                        e.stopPropagation(); // el botón registra; el resto de la fila abre la ficha
-                        navegar(`/pacientes/${p.id}/visita?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`);
-                      }}
-                    >
-                      {estado === 'hoy' ? 'Otra' : 'Registrar'}
-                    </Boton>
+                    </div>
                   </li>
                 );
               })}
@@ -448,7 +462,6 @@ export function Jornada() {
           )}
         </Tarjeta>
       )}
-
     </>
   );
 }
@@ -465,7 +478,7 @@ function MenuNoVino({ alElegir }: { alElegir: (m: MotivoInasistencia) => void })
   }, [abierto]);
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
-      <Boton variante="secundario" className="h-10 px-3 text-xs whitespace-nowrap xl:h-8" icono={<UserX className="size-3.5" />} onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
+      <Boton variante="secundario" className="h-10 px-3 text-sm whitespace-nowrap" icono={<UserX className="size-3.5" />} onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
         No vino
       </Boton>
       {abierto && (
@@ -507,25 +520,22 @@ function DescargarBatey({ comunidadId, total, enLinea }: { comunidadId: number; 
       setAvance(null);
     }
   };
+  // Un solo botón en la barra: dice si ya está listo para trabajar sin señal y lo actualiza.
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-superficie px-4 py-3 text-sm">
-      <CloudDownload className="size-4 shrink-0 text-tenue" />
-      <span className="flex-1 text-tenue">
-        {avance ? (
-          <>
-            Descargando fichas… <strong className="text-tinta">{avance.hechos}</strong> de {avance.total}
-          </>
-        ) : cuando ? (
-          <>
-            Disponible sin internet · descargado el <strong className="text-tinta">{fechaYHora(cuando)}</strong>
-          </>
-        ) : (
-          <>Para trabajar sin señal en el batey, descárgalo antes de salir{total ? ` (${total} pacientes)` : ''}.</>
-        )}
-      </span>
-      <Boton variante="secundario" className="h-8 text-xs" cargando={!!avance} disabled={!enLinea} onClick={() => void descargar()}>
-        {cuando ? 'Actualizar' : 'Descargar para usar sin internet'}
-      </Boton>
-    </div>
+    <Boton
+      variante="secundario"
+      className={cn('h-10', cuando && !avance && 'border-green-200 text-green-800')}
+      icono={cuando && !avance ? <CheckCircle2 className="size-4" /> : <CloudDownload className="size-4" />}
+      cargando={!!avance}
+      disabled={!enLinea && !avance}
+      title={
+        cuando
+          ? `Disponible sin internet · descargado el ${fechaYHora(cuando)}. Toca para actualizar.`
+          : `Para trabajar sin señal en el batey, descárgalo antes de salir${total ? ` (${total} pacientes)` : ''}.`
+      }
+      onClick={() => void descargar()}
+    >
+      {avance ? `Descargando ${avance.hechos} de ${avance.total}` : cuando ? `Sin internet: listo · ${fechaYHora(cuando).split(',')[0]}` : `Descargar para usar sin internet`}
+    </Boton>
   );
 }
