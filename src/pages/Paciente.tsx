@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Camera, ChevronDown, ClipboardPlus, GitMerge, Home, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarClock, Camera, ChevronDown, ClipboardPlus, GitMerge, History, Home, MoreHorizontal, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
 import { eliminarPaciente, entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
 import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
@@ -8,7 +8,7 @@ import { alertasClinicas, tomaDe } from '../lib/alertas';
 import { asistencia } from '../lib/asistencia';
 import { usePermisosVisita } from '../auth/permisosVisita';
 import { useEliminarVisita } from '../components/eliminarVisita';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
@@ -27,6 +27,60 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
     <div>
       <dt className="text-xs text-tenue">{etiqueta}</dt>
       <dd className="mt-0.5 text-sm">{children}</dd>
+    </div>
+  );
+}
+
+type Accion = { texto: string; icono: ReactNode; alElegir: () => void; peligro?: boolean; deshabilitada?: string };
+
+/** "Más": las acciones que se usan poco (baja, unir, separar, eliminar…), con su nombre a la vista. */
+function MenuMas({ acciones }: { acciones: Accion[] }) {
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setAbierto(false);
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', fuera);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [abierto]);
+  if (!acciones.length) return null;
+  return (
+    <div ref={ref} className="relative">
+      <Boton variante="secundario" icono={<MoreHorizontal className="size-4" />} aria-haspopup="menu" aria-expanded={abierto} onClick={() => setAbierto((x) => !x)}>
+        Más
+      </Boton>
+      {abierto && (
+        <div role="menu" className="absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-xl border border-borde bg-superficie py-1 shadow-xl">
+          {acciones.map((a) => (
+            <button
+              key={a.texto}
+              type="button"
+              role="menuitem"
+              disabled={!!a.deshabilitada}
+              title={a.deshabilitada}
+              onClick={() => {
+                setAbierto(false);
+                a.alElegir();
+              }}
+              className={cn(
+                'flex w-full items-start gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-fondo disabled:cursor-not-allowed disabled:opacity-50',
+                a.peligro && 'text-red-700',
+              )}
+            >
+              <span className="mt-0.5 shrink-0">{a.icono}</span>
+              <span>
+                {a.texto}
+                {a.deshabilitada && <span className="block text-xs text-tenue">{a.deshabilitada}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -92,6 +146,13 @@ function GraficoTension({ id }: { id: number }) {
     .filter((p) => (!inicio || new Date(p.date) >= inicio) && (!fin || new Date(p.date) <= fin))
     .map((p) => ({ ...p, fecha: ejeFecha.format(new Date(p.date)) }));
   if (tomas.length === 0) return <Vacio titulo="Sin tomas registradas" />;
+  // Con una sola toma no hay evolución que dibujar.
+  if (tomas.length === 1)
+    return (
+      <p className="px-5 py-6 text-sm text-tenue">
+        Con una sola toma todavía no hay evolución: <span className="font-mono font-medium text-tinta">{tomas[0].systolic}/{tomas[0].diastolic}</span> el {fecha(tomas[0].date)}. La gráfica aparece desde la segunda visita.
+      </p>
+    );
   return (
     <div className="px-2 pt-3 pb-2">
       <div data-no-copiar className="flex flex-wrap items-center gap-2 px-3 pb-2">
@@ -293,8 +354,12 @@ export function Paciente() {
   const alertas = ultima ? alertasClinicas(tomaDe(ultima), p.clinicalVisits!.slice(1), umbrales) : [];
   // Visitas viejas no tienen nextVisitDate: se asume la ronda trimestral.
   const proxima = ultima ? new Date(ultima.nextVisitDate ?? new Date(ultima.visitDate).getTime() + 90 * DIA_MS) : null;
-  const pendiente = !!proxima && proxima.getTime() < new Date().setHours(0, 0, 0, 0);
   const asiste = asistencia(ultima?.visitDate);
+  const toma = (v: Visita) => ({ s: v.systolicManual ?? v.systolicAuto, d: v.diastolicManual ?? v.diastolicAuto });
+  const conToma = (p.clinicalVisits ?? []).filter((v) => toma(v).s && toma(v).d);
+  const tomaUltima = conToma[0] ? (toma(conToma[0]) as { s: number; d: number }) : null;
+  const tomaPrevia = conToma[1] ? (toma(conToma[1]) as { s: number; d: number }) : null;
+  const diasParaVolver = proxima ? Math.round((new Date(proxima).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / DIA_MS) : null;
   const habitos = [
     p.hasFamilyHistory && 'Antecedentes familiares',
     p.smokingStatus !== 'NO' && TABACO[p.smokingStatus],
@@ -319,30 +384,11 @@ export function Paciente() {
                 <Insignia color="#b45309">Sin consentimiento</Insignia>
               </Link>
             )}
-            {tiene('auditoria.ver') && (
-              <Link to={`/auditoria?registro=Patient&id=${p.id}`} className="text-xs text-tenue hover:text-tinta hover:underline">
-                Quién la ha visto o cambiado
-              </Link>
-            )}
           </div>
           {/* En pantallas chicas la ficha queda abajo: el código se repite aquí para no perderlo. */}
           <p className="mt-1 text-sm text-tenue lg:hidden">
             <span className="font-mono font-semibold text-tinta">{p.patientCode}</span> · {p.community?.name}
           </p>
-          {proxima && p.status === 'ACTIVE' && (
-            <p className="mt-1 text-sm" style={pendiente && asiste.clave === 'sin-venir' ? { color: asiste.color } : undefined}>
-              {!pendiente ? (
-                <span className="text-tenue">Próxima visita: {fecha(proxima.toISOString())}</span>
-              ) : asiste.clave === 'sin-venir' ? (
-                <>
-                  <span className="font-medium">{asiste.texto}</span>
-                  <span className="text-tenue"> · última visita el {fecha(ultima!.visitDate)}</span>
-                </>
-              ) : (
-                <span className="text-tenue">Última visita el {fecha(ultima!.visitDate)}</span>
-              )}
-            </p>
-          )}
           {habitos.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {habitos.map((h) => (
@@ -351,40 +397,7 @@ export function Paciente() {
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {puedeRevisar && (
-            <>
-              <Boton variante="fantasma" className="px-2.5" title="Unir con otra ficha de la misma persona" aria-label="Unir con otra ficha" onClick={() => navegar(`/revision/unir?a=${p.id}`)}>
-                <GitMerge className="size-4" />
-              </Boton>
-              {(p.clinicalVisits?.length ?? 0) > 1 && (
-                <Boton variante="fantasma" className="px-2.5" title="Separar visitas que son de otra persona" aria-label="Separar visitas de otra persona" onClick={() => navegar(`/revision/separar/${p.id}`)}>
-                  <Split className="size-4" />
-                </Boton>
-              )}
-              <Boton
-                variante="fantasma"
-                className="px-2.5 hover:text-red-600"
-                aria-label="Eliminar paciente"
-                cargando={eliminarFicha.isPending}
-                disabled={(p.clinicalVisits?.length ?? 0) > 0}
-                title={(p.clinicalVisits?.length ?? 0) > 0 ? 'Tiene visitas: no se puede eliminar. Únela con su otra ficha o dale de baja.' : 'Eliminar la ficha por completo (creada por error)'}
-                onClick={async () => {
-                  if (
-                    await confirmar({
-                      titulo: `¿Eliminar a ${nombreCompleto(p)} por completo?`,
-                      mensaje: `Se borra la ficha ${p.patientCode} y sus "No vino". Úsalo solo para fichas creadas por error. No se puede deshacer desde la app; queda una copia en Auditoría.`,
-                      confirmar: 'Eliminar paciente',
-                      peligro: true,
-                    })
-                  )
-                    eliminarFicha.mutate();
-                }}
-              >
-                <Trash2 className="size-4" />
-              </Boton>
-            </>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
           {!!p.clinicalVisits?.[0]?.prescriptions?.length && (
             <Boton variante="secundario" icono={<Printer className="size-4" />} title="Hoja para el paciente: sus medicamentos y la próxima visita" onClick={() => navegar(`/pacientes/${p.id}/indicaciones`)}>
               Indicaciones
@@ -393,20 +406,44 @@ export function Paciente() {
           <Boton variante="secundario" icono={<Pencil className="size-4" />} onClick={() => navegar(`/pacientes/${p.id}/editar`)}>
             Editar
           </Boton>
-          {p.status === 'ACTIVE' && tiene('pacientes.editar') && (
-            <Boton
-              variante="secundario"
-              className="border-red-200 text-red-700 hover:border-red-300 hover:bg-red-50"
-              icono={<UserX className="size-4" />}
-              title="Fallecimiento, mudanza, abandono…"
-              onClick={() => navegar(`/pacientes/${p.id}/baja`)}
-            >
-              Dar de baja
+          <MenuMas
+            acciones={[
+              ...(p.status === 'ACTIVE' && tiene('pacientes.editar')
+                ? [{ texto: 'Dar de baja (fallecimiento, mudanza…)', icono: <UserX className="size-4" />, alElegir: () => navegar(`/pacientes/${p.id}/baja`), peligro: true }]
+                : []),
+              ...(puedeRevisar ? [{ texto: 'Unir con otra ficha de la misma persona', icono: <GitMerge className="size-4" />, alElegir: () => navegar(`/revision/unir?a=${p.id}`) }] : []),
+              ...(puedeRevisar && (p.clinicalVisits?.length ?? 0) > 1
+                ? [{ texto: 'Separar visitas de otra persona', icono: <Split className="size-4" />, alElegir: () => navegar(`/revision/separar/${p.id}`) }]
+                : []),
+              ...(tiene('auditoria.ver') ? [{ texto: 'Quién la ha visto o cambiado', icono: <History className="size-4" />, alElegir: () => navegar(`/auditoria?registro=Patient&id=${p.id}`) }] : []),
+              ...(puedeRevisar
+                ? [
+                    {
+                      texto: 'Eliminar paciente',
+                      icono: <Trash2 className="size-4" />,
+                      peligro: true,
+                      deshabilitada: (p.clinicalVisits?.length ?? 0) > 0 ? 'Tiene visitas: únela con su otra ficha o dale de baja.' : undefined,
+                      alElegir: async () => {
+                        if (
+                          await confirmar({
+                            titulo: `¿Eliminar a ${nombreCompleto(p)} por completo?`,
+                            mensaje: `Se borra la ficha ${p.patientCode} y sus "No vino". Úsalo solo para fichas creadas por error. No se puede deshacer desde la app; queda una copia en Auditoría.`,
+                            confirmar: 'Eliminar paciente',
+                            peligro: true,
+                          })
+                        )
+                          eliminarFicha.mutate();
+                      },
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          {p.status !== 'DECEASED' && (
+            <Boton icono={<ClipboardPlus className="size-4" />} onClick={() => navegar(`/pacientes/${p.id}/visita${volver !== '/pacientes' ? `?volver=${encodeURIComponent(volver)}` : ''}`)}>
+              Nueva visita
             </Boton>
           )}
-          {p.status !== 'DECEASED' && <Boton icono={<ClipboardPlus className="size-4" />} onClick={() => navegar(`/pacientes/${p.id}/visita${volver !== '/pacientes' ? `?volver=${encodeURIComponent(volver)}` : ''}`)}>
-            Nueva visita
-          </Boton>}
         </div>
       </div>
 
@@ -434,33 +471,113 @@ export function Paciente() {
         </div>
       )}
 
-      {p.status === 'ACTIVE' && alertas.length > 0 && (
-        <section className="mb-4">
-          <h2 className="mb-2 text-sm font-semibold">
-            Alertas de la última visita <span className="font-normal text-tenue">({fecha(ultima!.visitDate)})</span>
-          </h2>
-          <ListaAlertas alertas={alertas} className="grid gap-2 space-y-0 md:grid-cols-2" />
+      {/* Lo esencial de un vistazo: cómo está, cuándo vuelve y qué toma */}
+      {ultima && (
+        <section className="mb-4 rounded-xl border border-borde bg-superficie">
+          <div className="grid divide-y divide-borde md:grid-cols-3 md:divide-x md:divide-y-0">
+            <div className="p-5">
+              <p className="text-xs font-medium text-tenue">Última presión</p>
+              {tomaUltima ? (
+                <>
+                  <p className="tabular mt-1 font-mono text-3xl font-semibold">
+                    {tomaUltima.s}/{tomaUltima.d}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <InsigniaCategoria config={conToma[0].bpClassification} />
+                    {tomaPrevia ? (
+                      <span
+                        className={cn('inline-flex items-center gap-0.5 text-xs font-medium', tomaUltima.s > tomaPrevia.s ? 'text-red-600' : tomaUltima.s < tomaPrevia.s ? 'text-green-700' : 'text-tenue')}
+                        title={`La anterior fue ${tomaPrevia.s}/${tomaPrevia.d}`}
+                      >
+                        {tomaUltima.s > tomaPrevia.s ? <ArrowUp className="size-3.5" /> : tomaUltima.s < tomaPrevia.s ? <ArrowDown className="size-3.5" /> : null}
+                        {tomaUltima.s === tomaPrevia.s ? 'Igual que la anterior' : `${Math.abs(tomaUltima.s - tomaPrevia.s)} ${tomaUltima.s > tomaPrevia.s ? 'más' : 'menos'} que la anterior`}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-tenue">Primera toma</span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-tenue">
+                    El {fecha(conToma[0].visitDate)} · {atendio(conToma[0])}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-tenue">Sin toma registrada</p>
+              )}
+            </div>
+            <div className="p-5">
+              <p className="text-xs font-medium text-tenue">Próxima visita</p>
+              {p.status !== 'ACTIVE' ? (
+                <p className="mt-1 text-sm text-tenue">{ESTADOS[p.status]}: no se programa</p>
+              ) : proxima ? (
+                <>
+                  <p className="mt-1 flex items-center gap-2 text-xl font-semibold">
+                    <CalendarClock className="size-5 text-tenue" />
+                    {fecha(proxima.toISOString())}
+                  </p>
+                  <p className={cn('mt-1 text-sm font-medium', diasParaVolver! < 0 ? 'text-red-600' : diasParaVolver! <= 7 ? 'text-amber-800' : 'text-tenue')}>
+                    {diasParaVolver === 0
+                      ? 'Le toca hoy'
+                      : diasParaVolver! > 0
+                        ? `En ${diasParaVolver} día${diasParaVolver === 1 ? '' : 's'}`
+                        : `Atrasada ${-diasParaVolver!} día${diasParaVolver === -1 ? '' : 's'}${asiste.clave === 'sin-venir' ? ' · no asiste desde entonces' : ''}`}
+                  </p>
+                  <p className="mt-1.5 text-xs text-tenue">Última visita el {fecha(ultima.visitDate)}</p>
+                </>
+              ) : null}
+            </div>
+            <div className="p-5">
+              <p className="text-xs font-medium text-tenue">Tratamiento actual</p>
+              {ultima.prescriptions?.length ? (
+                <ul className="mt-1.5 space-y-1.5">
+                  {ultima.prescriptions.map((r) => (
+                    <li key={r.id} className="flex items-baseline justify-between gap-2 text-sm">
+                      <span>
+                        <span className="font-medium">{r.medication?.name}</span> <span className="text-tenue">{r.medication?.concentration}</span>
+                        <span className="block text-xs text-tenue">{r.dailyDose} al día</span>
+                      </span>
+                      {r.adherencePercentage !== null && (
+                        <span className={cn('tabular shrink-0 text-xs font-medium', colorCumplimiento(Number(r.adherencePercentage)))} title="Cumplimiento en esta visita">
+                          {Math.round(Number(r.adherencePercentage))}% cumplió
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-tenue">Sin medicamentos en la última visita</p>
+              )}
+            </div>
+          </div>
+          {p.status === 'ACTIVE' && alertas.length > 0 && (
+            <div className="border-t border-borde p-4">
+              <p className="mb-2 text-xs font-medium text-tenue">Alertas de la última visita</p>
+              <ListaAlertas alertas={alertas} className="grid gap-2 space-y-0 md:grid-cols-2" />
+            </div>
+          )}
         </section>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            {[
-              ['Última PA', ultima ? tensionDe(ultima) : '—', ultima && <InsigniaCategoria config={ultima.bpClassification} />],
-              ['Promedio', a ? `${a.bpStats.systolic.avg}/${a.bpStats.diastolic.avg}` : '—', a && `${a.totalVisits} tomas manuales`],
-              ['Máxima', a ? `${a.bpStats.systolic.max}/${a.bpStats.diastolic.max}` : '—', null],
-              ['IMC actual', ultima ? decimal(ultima.bmi) : '—', ultima && `${decimal(ultima.weightKg)} kg`],
-            ].map(([t, v, d]) => (
-              <div key={t as string} className="rounded-xl border border-borde bg-superficie p-4">
-                <p className="text-xs text-tenue">{t}</p>
-                <p className="tabular mt-1.5 font-mono text-xl font-medium">{v}</p>
-                <div className="mt-1 text-xs text-tenue">{d}</div>
-              </div>
-            ))}
-          </div>
-
-          <Tarjeta titulo="Evolución de la presión arterial" copiable accion={<span className="text-xs text-tenue">Líneas: 140 y 90 mmHg</span>}>
+          <Tarjeta
+            titulo="Evolución de la presión arterial"
+            copiable
+            accion={
+              <span className="tabular hidden text-xs text-tenue sm:inline">
+                {a && a.totalVisits > 1 && (
+                  <>
+                    Promedio <strong className="font-mono text-tinta">{a.bpStats.systolic.avg}/{a.bpStats.diastolic.avg}</strong> · Máxima{' '}
+                    <strong className="font-mono text-tinta">{a.bpStats.systolic.max}/{a.bpStats.diastolic.max}</strong> ·{' '}
+                  </>
+                )}
+                {ultima?.bmi && (
+                  <>
+                    IMC <strong className="font-mono text-tinta">{decimal(ultima.bmi)}</strong> ({decimal(ultima.weightKg)} kg)
+                  </>
+                )}
+              </span>
+            }
+          >
             <GraficoTension id={id} />
           </Tarjeta>
 
@@ -480,6 +597,8 @@ export function Paciente() {
         </div>
 
         <aside className="space-y-4">
+          {/* Lo accionable primero: pendientes de entregar y reposición */}
+          <EntregasDelPaciente paciente={p} />
           <Tarjeta titulo="Ficha">
             <dl className="grid gap-4 p-5">
               <div className="rounded-lg bg-marca-50 px-4 py-3">
@@ -538,7 +657,6 @@ export function Paciente() {
               <Dato etiqueta="Registrado">{fecha(p.registrationDate)}</Dato>
             </dl>
           </Tarjeta>
-          <EntregasDelPaciente paciente={p} />
           {!!p.inasistencias?.length && (
             <Tarjeta titulo={`No vino (${p.inasistencias.length})`}>
               <ul className="divide-y divide-borde text-sm">
