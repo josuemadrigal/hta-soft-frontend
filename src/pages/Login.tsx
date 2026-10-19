@@ -46,7 +46,6 @@ export function Login() {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="ana.martinez"
             autoFocus={!estado?.email}
             {...register('email')}
             className="h-11"
