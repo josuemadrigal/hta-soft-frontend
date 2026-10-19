@@ -234,7 +234,7 @@ export const editarConfigPA = (id: number, d: Partial<Omit<ConfigPA, 'id'>>) =>
 export const borrarConfigPA = (id: number) => enviar<ConfigPA>(`/blood-pressure-config/${id}`, 'DELETE');
 
 /* Usuarios y roles */
-export type DatosUsuario = Pick<Usuario, 'email' | 'firstName' | 'lastName' | 'isActive'> & { roleId: number; password?: string };
+export type DatosUsuario = Pick<Usuario, 'email' | 'firstName' | 'lastName' | 'isActive'> & { roleId: number; password?: string; usuario?: string };
 export const listarUsuarios = () => api<Paginado<Usuario>>('/users?limit=200');
 export const obtenerUsuario = (id: number) => api<Usuario | null>(`/users/${id}`);
 export const crearUsuario = (d: DatosUsuario) => enviar<Usuario>('/users', 'POST', d);

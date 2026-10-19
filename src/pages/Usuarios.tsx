@@ -75,6 +75,7 @@ export function Usuarios() {
                           {nombreCompleto(u)} {u.id === yo?.id && <span className="text-xs font-normal text-tenue">(tú)</span>}
                         </p>
                         <p className="text-xs text-tenue">
+                          {u.usuario && <span className="font-mono text-tinta/70">{u.usuario} · </span>}
                           {u.email}
                           {!u.emailVerificadoEn && <span className="ml-1.5 text-amber-700">· sin confirmar</span>}
                         </p>
@@ -168,15 +169,20 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
 
   const { register, handleSubmit, formState, watch, getValues } = useForm<Datos>({
     defaultValues: usuario
-      ? { email: usuario.email, firstName: usuario.firstName, lastName: usuario.lastName, roleId: String(usuario.role.id), isActive: usuario.isActive, password: '', confirmar: '' }
-      : { email: '', firstName: '', lastName: '', roleId: '', isActive: true, password: '', confirmar: '' },
+      ? { email: usuario.email, usuario: usuario.usuario ?? '', firstName: usuario.firstName, lastName: usuario.lastName, roleId: String(usuario.role.id), isActive: usuario.isActive, password: '', confirmar: '' }
+      : { email: '', usuario: '', firstName: '', lastName: '', roleId: '', isActive: true, password: '', confirmar: '' },
   });
   const e = formState.errors;
+  // La misma regla que el servidor: primer nombre.primer apellido, sin tildes.
+  const limpio = (s: string) => (s.trim().split(/\s+/)[0] ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const sugerencia = [limpio(watch('firstName') ?? ''), limpio(watch('lastName') ?? '')].filter(Boolean).join('.');
   const rolElegido = roles.data?.find((r) => r.id === Number(watch('roleId')));
 
   const guardar = useMutation({
     mutationFn: ({ confirmar: _c, ...d }: Datos) => {
-      const datos: Partial<DatosUsuario> = { ...d, roleId: Number(d.roleId), firstName: d.firstName.trim(), lastName: d.lastName.trim(), email: d.email.trim() };
+      const datos: Partial<DatosUsuario> = { ...d, roleId: Number(d.roleId), firstName: d.firstName.trim(), lastName: d.lastName.trim(), email: d.email.trim(), usuario: d.usuario?.trim().toLowerCase() };
+      // Vacío al crear: el servidor lo arma con el nombre. Vacío al editar: se deja el que tenía.
+      if (!datos.usuario) delete datos.usuario;
       if (!datos.password) delete datos.password; // vacío = no se cambia
       return usuario ? editarUsuario(usuario.id, datos) : crearUsuario(datos as DatosUsuario);
     },
@@ -205,7 +211,22 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
               <Campo etiqueta="Apellidos" error={e.lastName && 'Requerido'}>
                 <Entrada {...register('lastName', { required: true, validate: (v) => !!v.trim() })} aria-invalid={!!e.lastName} />
               </Campo>
-              <Campo etiqueta="Correo (usuario para entrar)" error={e.email && 'Correo no válido'} className="sm:col-span-2">
+              <Campo
+                etiqueta="Usuario para entrar"
+                error={e.usuario && 'De 3 a 30 letras sin tilde, números, punto o guion'}
+                ayuda={usuario ? 'Puede entrar con este usuario o con su correo.' : `Si lo dejas vacío: ${sugerencia || 'nombre.apellido'}`}
+              >
+                <Entrada
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder={sugerencia || 'nombre.apellido'}
+                  className="font-mono"
+                  {...register('usuario', { pattern: /^[a-zA-Z0-9._-]{3,30}$/ })}
+                  aria-invalid={!!e.usuario}
+                />
+              </Campo>
+              <Campo etiqueta="Correo" error={e.email && 'Correo no válido'} ayuda="Para recuperar la contraseña. También sirve para entrar.">
                 <Entrada type="email" autoComplete="off" {...register('email', { required: true, pattern: /^\S+@\S+\.\S+$/ })} aria-invalid={!!e.email} />
               </Campo>
             </div>

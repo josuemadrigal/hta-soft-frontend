@@ -35,6 +35,8 @@ export type Usuario = {
   photoUrl?: string | null;
   isActive: boolean;
   createdAt: string;
+  /** Para entrar sin el correo (p. ej. "ana.martinez"). */
+  usuario?: string | null;
   /** Cuándo confirmó su correo (null: sin confirmar). */
   emailVerificadoEn?: string | null;
   /** Bloqueado por intentos fallidos hasta esta hora (null o pasada: puede entrar). */

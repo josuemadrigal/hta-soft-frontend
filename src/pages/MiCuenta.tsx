@@ -53,7 +53,13 @@ export function MiCuenta() {
               <p className="text-sm text-tenue">{usuario.role?.name}</p>
             </div>
           </div>
-          <p className="border-t border-borde px-5 py-3 text-sm text-tenue">Para cambiar tu nombre, tu rol o tu correo, pídeselo a quien administra los usuarios.</p>
+          {usuario.usuario && (
+            <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-borde px-5 py-3">
+              <span className="text-sm text-tenue">Usuario para entrar</span>
+              <span className="font-mono font-medium">{usuario.usuario}</span>
+            </div>
+          )}
+          <p className="border-t border-borde px-5 py-3 text-sm text-tenue">Para cambiar tu nombre, tu usuario, tu rol o tu correo, pídeselo a quien administra los usuarios.</p>
         </Tarjeta>
 
         <Tarjeta titulo="Correo">

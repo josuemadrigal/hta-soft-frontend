@@ -8,7 +8,7 @@ import { PantallaAcceso } from '../components/PantallaAcceso';
 import { Boton, Campo, Entrada } from '../components/ui';
 
 const esquema = z.object({
-  email: z.email('Correo no válido'),
+  email: z.string().trim().min(1, 'Escribe tu usuario o tu correo'),
   password: z.string().min(1, 'Escribe la contraseña'),
 });
 
@@ -31,7 +31,7 @@ export function Login() {
       await entrar(email, password);
       navegar(desde, { replace: true });
     } catch (e) {
-      setError(e instanceof Error && e.message !== 'Invalid credentials' ? e.message : 'Correo o contraseña incorrectos.');
+      setError(e instanceof Error && e.message !== 'Invalid credentials' ? e.message : 'Usuario o contraseña incorrectos.');
     }
   });
 
@@ -40,8 +40,18 @@ export function Login() {
       <form onSubmit={alEnviar} className="space-y-5" noValidate>
         <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión en HTA-Soft</h1>
         {estado?.aviso && !error && <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{estado.aviso}</p>}
-        <Campo etiqueta="Correo" error={formState.errors.email?.message}>
-          <Entrada type="email" autoComplete="username" autoFocus={!estado?.email} {...register('email')} className="h-11" aria-invalid={!!formState.errors.email} />
+        <Campo etiqueta="Usuario o correo" error={formState.errors.email?.message}>
+          <Entrada
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="ana.martinez"
+            autoFocus={!estado?.email}
+            {...register('email')}
+            className="h-11"
+            aria-invalid={!!formState.errors.email}
+          />
         </Campo>
         <Campo etiqueta="Contraseña" error={formState.errors.password?.message}>
           <Entrada type="password" autoComplete="current-password" autoFocus={!!estado?.email} {...register('password')} className="h-11" aria-invalid={!!formState.errors.password} />
@@ -51,8 +61,8 @@ export function Login() {
           Entrar
         </Boton>
         <p className="text-center">
-          {/* Lleva el correo ya escrito, para no tener que repetirlo */}
-          <Link to="/olvide-contrasena" state={{ email: watch('email') }} className="text-sm text-tenue underline-offset-4 hover:text-tinta hover:underline">
+          {/* Lleva el correo ya escrito (si escribió el usuario, no: el enlace se manda al correo) */}
+          <Link to="/olvide-contrasena" state={{ email: watch('email').includes('@') ? watch('email') : '' }} className="text-sm text-tenue underline-offset-4 hover:text-tinta hover:underline">
             ¿Olvidaste tu contraseña?
           </Link>
         </p>
