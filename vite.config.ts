@@ -16,8 +16,8 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.png', 'apple-touch-icon.png', 'logo.webp', 'logo-icono.png'],
         manifest: {
-          name: 'HTA-Soft · Light a Candle',
-          short_name: 'HTA-Soft',
+          name: 'Light a Candle APP',
+          short_name: 'Light a Candle APP',
           description: 'Control de la hipertensión en los bateyes de La Romana',
           lang: 'es',
           start_url: '/',
