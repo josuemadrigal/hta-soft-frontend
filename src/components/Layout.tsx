@@ -164,9 +164,7 @@ export function Layout() {
 
       {/* Móvil: barra superior + cajón */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-borde bg-superficie/90 px-4 py-3 backdrop-blur lg:hidden print:hidden">
-        <span className="flex items-center gap-2 font-semibold">
-          <img src="/logo-mapa.png" alt="" className="h-6 w-auto" /> HTA-Soft
-        </span>
+        <img src="/logo.webp" alt="Light a Candle · Dominican Republic" className="h-7 w-auto" />
         <button onClick={() => setMenuAbierto(true)} className="rounded-md p-1.5 hover:bg-black/5" aria-label="Abrir menú">
           <Menu className="size-5" />
         </button>

@@ -297,7 +297,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
       </div>
 
       <footer className="pt-2 text-center text-xs text-tenue">
-        Light a Candle · Dominican Republic — informe generado con HTA-Soft el {fecha(new Date().toISOString())}. Controlado = última toma por debajo de 140/90 mmHg.
+        Light a Candle · Dominican Republic — informe generado el {fecha(new Date().toISOString())}. Controlado = última toma por debajo de 140/90 mmHg.
       </footer>
     </article>
   );

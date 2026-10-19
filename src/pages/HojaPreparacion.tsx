@@ -109,7 +109,7 @@ function Membrete({ d }: { d: PreparacionJornada }) {
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-2 border-b-2 border-tinta pb-3">
       <div>
-        <p className="text-xs font-medium tracking-wide text-tenue uppercase">Light a Candle · HTA-Soft</p>
+        <p className="text-xs font-medium tracking-wide text-tenue uppercase">Light a Candle · Dominican Republic</p>
         <h2 className="text-xl font-bold">Preparación de bolsitas · {j.community.name}</h2>
         <p className="text-sm">{diaJornada(j.fecha, true)}</p>
       </div>

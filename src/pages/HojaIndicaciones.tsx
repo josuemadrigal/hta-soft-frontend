@@ -83,7 +83,7 @@ export function HojaIndicaciones() {
         // Pensada para media carta / A5: en pantalla se ve como la hoja que se le entrega.
         <article className="mx-auto max-w-[148mm] rounded-xl border border-borde bg-white p-6 text-tinta shadow-sm sm:p-8 print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
           <header className="border-b-2 border-tinta pb-3">
-            <p className="text-xs font-semibold tracking-wide text-tenue uppercase">Light a Candle · HTA-Soft</p>
+            <p className="text-xs font-semibold tracking-wide text-tenue uppercase">Light a Candle · Dominican Republic</p>
             <h2 className="mt-1 text-2xl leading-tight font-bold">{nombreCompleto(p)}</h2>
             <p className="mt-0.5 text-sm">
               <span className="font-mono font-semibold">{p.patientCode}</span>
