@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, ChevronDown, Minus, Plus, Save, X } from 'lucide-react';
 import { useState } from 'react';
-import { useFieldArray, useForm, useWatch, type Control, type UseFormRegister, type UseFormSetValue } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch, type Control, type UseFormRegister, type UseFormSetValue } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useConfigPA, useConfiguracion, useMedicamentos } from '../api/consultas';
@@ -17,6 +17,7 @@ import { margenDe, mensajeEntrega } from '../lib/entregas';
 import { clasificar, cn, colorCumplimiento, DIA_MS, fecha as fechaCorta, nombreCompleto } from '../lib/formato';
 import { ListaAlertas, useUmbrales } from './Alertas';
 import { HistorialVisitas } from './HistorialVisitas';
+import { SelectorFecha, ymd } from './SelectorFecha';
 import { AreaTexto, Boton, Campo, Cargando, Casilla, comoNumero, Entrada, InsigniaCategoria, Selector, Tarjeta } from './ui';
 
 const entero = (min: number, max: number) => z.number().int('Sin decimales').min(min, `Mínimo ${min}`).max(max, `Máximo ${max}`).optional();
@@ -77,11 +78,13 @@ const crearEsquema = (edicion: boolean) =>
     path: ['recetas'],
   });
 
-/** datetime-local quiere la hora local sin zona. */
-const ahoraLocal = () => {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
+/**
+ * La visita se elige por día; la hora se conserva: la de ahora al registrarla, la que tenía al corregirla
+ * (así varias del mismo día siguen en su orden).
+ */
+const conHora = (dia: string, hora: Date) => {
+  const [a, m, d] = dia.split('-').map(Number);
+  return new Date(a, m - 1, d, hora.getHours(), hora.getMinutes(), hora.getSeconds());
 };
 
 const diasDe = (d: Pick<Datos, 'intervalo' | 'diasOtro'>) => (d.intervalo === 'otro' ? (d.diasOtro ?? 0) : Number(d.intervalo));
@@ -140,7 +143,7 @@ function siguienteCampo(ev: React.KeyboardEvent<HTMLFormElement>) {
   const siguiente = campos[campos.indexOf(actual as HTMLInputElement) + 1];
   if (siguiente) {
     siguiente.focus();
-    if (siguiente instanceof HTMLInputElement && siguiente.type !== 'datetime-local') siguiente.select();
+    if (siguiente instanceof HTMLInputElement && siguiente.type !== 'date') siguiente.select();
   }
 }
 
@@ -321,13 +324,7 @@ export function FormularioVisita(props: Props) {
   return <Formulario {...props} configs={configs.data} medicamentos={medicamentos.data} />;
 }
 
-/** datetime-local quiere la hora local sin zona. */
-const local = (iso: string | null | undefined) => {
-  if (!iso) return '';
-  const f = new Date(iso);
-  f.setMinutes(f.getMinutes() - f.getTimezoneOffset());
-  return f.toISOString().slice(0, 16);
-};
+const local = (iso: string | null | undefined) => (iso ? ymd(new Date(iso)) : '');
 const aNumero = (v: unknown) => (v === null || v === undefined || v === '' ? undefined : Number(v));
 
 /** Los datos guardados de una visita, en la forma del formulario (para corregirla). */
@@ -380,7 +377,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
     defaultValues: editada
       ? valoresDe(editada)
       : {
-          visitDate: ahoraLocal(),
+          visitDate: ymd(new Date()),
           visitType: ultima ? 'FOLLOW_UP' : 'NEW',
           isHomeVisit: false,
           entregar: entregaInmediata,
@@ -438,7 +435,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   /** Corregir una visita: los mismos campos; lo vacío se borra y los medicamentos mueven el inventario por la diferencia. */
   const corregir = async (datos: Datos) => {
     const v = editada!;
-    const fecha = new Date(datos.visitDate);
+    const fecha = conHora(datos.visitDate, new Date(v.visitDate));
     const nulo = <T,>(x: T | undefined) => (x === undefined || (typeof x === 'number' && Number.isNaN(x)) ? null : x);
     const cambios: CambiosVisita = {
       visitDate: fecha.toISOString(),
@@ -502,7 +499,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   const enviar = handleSubmit(async (datos) => {
     setError(null);
     if (edicion) return corregir(datos);
-    const fecha = new Date(datos.visitDate);
+    const fecha = conHora(datos.visitDate, new Date());
     const dias = diasDe(datos);
     const visita: DatosVisita = {
       // Mismo id si se reenvía (sin internet o tras un corte): el servidor no la duplica.
@@ -816,8 +813,12 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
                 opciones={opciones(TIPOS_VISITA).map((o) => ({ value: String(o.value) as Datos['visitType'], label: o.label }))}
               />
             </Campo>
-            <Campo etiqueta="Fecha y hora" error={e.visitDate?.message}>
-              <Entrada type="datetime-local" className="h-10" {...register('visitDate')} />
+            <Campo etiqueta="Fecha" error={e.visitDate?.message}>
+              <Controller
+                control={control}
+                name="visitDate"
+                render={({ field }) => <SelectorFecha className="h-10" value={field.value} onChange={field.onChange} max={ymd(new Date())} aria-invalid={!!e.visitDate} aria-label="Fecha de la visita" />}
+              />
             </Campo>
             <div className="flex items-end pb-2.5">
               <Casilla etiqueta="Visita domiciliaria" {...register('isHomeVisit')} />

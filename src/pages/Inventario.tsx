@@ -2,14 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PackagePlus, Pencil, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useMedicamento, useMedicamentos, useMovimientos } from '../api/consultas';
 import { registrarAjuste, registrarEntrada, type DatosEntrada } from '../api/recursos';
 import type { Lote, MovimientoInventario, OrigenLote } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, Insignia, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
-import { cn, diasHasta, fechaDia, fechaYHora } from '../lib/formato';
+import { cn, diasHasta, fechaDia, fechaYHora, nombreCompleto } from '../lib/formato';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORIGENES: Record<OrigenLote, string> = { DONACION: 'Donación', COMPRA: 'Compra', INICIAL: 'Saldo inicial', AJUSTE: 'Ajuste' };
@@ -131,7 +131,7 @@ export function MedicamentoDetalle() {
           <Vacio titulo="Sin movimientos" />
         ) : (
           <>
-            <Tabla columnas={['Fecha', 'Movimiento', 'Lote', { texto: 'Cantidad', className: 'text-right' }, { texto: 'Saldo', className: 'text-right' }, 'Detalle', 'Usuario']}>
+            <Tabla columnas={['Fecha', 'Movimiento', 'Lote', { texto: 'Cantidad', className: 'text-right' }, { texto: 'Saldo', className: 'text-right' }, 'Paciente · detalle', 'Usuario']}>
               {movimientos.data.data.map((mv) => (
                 <tr key={mv.id}>
                   <td className="px-5 py-2.5 whitespace-nowrap">{fechaYHora(mv.createdAt)}</td>
@@ -144,7 +144,15 @@ export function MedicamentoDetalle() {
                     {miles(mv.cantidad)}
                   </td>
                   <td className="tabular px-5 py-2.5 text-right">{miles(mv.saldo)}</td>
-                  <td className="px-5 py-2.5 text-xs text-tenue">{mv.motivo ?? (mv.visitId ? `Visita #${mv.visitId}` : '—')}</td>
+                  <td className="px-5 py-2.5">
+                    {mv.patient && (
+                      <Link to={`/pacientes/${mv.patient.id}`} className="block font-medium whitespace-nowrap hover:underline">
+                        {nombreCompleto(mv.patient)}
+                        <span className="ml-1.5 text-xs font-normal text-tenue">{mv.patient.community?.name ?? 'Sin batey'}</span>
+                      </Link>
+                    )}
+                    <span className="text-xs text-tenue">{mv.motivo ?? (mv.visitId ? `Visita #${mv.visitId}` : mv.patient ? '' : '—')}</span>
+                  </td>
                   <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{mv.userName ?? '—'}</td>
                 </tr>
               ))}

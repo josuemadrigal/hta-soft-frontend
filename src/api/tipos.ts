@@ -109,6 +109,8 @@ export type MovimientoInventario = {
   userName: string | null;
   createdAt: string;
   lote: { numero: string | null; vencimiento: string | null } | null;
+  /** A quién se le dio (o de quién volvió). */
+  patient: { id: number; firstName: string; lastName: string; patientCode: string; community: { name: string } | null } | null;
 };
 
 export type AlertasInventario = {
