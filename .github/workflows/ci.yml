@@ -123,6 +123,14 @@ jobs:
           cd /var/www/hta-soft
           test -f .env
 
+          # Un despliegue a la vez en el servidor: el API y la web vienen de repos distintos y
+          # "concurrency" de GitHub solo ordena los de un mismo repo. Si llegan juntos, el segundo espera.
+          exec 9>/var/www/hta-soft/.despliegue.lock
+          if ! flock -w 900 9; then
+            echo "Otro despliegue lleva más de 15 minutos en el servidor; se cancela este."
+            exit 1
+          fi
+
           compose() {
             docker compose --env-file .env -f compose.shared-vps.yml "$@"
           }
@@ -149,13 +157,13 @@ jobs:
             trap - ERR
             echo "El despliegue falló; se vuelve a la imagen anterior."
             set_env_value FRONTEND_VERSION rollback-local
-            compose up -d hta-web
+            compose up -d --no-deps hta-web
           }
           trap rollback ERR
 
           set_env_value FRONTEND_VERSION "$DEPLOY_VERSION"
           compose pull hta-web
-          compose up -d hta-web
+          compose up -d --no-deps hta-web
 
           healthy=false
           for attempt in $(seq 1 24); do
