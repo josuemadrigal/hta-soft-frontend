@@ -38,7 +38,7 @@ export function Login() {
   return (
     <PantallaAcceso>
       <form onSubmit={alEnviar} className="space-y-5" noValidate>
-        <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión en HTA-Soft</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
         {estado?.aviso && !error && <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{estado.aviso}</p>}
         <Campo etiqueta="Usuario o correo" error={formState.errors.email?.message}>
           <Entrada
