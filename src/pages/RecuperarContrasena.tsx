@@ -39,7 +39,7 @@ export function OlvideContrasena() {
           <h1 className="text-2xl font-semibold tracking-tight">Revisa tu correo</h1>
           {/* No dice si la cuenta existe: así nadie puede averiguar qué correos están registrados */}
           <p className="text-tenue">
-            Si <span className="font-medium break-all text-tinta">{enviadoA}</span> tiene una cuenta en HTA-Soft, te enviamos un enlace para poner una contraseña nueva. Vence en
+            Si <span className="font-medium break-all text-tinta">{enviadoA}</span> tiene una cuenta, te enviamos un enlace para poner una contraseña nueva. Vence en
             1 hora.
           </p>
           <p className="text-sm text-tenue">¿No llega? Revisa la carpeta de spam o pide otro enlace en unos minutos. Si sigue sin llegar, pide al administrador que te cambie la contraseña.</p>

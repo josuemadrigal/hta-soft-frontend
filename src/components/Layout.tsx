@@ -93,7 +93,7 @@ function Navegacion({ alNavegar }: { alNavegar?: () => void }) {
       <div className="px-5 pt-5 pb-4">
         <img src="/logo.webp" alt="Light a Candle · Dominican Republic" className="w-full max-w-[200px]" />
         <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-tenue">
-          <Activity className="size-3.5" strokeWidth={2.5} /> HTA-Soft · Control de hipertensión
+          <Activity className="size-3.5" strokeWidth={2.5} /> Control de hipertensión
         </p>
       </div>
 
