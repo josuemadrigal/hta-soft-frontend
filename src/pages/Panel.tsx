@@ -5,10 +5,12 @@ import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { MiPanelVista } from '../components/MiPanel';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useAlertasInventario, useComunidades, useEstadisticasPanel, useJornadas, useRonda, useTendencia } from '../api/consultas';
+import { useAlertasInventario, useComunidades, useEstadisticasPanel, useJornadas, useResumenReporte, useRonda, useTendencia } from '../api/consultas';
 import { useSesion } from '../auth/sesion';
 import { COLOR, EJE, REJILLA, TOOLTIP, LEYENDA } from '../components/graficas';
-import { Cargando, EncabezadoPagina, ErrorCarga, Insignia, Selector, Tarjeta, Vacio } from '../components/ui';
+import { Cargando, EncabezadoPagina, ErrorCarga, Hueso, Insignia, Selector, Tarjeta, Vacio } from '../components/ui';
+import { BarraPeriodo } from '../components/BarraPeriodo';
+import { usePeriodoPanel, type PeriodoPanel } from '../lib/periodo-panel';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, fecha, nombreCompleto } from '../lib/formato';
 import { diaJornada, hoyYmd } from './Jornadas';
@@ -71,6 +73,7 @@ export function Panel() {
   const porDefecto = puedeMio && !tiene('reportes.ver') ? 'mio' : 'general';
   const vista = puedeMio ? (params.get('vista') ?? porDefecto) : 'general';
   const batey = Number(params.get('batey')) || undefined;
+  const periodo = usePeriodoPanel();
   const cambiar = (c: Record<string, string | undefined>) =>
     setParams(
       (p) => {
@@ -120,7 +123,8 @@ export function Panel() {
           </>
         }
       />
-      {vista === 'mio' ? <MiPanelVista /> : <PanelGeneral batey={batey} nombreBatey={comunidades.data?.find((c) => c.id === batey)?.name} />}
+      <BarraPeriodo periodo={periodo} cambiar={periodo.cambiar} />
+      {vista === 'mio' ? <MiPanelVista periodo={periodo} /> : <PanelGeneral batey={batey} periodo={periodo} nombreBatey={comunidades.data?.find((c) => c.id === batey)?.name} />}
     </>
   );
 }
@@ -141,7 +145,7 @@ function Seccion({ titulo, detalle, children }: { titulo: string; detalle?: Reac
   );
 }
 
-function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; nombreBatey?: string }) {
+function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?: number; periodo: PeriodoPanel; nombreBatey?: string }) {
   const { tiene } = useSesion();
   const stats = useEstadisticasPanel(batey);
   const alertas = useAlertasInventario();
@@ -152,7 +156,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
   const tendencia = useTendencia(batey);
   const comunidades = useComunidades();
 
-  if (stats.isPending || ronda.isPending) return <Cargando />;
+  if (stats.isPending || ronda.isPending) return <EsqueletoPanel />;
   if (stats.isError) return <ErrorCarga error={stats.error} />;
   if (ronda.isError) return <ErrorCarga error={ronda.error} />;
   const s = stats.data;
@@ -270,6 +274,13 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
         </p>
       )}
 
+      {/* Lo que pasó en el día o rango elegido: justo debajo de donde se elige */}
+      {tiene('reportes.ver') && (
+        <div className="mb-6 [&>section]:mt-0">
+          <ActividadPeriodo periodo={periodo} batey={batey} />
+        </div>
+      )}
+
       {/* 1 · Para hacer */}
       {pendientes.length > 0 && (
         <Tarjeta titulo="Para hacer" className="mb-6">
@@ -301,7 +312,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
         </Tarjeta>
       )}
 
-      {/* 2 · Cifras */}
+      {/* 2 · Cifras: cómo está todo hoy */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador
           titulo="En seguimiento"
@@ -356,7 +367,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <Tarjeta titulo="Control de la presión por trimestre" copiable ayuda={AYUDA.controlPanel} accion={<span className="text-xs text-tenue">Últimos 8 trimestres</span>}>
             {tendencia.isPending ? (
-              <Cargando />
+              <Cargando forma="grafica" />
             ) : (
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
@@ -377,7 +388,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
 
           <Tarjeta titulo="Cómo están hoy" copiable ayuda={AYUDA.comoEstanHoy} accion={<span className="text-xs text-tenue">Última toma · en seguimiento</span>}>
             {tendencia.isPending ? (
-              <Cargando />
+              <Cargando forma="lista" />
             ) : totalHoy === 0 ? (
               <Vacio titulo="Sin datos" />
             ) : (
@@ -538,5 +549,120 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
         </Tarjeta>
       </Seccion>
     </>
+  );
+}
+
+/** Mientras carga el panel: la misma forma que tendrá (pendientes, cifras, gráficas). */
+function EsqueletoPanel() {
+  return (
+    <div role="status" aria-busy="true" className="space-y-6">
+      <span className="sr-only">Cargando el panel…</span>
+      <div className="rounded-xl border border-borde bg-superficie">
+        <div className="border-b border-borde px-5 py-3.5">
+          <Hueso className="h-4 w-24" />
+        </div>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-3 border-b border-borde px-5 py-3.5 last:border-0">
+            <Hueso className="size-8 shrink-0 rounded-full" />
+            <Hueso className={cn('h-3.5', ['w-1/2', 'w-2/3', 'w-2/5', 'w-1/3'][i])} />
+          </div>
+        ))}
+      </div>
+      <FilaCifrasEsqueleto n={4} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="rounded-xl border border-borde bg-superficie">
+          <div className="border-b border-borde px-5 py-3.5">
+            <Hueso className="h-4 w-48" />
+          </div>
+          <Cargando forma="grafica" />
+        </div>
+        <div className="rounded-xl border border-borde bg-superficie">
+          <div className="border-b border-borde px-5 py-3.5">
+            <Hueso className="h-4 w-32" />
+          </div>
+          <div className="space-y-4 p-5">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Hueso className="h-3.5 w-24" />
+                <Hueso className="h-2 flex-1" />
+                <Hueso className="h-3.5 w-8" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilaCifrasEsqueleto({ n }: { n: number }) {
+  return (
+    <div className={cn('grid gap-4 sm:grid-cols-2', n === 5 ? 'lg:grid-cols-5' : 'xl:grid-cols-4')}>
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="space-y-3 rounded-xl border border-borde bg-superficie p-5">
+          <Hueso className="h-3.5 w-1/2" />
+          <Hueso className="h-8 w-2/5" />
+          <Hueso className="h-3 w-3/4" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Visitas, pacientes, control y pastillas del día o rango elegido arriba. */
+function ActividadPeriodo({ periodo, batey }: { periodo: PeriodoPanel; batey?: number }) {
+  // Días de RD (UTC−4): el servidor compara instantes.
+  const consulta = useResumenReporte({ from: `${periodo.desde}T00:00:00-04:00`, to: `${periodo.hasta}T23:59:59-04:00`, communityId: batey });
+  const enlace = `/reportes?desde=${periodo.desde}&hasta=${periodo.hasta}${batey ? `&batey=${batey}` : ''}`;
+  const cabecera = (
+    <span className="flex flex-wrap items-center gap-x-3">
+      Visitas registradas {periodo.frase}
+      <Link to={enlace} className="inline-flex items-center gap-1 font-medium text-marca-700 hover:underline">
+        Ver el reporte <ArrowRight className="size-3.5" />
+      </Link>
+    </span>
+  );
+
+  return (
+    <Seccion titulo={`Actividad · ${periodo.texto}`} detalle={cabecera}>
+      {consulta.isPending ? (
+        <FilaCifrasEsqueleto n={5} />
+      ) : consulta.isError ? (
+        <ErrorCarga error={consulta.error} />
+      ) : consulta.data.resumen.visitas === 0 ? (
+        <p className="rounded-xl border border-dashed border-borde px-5 py-6 text-center text-sm text-tenue">No hay visitas registradas {periodo.frase}.</p>
+      ) : (
+        (() => {
+          const r = consulta.data;
+          const x = r.resumen;
+          const meds = [...r.medicamentos].sort((a, b) => b.pastillas - a.pastillas);
+          return (
+            <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-5 transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
+              <Indicador titulo="Pacientes atendidos" valor={miles(x.pacientes)} detalle={`${miles(x.nuevos)} de primera vez`} icono={<Users className="size-4" />} a={`/pacientes?desde=${periodo.desde}&hasta=${periodo.hasta}${batey ? `&batey=${batey}` : ''}`} />
+              <Indicador titulo="Visitas" valor={miles(x.visitas)} detalle={`${miles(x.domiciliarias)} en su casa`} icono={<CalendarCheck className="size-4" />} />
+              <Indicador
+                titulo="Salieron controlados"
+                valor={x.controladosPct === null ? '—' : `${Math.round(x.controladosPct)}%`}
+                progreso={x.controladosPct ?? undefined}
+                detalle="Última toma del periodo < 140/90"
+                icono={<HeartPulse className="size-4" />}
+              />
+              <Indicador
+                titulo="Presión promedio"
+                valor={x.sistolicaPromedio ? `${Math.round(x.sistolicaPromedio)}/${Math.round(x.diastolicaPromedio ?? 0)}` : '—'}
+                detalle="mmHg, todas las tomas"
+                icono={<HeartPulse className="size-4" />}
+              />
+              <Indicador
+                titulo="Pastillas entregadas"
+                valor={miles(x.pastillas)}
+                detalle={meds.slice(0, 2).map((m) => `${m.medicamento}: ${miles(m.pastillas)}`).join(' · ') || 'Sin medicamentos'}
+                icono={<Pill className="size-4" />}
+              />
+            </div>
+          );
+        })()
+      )}
+    </Seccion>
   );
 }

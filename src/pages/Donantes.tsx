@@ -76,7 +76,7 @@ export function Donantes() {
         </div>
       </div>
       {consulta.isPending ? (
-        <Cargando texto="Preparando el informe…" />
+        <Cargando forma="pagina" texto="Preparando el informe…" />
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : (

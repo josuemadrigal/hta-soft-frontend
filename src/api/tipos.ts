@@ -621,6 +621,10 @@ export type MiPanel = {
     bpClassification: ConfigPA | null;
     patient: { id: number; patientCode: string; firstName: string; lastName: string; community: { name: string } };
   }[];
+  /** Las visitas que registró en el periodo pedido (hasta 200) y el total. */
+  periodo?: { desde: string; hasta: string };
+  atendidos?: MiPanel['hoy'];
+  atendidosTotal?: number;
   visitasMes: number;
   jornadasHoy: (Jornada & { soyResponsable: boolean })[];
   proximaJornada: (Jornada & { community: { id: number; name: string } }) | null;

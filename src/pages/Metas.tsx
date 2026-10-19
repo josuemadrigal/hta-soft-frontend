@@ -62,7 +62,7 @@ export function Metas() {
         }
       />
       {consulta.isPending ? (
-        <Cargando texto="Calculando indicadores…" />
+        <Cargando forma="pagina" texto="Calculando indicadores…" />
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : editando ? (

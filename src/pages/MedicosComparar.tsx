@@ -97,7 +97,7 @@ export function MedicosComparar() {
           <Vacio titulo="Elige al menos dos médicos">Agrégalos con el selector de arriba.</Vacio>
         </Tarjeta>
       ) : consulta.isPending ? (
-        <Cargando texto="Comparando…" />
+        <Cargando forma="pagina" texto="Comparando…" />
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : (

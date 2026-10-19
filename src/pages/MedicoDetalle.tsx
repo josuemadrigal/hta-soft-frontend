@@ -33,7 +33,7 @@ export function MedicoDetalle() {
   const navegar = useNavigate();
   const [params] = useSearchParams();
 
-  if (consulta.isPending) return <Cargando texto="Calculando estadísticas…" />;
+  if (consulta.isPending) return <Cargando forma="pagina" texto="Calculando estadísticas…" />;
   if (consulta.isError) return <ErrorCarga error={consulta.error} />;
   const d = consulta.data;
   const r = d.resumen;

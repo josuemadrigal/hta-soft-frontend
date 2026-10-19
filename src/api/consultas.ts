@@ -48,7 +48,8 @@ export const useConfiguracion = (activo = true) => useQuery({ queryKey: ['config
 export const useQuienesAtienden = () => useQuery({ queryKey: ['visitas', 'atienden'], queryFn: r.listarQuienesAtienden, ...CATALOGO });
 
 export const useEstadisticasPanel = (batey?: number) => useQuery({ queryKey: ['stats', 'panel', batey], queryFn: () => r.estadisticasPanel(batey), placeholderData: keepPreviousData });
-export const useMiPanel = (activo = true) => useQuery({ queryKey: ['stats', 'mio'], queryFn: r.miPanel, enabled: activo });
+export const useMiPanel = (activo = true, periodo?: { desde: string; hasta: string }) =>
+  useQuery({ queryKey: ['stats', 'mio', periodo?.desde, periodo?.hasta], queryFn: () => r.miPanel(periodo), enabled: activo, placeholderData: keepPreviousData });
 export const useEstadisticasAvanzadas = () => useQuery({ queryKey: ['stats', 'avanzadas'], queryFn: r.estadisticasAvanzadas });
 export const useAltoRiesgo = () => useQuery({ queryKey: ['stats', 'alto-riesgo'], queryFn: r.pacientesAltoRiesgo });
 export const useVisitasRecientes = () => useQuery({ queryKey: ['stats', 'recientes'], queryFn: r.visitasRecientes });

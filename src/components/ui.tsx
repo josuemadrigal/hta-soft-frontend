@@ -348,11 +348,56 @@ export function Avatar({
   );
 }
 
-export function Cargando({ texto = 'Cargando…' }: { texto?: string }) {
+/** Un bloque gris que late mientras llega el dato real (sin animación si se pidió reducir el movimiento). */
+export function Hueso({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <span aria-hidden style={style} className={cn('block rounded-md bg-black/[0.07] motion-safe:animate-pulse', className)} />;
+}
+
+/**
+ * Mientras carga: la forma de lo que viene (un esqueleto), no un texto en una pantalla vacía.
+ * `forma` elige el dibujo; por defecto, una lista de filas, que es lo más común en la app.
+ */
+export function Cargando({ texto = 'Cargando…', forma = 'lista' }: { texto?: string; forma?: 'lista' | 'pagina' | 'grafica' | 'linea' }) {
+  const fila = (i: number) => (
+    <div key={i} className="flex items-center gap-3 px-5 py-3.5">
+      <Hueso className="size-9 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <Hueso className={cn('h-3.5', ['w-2/5', 'w-1/3', 'w-1/2', 'w-1/4'][i % 4])} />
+        <Hueso className={cn('h-3', ['w-1/4', 'w-1/5', 'w-1/3', 'w-1/6'][i % 4])} />
+      </div>
+      <Hueso className="hidden h-6 w-20 sm:block" />
+    </div>
+  );
   return (
-    <div className="flex items-center justify-center gap-2 py-16 text-sm text-tenue">
-      <Loader2 className="size-4 animate-spin" />
-      {texto}
+    <div role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{texto}</span>
+      {forma === 'linea' ? (
+        <div className="space-y-2 p-5">
+          <Hueso className="h-4 w-1/2" />
+          <Hueso className="h-4 w-1/3" />
+        </div>
+      ) : forma === 'grafica' ? (
+        <div className="flex h-60 items-end gap-3 px-6 pt-6 pb-8">
+          {[55, 80, 65, 90, 45, 70, 85, 60].map((h, i) => (
+            <Hueso key={i} className="flex-1 rounded-b-none" style={{ height: `${h}%` }} />
+          ))}
+        </div>
+      ) : forma === 'pagina' ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-3 rounded-xl border border-borde bg-superficie p-5">
+                <Hueso className="h-3.5 w-1/2" />
+                <Hueso className="h-8 w-2/5" />
+                <Hueso className="h-3 w-3/4" />
+              </div>
+            ))}
+          </div>
+          <div className="divide-y divide-borde rounded-xl border border-borde bg-superficie">{[0, 1, 2, 3, 4].map(fila)}</div>
+        </div>
+      ) : (
+        <div className="divide-y divide-borde">{[0, 1, 2, 3, 4, 5].map(fila)}</div>
+      )}
     </div>
   );
 }

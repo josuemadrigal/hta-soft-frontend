@@ -445,7 +445,7 @@ export function Reportes() {
       </Tarjeta>
 
       {consulta.isPending ? (
-        <Cargando texto="Calculando reporte…" />
+        <Cargando forma="pagina" texto="Calculando reporte…" />
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : (

@@ -63,7 +63,7 @@ export function Medicos() {
       <FiltroPeriodo />
 
       {consulta.isPending ? (
-        <Cargando texto="Calculando estadísticas…" />
+        <Cargando forma="pagina" texto="Calculando estadísticas…" />
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : (

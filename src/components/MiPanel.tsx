@@ -7,6 +7,7 @@ import { asistencia } from '../lib/asistencia';
 import { cn, fechaYHora, nombreCompleto } from '../lib/formato';
 import { diaJornada } from '../pages/Jornadas';
 import { Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from './ui';
+import type { PeriodoPanel } from '../lib/periodo-panel';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 
@@ -32,14 +33,18 @@ function Cifra({ titulo, valor, detalle, icono, a, alerta }: { titulo: string; v
 }
 
 /** "Mi panel": lo del médico que entra — sus pacientes, quiénes dejaron de venir y su jornada de hoy. */
-export function MiPanelVista() {
+export function MiPanelVista({ periodo }: { periodo: PeriodoPanel }) {
   const { usuario } = useSesion();
-  const consulta = useMiPanel();
+  const consulta = useMiPanel(true, { desde: periodo.desde, hasta: periodo.hasta });
   const navegar = useNavigate();
-  if (consulta.isPending) return <Cargando />;
+  if (consulta.isPending) return <Cargando forma="pagina" texto="Cargando tu panel…" />;
   if (consulta.isError) return <ErrorCarga error={consulta.error} />;
   const d = consulta.data;
   const mios = `/pacientes?medico=${usuario?.id}`;
+  // Servidor anterior (sin periodo): lo de hoy.
+  const atendidos = d.atendidos ?? d.hoy;
+  const totalAtendidos = d.atendidosTotal ?? atendidos.length;
+  const unDia = periodo.desde === periodo.hasta;
 
   return (
     <div className="space-y-4">
@@ -58,7 +63,13 @@ export function MiPanelVista() {
           icono={<SearchX className="size-4" />}
           a={`${mios}&situacion=le-toca`}
         />
-        <Cifra titulo="Atendidos hoy" valor={miles(d.hoy.length)} detalle={`${miles(d.visitasMes)} visitas este mes`} icono={<Stethoscope className="size-4" />} />
+        <Cifra
+          titulo={`Atendidos ${periodo.frase}`}
+          valor={miles(totalAtendidos)}
+          detalle={periodo.atajo === 'mes' ? 'Visitas que registré' : `${miles(d.visitasMes)} visitas este mes`}
+          icono={<Stethoscope className="size-4" />}
+          a={`${mios}&desde=${periodo.desde}&hasta=${periodo.hasta}`}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -98,15 +109,20 @@ export function MiPanelVista() {
           )}
         </Tarjeta>
 
-        <Tarjeta titulo="Atendidos hoy" accion={<span className="text-xs text-tenue">Visitas que registré hoy</span>}>
-          {d.hoy.length === 0 ? (
-            <Vacio titulo="Todavía nadie hoy" />
+        <Tarjeta
+          titulo={`Atendidos ${periodo.frase}`}
+          accion={<span className="text-xs text-tenue">{totalAtendidos > atendidos.length ? `Los ${miles(atendidos.length)} más recientes de ${miles(totalAtendidos)}` : `${miles(totalAtendidos)} ${totalAtendidos === 1 ? 'visita' : 'visitas'}`}</span>}
+          className={cn('transition-opacity', consulta.isPlaceholderData && 'opacity-60')}
+        >
+          {atendidos.length === 0 ? (
+            <Vacio titulo={periodo.atajo === 'hoy' ? 'Todavía nadie hoy' : `Nadie ${periodo.frase}`} />
           ) : (
             <ul className="max-h-80 divide-y divide-borde overflow-y-auto">
-              {d.hoy.map((v) => (
+              {atendidos.map((v) => (
                 <li key={v.id}>
                   <Link to={`/pacientes/${v.patient.id}`} className="flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-fondo">
-                    <span className="w-12 text-xs text-tenue">{fechaYHora(v.visitDate).split(', ').pop()}</span>
+                    {/* Un día: la hora; un rango: el día y la hora */}
+                    <span className={cn('shrink-0 text-xs text-tenue', unDia ? 'w-14' : 'w-24')}>{unDia ? fechaYHora(v.visitDate).split(', ').pop() : fechaYHora(v.visitDate)}</span>
                     <span className="min-w-0 flex-1">
                       <span className="font-medium">{nombreCompleto(v.patient)}</span>
                       <span className="ml-2 font-mono text-xs text-tenue">{v.patient.patientCode}</span>

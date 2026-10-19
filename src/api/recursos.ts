@@ -257,7 +257,7 @@ export const borrarRol = (id: number) => enviar<Rol>(`/roles/${id}`, 'DELETE');
 
 /* Estadísticas, reportes y auditoría */
 export const estadisticasPanel = (batey?: number) => api<EstadisticasPanel>(`/stats${batey ? `?batey=${batey}` : ''}`);
-export const miPanel = () => api<MiPanel>('/stats/mio');
+export const miPanel = (p?: { desde: string; hasta: string }) => api<MiPanel>(`/stats/mio${p ? query(p) : ''}`);
 export const estadisticasAvanzadas = () => api<EstadisticasAvanzadas>('/stats/advanced');
 export const tendenciaPanel = (batey?: number) => api<TendenciaPanel>(`/stats/trend${batey ? `?batey=${batey}` : ''}`);
 export const estadisticasRonda = (batey?: number) => api<EstadisticasRonda>(`/stats/round${batey ? `?batey=${batey}` : ''}`);
