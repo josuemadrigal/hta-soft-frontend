@@ -1,6 +1,9 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Copy, Info, Loader2 } from 'lucide-react';
+import type { AyudaGrafica } from '../lib/ayuda-graficas';
 import {
   forwardRef,
+  useEffect,
+  useId,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -104,10 +107,59 @@ export const comoNumero = { setValueAs: (v: unknown) => (v === '' || v === null 
 
 /* Contenedores */
 
+/**
+ * Botón (i) de una gráfica: explica cómo se lee y qué significa. No sale en la imagen copiada.
+ * Se abre al tocarlo (en tableta no hay "pasar el mouse") y se cierra tocando fuera o con Escape.
+ */
+function BotonAyuda({ ayuda }: { ayuda: AyudaGrafica }) {
+  const [abierto, setAbierto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useEffect(() => {
+    if (!abierto) return;
+    const fuera = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
+    const tecla = (e: KeyboardEvent) => e.key === 'Escape' && setAbierto(false);
+    document.addEventListener('mousedown', fuera);
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('mousedown', fuera);
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [abierto]);
+  return (
+    <div ref={ref} data-no-copiar className="relative">
+      <button
+        type="button"
+        onClick={() => setAbierto((a) => !a)}
+        className={cn('rounded-md p-1.5 text-tenue hover:bg-black/5 hover:text-tinta', abierto && 'bg-black/5 text-tinta')}
+        aria-label="Cómo se lee esta gráfica"
+        aria-expanded={abierto}
+        aria-controls={id}
+        title="Cómo se lee"
+      >
+        <Info className="size-4" />
+      </button>
+      {abierto && (
+        <div id={id} role="dialog" aria-label="Cómo se lee esta gráfica" className="absolute top-full right-0 z-30 mt-1.5 w-80 max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-borde bg-superficie p-4 text-left text-sm font-normal shadow-xl">
+          <div>
+            <p className="mb-1 text-xs font-semibold tracking-wide text-tenue uppercase">Cómo se lee</p>
+            <p className="leading-relaxed">{ayuda.lee}</p>
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold tracking-wide text-tenue uppercase">Qué significa</p>
+            <p className="leading-relaxed">{ayuda.significa}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Tarjeta({
   titulo,
   accion,
   copiable,
+  ayuda,
   className,
   children,
 }: {
@@ -115,6 +167,8 @@ export function Tarjeta({
   accion?: ReactNode;
   /** Agrega un botón que copia la tarjeta (título + gráfica) como imagen. */
   copiable?: boolean;
+  /** Botón (i) con la explicación de la gráfica. */
+  ayuda?: AyudaGrafica;
   className?: string;
   children: ReactNode;
 }) {
@@ -140,6 +194,7 @@ export function Tarjeta({
           <h2 className="text-sm font-semibold">{titulo}</h2>
           <div className="flex items-center gap-2">
             {accion}
+            {ayuda && <BotonAyuda ayuda={ayuda} />}
             {copiable && (
               <button
                 data-no-copiar

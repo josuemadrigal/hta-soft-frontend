@@ -8,6 +8,7 @@ import { EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { Cargando, EncabezadoPagina, ErrorCarga, Selector, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn } from '../lib/formato';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 /** Un color por médico (el amarillo de marca no se usa en líneas: no se lee sobre blanco). */
 const COLORES = ['#1d1b18', '#d97706', '#2563eb', '#db2777'];
@@ -101,7 +102,7 @@ export function MedicosComparar() {
         <ErrorCarga error={consulta.error} />
       ) : (
         <div className={cn('space-y-4 transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
-          <Tarjeta titulo="Resumen" copiable>
+          <Tarjeta titulo="Resumen" copiable ayuda={AYUDA.compararResumen}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -142,7 +143,7 @@ export function MedicosComparar() {
           </Tarjeta>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Tarjeta titulo="% de pacientes controlados por trimestre" copiable>
+            <Tarjeta titulo="% de pacientes controlados por trimestre" copiable ayuda={AYUDA.compararControl}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
                   <LineChart data={serie('controladosPct')} margin={{ left: -16, right: 12 }}>
@@ -158,7 +159,7 @@ export function MedicosComparar() {
                 </ResponsiveContainer>
               </div>
             </Tarjeta>
-            <Tarjeta titulo="Visitas por trimestre" copiable>
+            <Tarjeta titulo="Visitas por trimestre" copiable ayuda={AYUDA.compararVisitas}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
                   <BarChart data={serie('visitas')} margin={{ left: -16, right: 12 }}>
@@ -176,7 +177,7 @@ export function MedicosComparar() {
             </Tarjeta>
           </div>
 
-          <Tarjeta titulo="Cómo terminaron sus pacientes" copiable accion={<span className="text-xs text-tenue">% según la última toma con cada médico</span>}>
+          <Tarjeta titulo="Cómo terminaron sus pacientes" copiable ayuda={AYUDA.compararTerminaron} accion={<span className="text-xs text-tenue">% según la última toma con cada médico</span>}>
             <div className="space-y-3 p-5">
               {medicos.map((m) => {
                 const total = m.categorias.reduce((a, c) => a + c.pacientes, 0);

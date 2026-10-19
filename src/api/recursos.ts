@@ -93,8 +93,11 @@ export type FiltroPacientes = {
   ageMin?: number;
   ageMax?: number;
   orden?: 'nombre' | 'codigo' | 'ultima-visita' | 'ausencia' | 'presion' | 'visitas';
-  /** Último médico que lo atendió */
+  /** Último médico que lo atendió (con fechas: quien lo atendió en ese rango) */
   medico?: number;
+  /** Con al menos una visita entre estas fechas (YYYY-MM-DD) */
+  visitaDesde?: string;
+  visitaHasta?: string;
 };
 export type DatosPaciente = Omit<
   Paciente,

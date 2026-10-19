@@ -20,6 +20,7 @@ import { Avatar, Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tarje
 import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const ejeFecha = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -589,7 +590,7 @@ export function Paciente() {
         <div className="space-y-4">
           <Tarjeta
             titulo="Evolución de la presión arterial"
-            copiable
+            copiable ayuda={AYUDA.evolucionPaciente}
             accion={
               <span className="tabular hidden text-xs text-tenue sm:inline">
                 {a && a.totalVisits > 1 && (

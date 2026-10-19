@@ -8,6 +8,7 @@ import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insigni
 import { CATEGORIAS, ESTADOS, GENEROS, opciones } from '../lib/etiquetas';
 import { asistencia, SITUACIONES_ASISTENCIA } from '../lib/asistencia';
 import { cn, edadTexto, fecha, nombreCompleto } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const ORDENES = [
   { value: 'nombre', label: 'Nombre (A–Z)' },
@@ -36,10 +37,13 @@ export function Pacientes() {
     ageMin: num('edadMin'),
     ageMax: num('edadMax'),
     medico: num('medico'),
+    visitaDesde: params.get('desde') ?? undefined,
+    visitaHasta: params.get('hasta') ?? undefined,
     orden: (params.get('orden') as FiltroPacientes['orden']) ?? 'nombre',
   };
   const [texto, setTexto] = useState(filtro.search ?? '');
-  const filtrosExtra = ['genero', 'estado', 'clasificacion', 'situacion', 'edadMin', 'edadMax', 'medico'].filter((k) => params.get(k)).length;
+  const filtrosExtra = ['genero', 'estado', 'clasificacion', 'situacion', 'edadMin', 'edadMax', 'medico', 'desde', 'hasta'].filter((k) => params.get(k)).length;
+  const porFecha = !!(filtro.visitaDesde || filtro.visitaHasta);
   const [masFiltros, setMasFiltros] = useState(filtrosExtra > 0);
 
   const cambiar = (cambios: Record<string, string | number | undefined>) =>
@@ -113,12 +117,18 @@ export function Pacientes() {
                 vacio="Lo atendió (cualquiera)"
                 value={filtro.medico ?? ''}
                 onChange={(e) => cambiar({ medico: e.target.value })}
-                opciones={(medicos.data ?? []).map((m) => ({ value: m.id, label: `${m.nombre} (${m.pacientes})` }))}
-                aria-label="Último que lo atendió"
+                // Con fechas, el médico es quien lo atendió en esas fechas: el número (de su última visita) ya no aplica.
+                opciones={(medicos.data ?? []).map((m) => ({ value: m.id, label: porFecha ? m.nombre : `${m.nombre} (${m.pacientes})` }))}
+                aria-label={porFecha ? 'Lo atendió en esas fechas' : 'Último que lo atendió'}
               />
               <Selector vacio="Cualquier asistencia" value={filtro.situacion ?? ''} onChange={(e) => cambiar({ situacion: e.target.value })} opciones={SITUACIONES_ASISTENCIA} aria-label="Asistencia" />
               <Selector vacio="Todos los géneros" value={filtro.gender ?? ''} onChange={(e) => cambiar({ genero: e.target.value })} opciones={opciones(GENEROS)} aria-label="Género" />
               <Selector vacio="Cualquier estado" value={filtro.status ?? ''} onChange={(e) => cambiar({ estado: e.target.value })} opciones={opciones(ESTADOS)} aria-label="Estado" />
+              <div className="col-span-full flex flex-wrap items-center gap-2 text-sm text-tenue sm:col-span-2">
+                <span className="whitespace-nowrap">Con visita</span>
+                <SelectorFecha corto vacio="desde…" className="w-auto min-w-36 flex-1" aria-label="Con visita desde" value={filtro.visitaDesde} max={filtro.visitaHasta} onChange={(v) => cambiar({ desde: v })} />
+                <SelectorFecha corto vacio="hasta…" className="w-auto min-w-36 flex-1" aria-label="Con visita hasta" value={filtro.visitaHasta} min={filtro.visitaDesde} onChange={(v) => cambiar({ hasta: v })} />
+              </div>
               <div className="flex items-center gap-2 text-sm whitespace-nowrap text-tenue">
                 Edad
                 <Entrada type="number" min={0} max={120} placeholder="de" value={params.get('edadMin') ?? ''} onChange={(e) => cambiar({ edadMin: e.target.value })} />

@@ -6,6 +6,7 @@ import { useSesion } from '../auth/sesion';
 import { fecha } from '../lib/formato';
 import { diaJornada } from '../pages/Jornadas';
 import { Tarjeta } from './ui';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 
@@ -23,7 +24,7 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
   const td = 'px-3 py-2.5 text-right tabular-nums';
 
   return (
-    <Tarjeta titulo={`Ronda ${ronda.round.label} por batey`} copiable accion={<span className="text-xs text-tenue">Toca un batey para abrir su jornada</span>}>
+    <Tarjeta titulo={`Ronda ${ronda.round.label} por batey`} copiable ayuda={AYUDA.rondaPorBatey} accion={<span className="text-xs text-tenue">Toca un batey para abrir su jornada</span>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

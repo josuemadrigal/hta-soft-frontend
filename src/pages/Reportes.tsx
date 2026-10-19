@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { descargar } from '../api/client';
 import { useComunidades, useResumenReporte, useRonda } from '../api/consultas';
 import { RondaPorBatey } from '../components/RondaPorBatey';
-import type { FiltroReporte, Genero, ResumenReporte } from '../api/tipos';
+import type { CategoriaPA, FiltroReporte, Genero, ResumenReporte } from '../api/tipos';
 import { Barras, EJE, REJILLA, SERIES, TOOLTIP, LEYENDA } from '../components/graficas';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { descargarCsv } from '../lib/copiar';
@@ -15,6 +15,7 @@ import { BotonesTrimestre } from '../components/Periodo';
 import { CATEGORIAS, colorCategoria, GENEROS, opciones } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const hoy = new Date();
@@ -25,15 +26,16 @@ const PRESETS = [
   { texto: 'Desde 2017', desde: '2017-01-01', hasta: iso(hoy) },
 ];
 
+const ORDEN_CATEGORIAS: CategoriaPA[] = ['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE_2', 'CRISIS'];
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
 const miles = (v: number) => v.toLocaleString('es-DO');
 
-function Kpi({ titulo, valor, detalle }: { titulo: string; valor: ReactNode; detalle?: ReactNode }) {
+function Kpi({ titulo, valor, detalle, className }: { titulo: string; valor: ReactNode; detalle?: ReactNode; className?: string }) {
   return (
-    <div className="rounded-xl border border-borde bg-superficie p-4">
+    <div className={cn('rounded-xl border border-borde bg-superficie p-4', className)}>
       <p className="text-xs text-tenue">{titulo}</p>
       <p className="tabular mt-1.5 text-2xl font-semibold tracking-tight">{valor}</p>
-      {detalle && <p className="mt-0.5 text-xs text-tenue">{detalle}</p>}
+      {detalle && <div className="mt-0.5 text-xs text-tenue">{detalle}</div>}
     </div>
   );
 }
@@ -53,17 +55,33 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-7">
         <Kpi titulo="Pacientes atendidos" valor={miles(s.pacientes)} detalle={`${miles(s.nuevos)} visitas de primera vez`} />
         <Kpi titulo="Visitas" valor={miles(s.visitas)} detalle={`${miles(s.domiciliarias)} domiciliarias`} />
         <Kpi titulo="Controlados" valor={pct(s.controladosPct)} detalle="Última toma < 140/90" />
         <Kpi titulo="PA promedio" valor={s.sistolicaPromedio ? `${Math.round(s.sistolicaPromedio)}/${Math.round(s.diastolicaPromedio ?? 0)}` : '—'} detalle="mmHg, todas las tomas" />
         <Kpi titulo="Cumplimiento" valor={pct(s.cumplimientoPromedio)} detalle="Promedio de recetas" />
-        <Kpi titulo="Pastillas entregadas" valor={miles(s.pastillas)} />
+        <Kpi
+          titulo="Pastillas entregadas"
+          valor={miles(s.pastillas)}
+          className="col-span-2 md:col-span-1 xl:col-span-2"
+          detalle={
+            r.medicamentos.length > 0 && (
+              <ul className="mt-2 space-y-1 border-t border-borde pt-2">
+                {r.medicamentos.map((m) => (
+                  <li key={m.medicamento} className="flex items-baseline justify-between gap-3">
+                    <span className="truncate">{m.medicamento}</span>
+                    <span className="tabular shrink-0 font-medium text-tinta">{miles(m.pastillas)}</span>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <Tarjeta titulo="Visitas y control por trimestre" copiable>
+        <Tarjeta titulo="Visitas y control por trimestre" copiable ayuda={AYUDA.visitasYControl}>
           <div className="h-72 px-2 pt-4 pb-2">
             <ResponsiveContainer>
               <ComposedChart data={r.porTrimestre} margin={{ left: -8, right: 4 }}>
@@ -80,7 +98,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
           </div>
         </Tarjeta>
 
-        <Tarjeta titulo="Clasificación al cierre del periodo" copiable accion={<span className="text-xs text-tenue">Última toma de cada paciente</span>}>
+        <Tarjeta titulo="Clasificación al cierre del periodo" copiable ayuda={AYUDA.clasificacionCierre} accion={<span className="text-xs text-tenue">Última toma de cada paciente</span>}>
           <div className="p-5">
             <Barras
               filas={r.categorias.map((c) => ({
@@ -95,23 +113,42 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Tarjeta titulo="Presión arterial promedio por trimestre" copiable>
-          <div className="h-64 px-2 pt-4 pb-2">
-            <ResponsiveContainer>
-              <LineChart data={r.porTrimestre} margin={{ left: -16, right: 12 }}>
-                <CartesianGrid {...REJILLA} />
-                <XAxis dataKey="trimestre" {...EJE} />
-                <YAxis domain={[60, 'auto']} {...EJE} />
-                <Tooltip {...TOOLTIP} />
-                <Legend {...LEYENDA} />
-                <Line dataKey="sistolicaPromedio" name="Sistólica" stroke="#1d1b18" strokeWidth={2} dot={{ r: 3 }} />
-                <Line dataKey="diastolicaPromedio" name="Diastólica" stroke="#c9a400" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </Tarjeta>
+        {/* Columna izquierda: dos gráficas apiladas, para acompañar la lista larga de bateyes. */}
+        <div className="flex flex-col gap-4">
+          <Tarjeta titulo="Presión arterial promedio por trimestre" copiable ayuda={AYUDA.presionPromedio}>
+            <div className="h-64 px-2 pt-4 pb-2">
+              <ResponsiveContainer>
+                <LineChart data={r.porTrimestre} margin={{ left: -16, right: 12 }}>
+                  <CartesianGrid {...REJILLA} />
+                  <XAxis dataKey="trimestre" {...EJE} />
+                  <YAxis domain={[60, 'auto']} {...EJE} />
+                  <Tooltip {...TOOLTIP} />
+                  <Legend {...LEYENDA} />
+                  <Line dataKey="sistolicaPromedio" name="Sistólica" stroke="#1d1b18" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line dataKey="diastolicaPromedio" name="Diastólica" stroke="#c9a400" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Tarjeta>
+          <Tarjeta titulo="Clasificación por trimestre" copiable ayuda={AYUDA.clasificacionTrimestre} className="flex flex-1 flex-col" accion={<span className="text-xs text-tenue">% de pacientes vistos</span>}>
+            <div className="min-h-64 flex-1 px-2 pt-4 pb-2">
+              <ResponsiveContainer>
+                <BarChart data={r.porTrimestre.map((t) => ({ trimestre: t.trimestre, ...t.categorias }))} stackOffset="expand" margin={{ left: -8, right: 12 }}>
+                  <CartesianGrid {...REJILLA} />
+                  <XAxis dataKey="trimestre" {...EJE} />
+                  <YAxis {...EJE} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
+                  <Tooltip {...TOOLTIP} formatter={(v, n) => [`${miles(Number(v))} pacientes`, n]} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                  <Legend {...LEYENDA} itemSorter={(i) => ORDEN_CATEGORIAS.indexOf(i.dataKey as CategoriaPA)} />
+                  {ORDEN_CATEGORIAS.map((c) => (
+                    <Bar key={c} dataKey={c} name={CATEGORIAS[c]} stackId="c" fill={colorCategoria(c)} maxBarSize={44} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Tarjeta>
+        </div>
 
-        <Tarjeta titulo="Control por batey" copiable accion={<span className="text-xs text-tenue">% con última toma &lt; 140/90</span>}>
+        <Tarjeta titulo="Control por batey" copiable ayuda={AYUDA.controlPorBatey} accion={<span className="text-xs text-tenue">% con última toma &lt; 140/90</span>}>
           <div className="p-5">
             <Barras
               max={100}
@@ -154,7 +191,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
       {r.medicamentos.length > 0 && (
         <>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Tarjeta titulo="Cumplimiento por medicamento" copiable accion={<span className="text-xs text-tenue">Promedio de recetas con dato</span>}>
+            <Tarjeta titulo="Cumplimiento por medicamento" copiable ayuda={AYUDA.cumplimientoMedicamento} accion={<span className="text-xs text-tenue">Promedio de recetas con dato</span>}>
               <div className="p-5">
                 <Barras
                   max={100}
@@ -163,7 +200,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
                 />
               </div>
             </Tarjeta>
-            <Tarjeta titulo="Distribución del cumplimiento" copiable accion={<span className="text-xs text-tenue">Recetas</span>}>
+            <Tarjeta titulo="Distribución del cumplimiento" copiable ayuda={AYUDA.distribucionCumplimiento} accion={<span className="text-xs text-tenue">Recetas</span>}>
               <div className="p-5">
                 <Barras
                   filas={r.cumplimientoTramos.map((t, i) => ({ etiqueta: t.tramo, valor: t.recetas, color: ['#dc2626', '#ea580c', '#ca8a04', '#15803d'][i] }))}
@@ -175,7 +212,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
 
           <Tarjeta
             titulo="Pastillas entregadas por trimestre"
-            copiable
+            copiable ayuda={AYUDA.pastillasTrimestre}
             accion={
               <BotonCsv
                 onClick={() =>
@@ -209,12 +246,12 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Tarjeta titulo="Pacientes por edad" copiable>
+        <Tarjeta titulo="Pacientes por edad" copiable ayuda={AYUDA.edad}>
           <div className="p-5">
             <Barras filas={r.demografia.edad.map((g) => ({ etiqueta: `${g.grupo} años`, valor: g.pacientes }))} formato={miles} />
           </div>
         </Tarjeta>
-        <Tarjeta titulo="Pacientes por género" copiable>
+        <Tarjeta titulo="Pacientes por género" copiable ayuda={AYUDA.genero}>
           <div className="p-5">
             <Barras
               filas={(Object.entries(r.demografia.genero) as [Genero, number][]).map(([g, n], i) => ({
@@ -227,7 +264,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
             />
           </div>
         </Tarjeta>
-        <Tarjeta titulo="Hábitos y antecedentes" copiable accion={<span className="text-xs text-tenue">% de pacientes</span>}>
+        <Tarjeta titulo="Hábitos y antecedentes" copiable ayuda={AYUDA.habitos} accion={<span className="text-xs text-tenue">% de pacientes</span>}>
           <div className="p-5">
             <Barras
               max={100}

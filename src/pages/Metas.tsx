@@ -12,6 +12,7 @@ import { COLOR, EJE, TOOLTIP } from '../components/graficas';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tarjeta } from '../components/ui';
 import { MOTIVOS_BAJA } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const ESTADOS: Record<EstadoMeta, { texto: string; color?: string }> = {
   cumplida: { texto: 'Cumplida', color: '#15803d' },
@@ -119,7 +120,7 @@ function TarjetaIndicador({ i, anio, fraccion }: { i: IndicadorAnual; anio: numb
   const esperado = i.tipo === 'conteo' && i.meta !== null && fraccion < 1 ? Math.round(i.meta * fraccion) : null;
 
   return (
-    <Tarjeta titulo={i.nombre} copiable accion={<Insignia color={e.color}>{e.texto}</Insignia>}>
+    <Tarjeta titulo={i.nombre} copiable ayuda={AYUDA.meta} accion={<Insignia color={e.color}>{e.texto}</Insignia>}>
       <div className="space-y-3 p-5">
         <p className="text-xs text-tenue">{i.descripcion}</p>
         <div className="flex items-end justify-between gap-2">

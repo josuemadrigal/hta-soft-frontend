@@ -13,6 +13,7 @@ import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, fecha, nombreCompleto } from '../lib/formato';
 import { diaJornada, hoyYmd } from './Jornadas';
 import { asistencia } from '../lib/asistencia';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORDEN = ['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE_2', 'CRISIS'] as const;
@@ -353,7 +354,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
         }
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <Tarjeta titulo="Control de la presión por trimestre" copiable accion={<span className="text-xs text-tenue">Últimos 8 trimestres</span>}>
+          <Tarjeta titulo="Control de la presión por trimestre" copiable ayuda={AYUDA.controlPanel} accion={<span className="text-xs text-tenue">Últimos 8 trimestres</span>}>
             {tendencia.isPending ? (
               <Cargando />
             ) : (
@@ -374,7 +375,7 @@ function PanelGeneral({ batey, nombreBatey: nombreDelBatey }: { batey?: number; 
             )}
           </Tarjeta>
 
-          <Tarjeta titulo="Cómo están hoy" copiable accion={<span className="text-xs text-tenue">Última toma · en seguimiento</span>}>
+          <Tarjeta titulo="Cómo están hoy" copiable ayuda={AYUDA.comoEstanHoy} accion={<span className="text-xs text-tenue">Última toma · en seguimiento</span>}>
             {tendencia.isPending ? (
               <Cargando />
             ) : totalHoy === 0 ? (

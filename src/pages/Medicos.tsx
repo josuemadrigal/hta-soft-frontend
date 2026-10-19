@@ -8,6 +8,7 @@ import { FiltroPeriodo, useFiltroPeriodo } from '../components/FiltroPeriodo';
 import { COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { Avatar, Boton, Cargando, EncabezadoPagina, ErrorCarga, Insignia, Tarjeta, Vacio } from '../components/ui';
 import { cn, fecha } from '../lib/formato';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
@@ -68,7 +69,7 @@ export function Medicos() {
       ) : (
         <div className={cn('space-y-4 transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
           {grafica.length > 0 && (
-            <Tarjeta titulo="Visitas y control por médico" copiable accion={<span className="text-xs text-tenue">Los 12 con más visitas</span>}>
+            <Tarjeta titulo="Visitas y control por médico" copiable ayuda={AYUDA.visitasPorMedico} accion={<span className="text-xs text-tenue">Los 12 con más visitas</span>}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
                   <ComposedChart data={grafica} margin={{ left: -8, right: 4, bottom: 8 }}>

@@ -407,7 +407,7 @@ export type FiltroReporte = { from?: string; to?: string; communityId?: number; 
 export type ResumenReporte = {
   periodo: { desde: string; hasta: string };
   resumen: Indicadores & { nuevos: number; domiciliarias: number };
-  porTrimestre: (Indicadores & { clave: string; trimestre: string; nuevos: number })[];
+  porTrimestre: (Indicadores & { clave: string; trimestre: string; nuevos: number; categorias?: Partial<Record<CategoriaPA, number>> })[];
   categorias: { categoria: CategoriaPA; pacientes: number }[];
   porBatey: (Indicadores & { communityId: number; batey: string; pastillasPorMed: Record<string, number> })[];
   medicamentos: { medicamento: string; recetas: number; pacientes: number; pastillas: number; cumplimientoPromedio: number | null }[];

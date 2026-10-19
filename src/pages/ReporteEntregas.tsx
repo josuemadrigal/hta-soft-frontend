@@ -13,6 +13,7 @@ import { descargarCsv } from '../lib/copiar';
 import { MOTIVOS_REPOSICION } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 // Fechas locales: toISOString correría el día después de las 8 p. m. en RD (UTC-4).
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -111,7 +112,7 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
         {pendientes}
       </div>
 
-      <Tarjeta titulo="Pastillas por batey" copiable accion={<span className="text-xs text-tenue">Según dónde se entregaron</span>}>
+      <Tarjeta titulo="Pastillas por batey" copiable ayuda={AYUDA.pastillasPorBatey} accion={<span className="text-xs text-tenue">Según dónde se entregaron</span>}>
         {/* Alto según la cantidad de bateyes: barras horizontales para que los nombres se lean en tableta. */}
         <div className="px-2 pt-4 pb-2" style={{ height: Math.max(220, bateys.length * 34 + 70) }}>
           <ResponsiveContainer>

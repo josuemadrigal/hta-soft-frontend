@@ -8,6 +8,7 @@ import { Barras, COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/gra
 import { Avatar, Boton, Cargando, EncabezadoPagina, ErrorCarga, Insignia, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
@@ -96,7 +97,7 @@ export function MedicoDetalle() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-            <Tarjeta titulo="Visitas y control por trimestre" copiable>
+            <Tarjeta titulo="Visitas y control por trimestre" copiable ayuda={AYUDA.visitasMedico}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
                   <ComposedChart data={d.porTrimestre} margin={{ left: -8, right: 4 }}>
@@ -112,7 +113,7 @@ export function MedicoDetalle() {
                 </ResponsiveContainer>
               </div>
             </Tarjeta>
-            <Tarjeta titulo="Cómo terminaron sus pacientes" copiable accion={<span className="text-xs text-tenue">Última toma con este médico</span>}>
+            <Tarjeta titulo="Cómo terminaron sus pacientes" copiable ayuda={AYUDA.comoTerminaronMedico} accion={<span className="text-xs text-tenue">Última toma con este médico</span>}>
               <div className="p-5">
                 <Barras
                   filas={d.categorias.map((c) => ({
@@ -128,12 +129,12 @@ export function MedicoDetalle() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Tarjeta titulo="Bateyes donde atendió" copiable>
+            <Tarjeta titulo="Bateyes donde atendió" copiable ayuda={AYUDA.bateyesMedico}>
               <div className="p-5">
                 <Barras filas={d.porBatey.map((b) => ({ etiqueta: b.batey, valor: b.pacientes, detalle: `${pct(b.controladosPct)} ctrl.` }))} formato={miles} />
               </div>
             </Tarjeta>
-            <Tarjeta titulo="Medicamentos que recetó" copiable accion={<span className="text-xs text-tenue">Cumplimiento promedio</span>}>
+            <Tarjeta titulo="Medicamentos que recetó" copiable ayuda={AYUDA.medicamentosMedico} accion={<span className="text-xs text-tenue">Cumplimiento promedio</span>}>
               <div className="p-5">
                 {d.medicamentos.length === 0 ? (
                   <p className="text-sm text-tenue">Sin recetas en el periodo.</p>

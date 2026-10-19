@@ -13,6 +13,7 @@ import { AreaTexto, Boton, Cargando, ErrorCarga, Selector, Tarjeta } from '../co
 import { CATEGORIAS, colorCategoria, MOTIVOS_BAJA } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { formatoIndicador } from './Metas';
+import { AYUDA } from '../lib/ayuda-graficas';
 
 const PRIMER_ANIO = 2017;
 const MESES = ['enero – marzo', 'abril – junio', 'julio – septiembre', 'octubre – diciembre'];
@@ -171,7 +172,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
       </p>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Tarjeta titulo="Evolución en los últimos dos años" copiable className="sin-cortar">
+        <Tarjeta titulo="Evolución en los últimos dos años" copiable ayuda={AYUDA.donantesEvolucion} className="sin-cortar">
           <div className="h-64 px-2 pt-4 pb-2">
             <ResponsiveContainer>
               <ComposedChart data={r.evolucion} margin={{ left: -8, right: 4 }}>
@@ -187,7 +188,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
             </ResponsiveContainer>
           </div>
         </Tarjeta>
-        <Tarjeta titulo={`Cómo terminaron el ${periodo}`} copiable className="sin-cortar" accion={<span className="text-xs text-tenue">Última toma de cada paciente</span>}>
+        <Tarjeta titulo={`Cómo terminaron el ${periodo}`} copiable ayuda={AYUDA.donantesCierre} className="sin-cortar" accion={<span className="text-xs text-tenue">Última toma de cada paciente</span>}>
           <div className="p-5">
             <Barras
               filas={r.categorias.map((c) => ({ etiqueta: CATEGORIAS[c.categoria], valor: c.pacientes, color: colorCategoria(c.categoria), detalle: total ? `${Math.round((c.pacientes / total) * 100)}%` : undefined }))}
