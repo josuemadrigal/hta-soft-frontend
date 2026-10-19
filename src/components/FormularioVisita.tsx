@@ -18,7 +18,7 @@ import { clasificar, cn, colorCumplimiento, DIA_MS, fecha as fechaCorta, nombreC
 import { ListaAlertas, useUmbrales } from './Alertas';
 import { HistorialVisitas } from './HistorialVisitas';
 import { SelectorFecha, ymd } from './SelectorFecha';
-import { AreaTexto, Boton, Campo, Cargando, Casilla, comoNumero, Entrada, InsigniaCategoria, Selector, Tarjeta } from './ui';
+import { AreaTexto, Boton, Campo, Cargando, Casilla, comoNumero, Entrada, InsigniaCategoria, Segmentos, Selector, Tarjeta } from './ui';
 
 const entero = (min: number, max: number) => z.number().int('Sin decimales').min(min, `Mínimo ${min}`).max(max, `Máximo ${max}`).optional();
 
@@ -148,25 +148,6 @@ function siguienteCampo(ev: React.KeyboardEvent<HTMLFormElement>) {
 }
 
 /** Botones de un toque (tablet): elige una opción entre pocas. */
-function Segmentos<T extends string>({ valor, opciones, alCambiar, etiqueta }: { valor: T; opciones: { value: T; label: string }[]; alCambiar: (v: T) => void; etiqueta: string }) {
-  return (
-    <div className="flex rounded-lg bg-black/5 p-0.5" role="radiogroup" aria-label={etiqueta}>
-      {opciones.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={valor === o.value}
-          onClick={() => alCambiar(o.value)}
-          className={cn('h-9 flex-1 rounded-md px-3 text-sm whitespace-nowrap transition', valor === o.value ? 'bg-superficie font-medium shadow-sm' : 'text-tenue hover:text-tinta')}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** Número con − y + a los lados: en la tablet es más fácil que escribir. */
 function Contador({ campo, valor, min, register, setValue }: { campo: `recetas.${number}.dailyDose` | `recetas.${number}.bufferDays`; valor: number | undefined; min: number; register: UseFormRegister<Datos>; setValue: UseFormSetValue<Datos> }) {
   const cambiar = (d: number) => setValue(campo, Math.max(min, (Number.isFinite(valor) ? (valor as number) : min) + d), { shouldDirty: true, shouldValidate: true });
@@ -288,7 +269,7 @@ function FilaReceta({
         ) : (
           <span>
             Se entregan <strong className="text-base text-tinta">{entregar}</strong>
-            {hay !== undefined && ` · quedan ${hay - entregar} en inventario`}
+            {hay !== undefined && ` · quedan ${(hay - entregar).toLocaleString('es-DO')} en inventario`}
           </span>
         )}
         <span className="ml-auto">
@@ -410,6 +391,12 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   const s = sm ?? sa;
   const d = dm ?? da;
   const categoria = s && d ? clasificar(configs, s, d) : null;
+  // La fecha en que le toca volver, para decírsela al paciente.
+  const diasProxima = diasDe({ intervalo, diasOtro });
+  const proxima =
+    fechaHoy && diasProxima > 0
+      ? new Intl.DateTimeFormat('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(conHora(fechaHoy, new Date(2000, 0, 1, 12)).getTime() + diasProxima * DIA_MS)
+      : null;
   const imc = peso && talla ? peso / (talla * talla) : null;
 
   // Alertas clínicas con lo que se va escribiendo y el historial
@@ -653,7 +640,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   return (
     <form onSubmit={enviar} onKeyDown={siguienteCampo} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'xl:grid-cols-[minmax(0,1fr)_300px]')}>
       <div className="min-w-0 space-y-4">
-        <Tarjeta titulo="Presión arterial" accion={<span className="text-xs text-tenue">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
+        <Tarjeta titulo="Presión arterial" accion={<span className="hidden text-xs text-tenue sm:inline">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
           <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4 p-5">
             <div className="min-w-0 flex-[3_1_22rem] space-y-4">
               <div>
@@ -705,7 +692,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
         {/* En tablet, las alertas justo debajo de la toma (en escritorio van en el resumen) */}
         {!enModal && alertas.length > 0 && <ListaAlertas alertas={alertas} className="xl:hidden" />}
 
-        <Tarjeta titulo="Medida">
+        <Tarjeta titulo="Peso y estatura">
           <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
             <Campo etiqueta="Peso (kg)" error={e.weightKg?.message}>
               <Entrada
@@ -788,9 +775,33 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
           })()}
         </Tarjeta>
 
-        <Tarjeta titulo="Visita">
+        <Tarjeta titulo="Fecha y próxima visita">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <Campo etiqueta="Próxima visita" error={e.diasOtro?.message}>
+            <Campo etiqueta="Fecha de la visita" error={e.visitDate?.message}>
+              <Controller
+                control={control}
+                name="visitDate"
+                render={({ field }) => <SelectorFecha className="h-10" value={field.value} onChange={field.onChange} max={ymd(new Date())} aria-invalid={!!e.visitDate} aria-label="Fecha de la visita" />}
+              />
+            </Campo>
+            <Campo etiqueta="Dónde" grupo>
+              <Controller
+                control={control}
+                name="isHomeVisit"
+                render={({ field }) => (
+                  <Segmentos
+                    etiqueta="Dónde fue la visita"
+                    valor={field.value ? 'casa' : 'batey'}
+                    alCambiar={(v) => field.onChange(v === 'casa')}
+                    opciones={[
+                      { value: 'batey', label: 'En la jornada' },
+                      { value: 'casa', label: 'En su casa' },
+                    ]}
+                  />
+                )}
+              />
+            </Campo>
+            <Campo etiqueta="Próxima visita" error={e.diasOtro?.message} grupo ayuda={proxima && `Le toca volver el ${proxima}`}>
               <input type="hidden" {...register('intervalo')} />
               <Segmentos
                 etiqueta="Próxima visita"
@@ -804,7 +815,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
               />
               {intervalo === 'otro' && <Entrada type="number" inputMode="numeric" min={7} enterKeyHint="next" placeholder="Días hasta la próxima visita" className="mt-1 h-10" {...register('diasOtro', comoNumero)} />}
             </Campo>
-            <Campo etiqueta="Tipo de visita">
+            <Campo etiqueta="Tipo de visita" grupo>
               <input type="hidden" {...register('visitType')} />
               <Segmentos
                 etiqueta="Tipo de visita"
@@ -813,16 +824,6 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
                 opciones={opciones(TIPOS_VISITA).map((o) => ({ value: String(o.value) as Datos['visitType'], label: o.label }))}
               />
             </Campo>
-            <Campo etiqueta="Fecha" error={e.visitDate?.message}>
-              <Controller
-                control={control}
-                name="visitDate"
-                render={({ field }) => <SelectorFecha className="h-10" value={field.value} onChange={field.onChange} max={ymd(new Date())} aria-invalid={!!e.visitDate} aria-label="Fecha de la visita" />}
-              />
-            </Campo>
-            <div className="flex items-end pb-2.5">
-              <Casilla etiqueta="Visita domiciliaria" {...register('isHomeVisit')} />
-            </div>
             {medicos && (
               <Campo etiqueta="Atendió" ayuda="Solo administración" className="sm:col-span-2">
                 <Selector className="h-10" {...register('doctorId')} opciones={medicos} />

@@ -60,21 +60,28 @@ export function Campo({
   etiqueta,
   error,
   ayuda,
+  grupo,
   className,
   children,
 }: {
   etiqueta: string;
   error?: string;
   ayuda?: ReactNode;
+  /** Para botones (Segmentos): un <label> mandaría el clic de la etiqueta al primer botón. */
+  grupo?: boolean;
   className?: string;
   children: ReactNode;
 }) {
+  const id = useId();
+  const Contenedor = grupo ? 'div' : 'label';
   return (
-    <label className={cn('flex flex-col gap-1.5', className)}>
-      <span className="text-[13px] font-medium text-tinta/80">{etiqueta}</span>
+    <Contenedor className={cn('flex flex-col gap-1.5', className)} {...(grupo && { role: 'group', 'aria-labelledby': id })}>
+      <span id={id} className="text-[13px] font-medium text-tinta/80">
+        {etiqueta}
+      </span>
       {children}
       {error ? <span className="text-xs text-red-600">{error}</span> : ayuda && <span className="text-xs text-tenue">{ayuda}</span>}
-    </label>
+    </Contenedor>
   );
 }
 
@@ -101,6 +108,62 @@ export const Casilla = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInpu
     </label>
   ),
 );
+
+/**
+ * Opciones de una sola elección como botones (en la tablet es un toque, no abrir una lista).
+ * Sin valor, ninguna queda marcada. Flechas ← → cambian la elección, como un grupo de radios.
+ */
+export function Segmentos<T extends string>({
+  valor,
+  opciones,
+  alCambiar,
+  etiqueta,
+  invalido,
+  className,
+}: {
+  valor: T | '' | undefined;
+  opciones: { value: T; label: string }[];
+  alCambiar: (v: T) => void;
+  etiqueta: string;
+  invalido?: boolean;
+  className?: string;
+}) {
+  const actual = opciones.findIndex((o) => o.value === valor);
+  const tecla = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const paso = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const i = (Math.max(actual, 0) + paso + opciones.length) % opciones.length;
+    alCambiar(opciones[i].value);
+    (e.currentTarget.children[i] as HTMLElement | undefined)?.focus();
+  };
+  return (
+    <div
+      className={cn('flex rounded-lg bg-black/5 p-0.5', invalido && 'ring-1 ring-red-400', className)}
+      role="radiogroup"
+      aria-label={etiqueta}
+      aria-invalid={invalido}
+      onKeyDown={tecla}
+    >
+      {opciones.map((o, i) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={valor === o.value}
+          tabIndex={i === (actual < 0 ? 0 : actual) ? 0 : -1}
+          onClick={() => alCambiar(o.value)}
+          className={cn(
+            'h-9 min-w-0 flex-1 truncate rounded-md px-2 text-sm whitespace-nowrap transition sm:px-3',
+            valor === o.value ? 'bg-superficie font-medium text-tinta shadow-sm' : 'text-tenue hover:text-tinta',
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** react-hook-form: los inputs numéricos vacíos quedan como undefined en lugar de NaN. */
 export const comoNumero = { setValueAs: (v: unknown) => (v === '' || v === null || v === undefined ? undefined : Number(v)) };
