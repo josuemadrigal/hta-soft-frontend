@@ -1,5 +1,7 @@
+import { ClipboardPlus } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useComunidades, usePaciente } from '../api/consultas';
+import { useConfirmar } from '../components/confirmar';
 import { FormularioPaciente } from '../components/FormularioPaciente';
 import { Cargando, EncabezadoPagina, Vacio } from '../components/ui';
 import { nombreCompleto } from '../lib/formato';
@@ -7,6 +9,7 @@ import { nombreCompleto } from '../lib/formato';
 /**
  * /pacientes/nuevo y /pacientes/:id/editar.
  * Desde la jornada llega con ?batey=X: el paciente nuevo queda en ese batey y se pasa directo a su visita.
+ * Desde Pacientes, al guardar uno nuevo se pregunta si se registra ya su primera visita.
  */
 export function PacienteEditor() {
   const id = Number(useParams().id) || undefined;
@@ -15,6 +18,7 @@ export function PacienteEditor() {
   const navegar = useNavigate();
   const paciente = usePaciente(id);
   const comunidades = useComunidades();
+  const confirmar = useConfirmar();
 
   // El <select> de batey necesita sus opciones al montarse.
   if ((id && paciente.isPending) || !comunidades.data) return <Cargando />;
@@ -31,12 +35,19 @@ export function PacienteEditor() {
       <FormularioPaciente
         paciente={p}
         comunidadInicial={batey}
-        alTerminar={(nuevo) =>
-          navegar(
-            p ? `/pacientes/${nuevo.id}` : batey ? `/pacientes/${nuevo.id}/visita?volver=${encodeURIComponent(`/jornada?batey=${batey}`)}` : `/pacientes/${nuevo.id}`,
-            { replace: true },
-          )
-        }
+        alTerminar={async (nuevo) => {
+          if (p) return navegar(`/pacientes/${nuevo.id}`, { replace: true });
+          if (batey) return navegar(`/pacientes/${nuevo.id}/visita?volver=${encodeURIComponent(`/jornada?batey=${batey}`)}`, { replace: true });
+          const ahora = await confirmar({
+            titulo: `¿Registrar la primera visita de ${nombreCompleto(nuevo)}?`,
+            mensaje: <p>Quedó registrado con el código <strong className="font-mono text-tinta">{nuevo.patientCode}</strong>. Si lo estás viendo ahora, anota su presión y sus medicamentos.</p>,
+            confirmar: 'Registrar primera visita',
+            cancelar: 'Ahora no',
+            peligro: false,
+            icono: <ClipboardPlus className="size-5" />,
+          });
+          navegar(ahora ? `/pacientes/${nuevo.id}/visita` : `/pacientes/${nuevo.id}`, { replace: true });
+        }}
       />
     </>
   );

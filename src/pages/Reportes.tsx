@@ -14,6 +14,7 @@ import { descargarCsv } from '../lib/copiar';
 import { BotonesTrimestre } from '../components/Periodo';
 import { CATEGORIAS, colorCategoria, GENEROS, opciones } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const hoy = new Date();
@@ -382,14 +383,14 @@ export function Reportes() {
             <BotonesTrimestre desde={desde} hasta={hasta} onCambiar={(r) => cambiar(r)} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
-            <label className="flex items-center gap-2 text-sm text-tenue">
+            <div className="flex items-center gap-2 text-sm text-tenue">
               Desde
-              <Entrada type="date" value={desde} onChange={(e) => cambiar({ desde: e.target.value })} />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-tenue">
+              <SelectorFecha corto vacio="Cualquier fecha" aria-label="Desde" value={desde} max={hasta || undefined} onChange={(v) => cambiar({ desde: v })} />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-tenue">
               Hasta
-              <Entrada type="date" value={hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />
-            </label>
+              <SelectorFecha corto vacio="Cualquier fecha" aria-label="Hasta" value={hasta} min={desde || undefined} onChange={(v) => cambiar({ hasta: v })} />
+            </div>
             <Selector vacio="Todos los bateyes" value={filtro.communityId ?? ''} onChange={(e) => cambiar({ batey: e.target.value })} opciones={(comunidades.data ?? []).map((c) => ({ value: c.id, label: c.name }))} />
             <Selector vacio="Todos los géneros" value={filtro.gender ?? ''} onChange={(e) => cambiar({ genero: e.target.value })} opciones={opciones(GENEROS)} />
             <label className="flex items-center gap-2 text-sm text-tenue">

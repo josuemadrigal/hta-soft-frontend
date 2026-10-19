@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, Mail, MapPin, Package, Pencil, Printer, Tent, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useComunidades, useDetalleJornada, useJornadas, useResponsables, useSugerenciasJornadas } from '../api/consultas';
@@ -10,8 +10,9 @@ import type { DetalleJornada, EstadoJornada, Jornada } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { conQuien, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
 import { useConfirmar } from '../components/confirmar';
-import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 /* Las jornadas son fechas "puras" (medianoche UTC): se muestran sin correr de día. */
 const fmtDia = new Intl.DateTimeFormat('es-DO', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -276,7 +277,7 @@ function FormularioJornada({ jornada }: { jornada?: Jornada }) {
   const comunidades = useComunidades();
   const responsables = useResponsables();
   const { usuario } = useSesion();
-  const { register, handleSubmit, formState } = useForm<DatosForm>({
+  const { register, handleSubmit, formState, control } = useForm<DatosForm>({
     defaultValues: jornada
       ? { communityId: String(jornada.communityId), fecha: jornada.fecha.slice(0, 10), responsableId: jornada.responsableId ? String(jornada.responsableId) : '', notas: jornada.notas ?? '' }
       : { communityId: params.get('batey') ?? '', fecha: params.get('fecha') ?? '', responsableId: usuario ? String(usuario.id) : '', notas: '' },
@@ -313,7 +314,12 @@ function FormularioJornada({ jornada }: { jornada?: Jornada }) {
               />
             </Campo>
             <Campo etiqueta="Fecha" error={e.fecha && 'Elige la fecha'}>
-              <Entrada type="date" min={jornada ? undefined : hoyYmd()} {...register('fecha', { required: true })} aria-invalid={!!e.fecha} />
+              <Controller
+                control={control}
+                name="fecha"
+                rules={{ required: true }}
+                render={({ field }) => <SelectorFecha min={jornada ? undefined : hoyYmd()} value={field.value} onChange={field.onChange} aria-invalid={!!e.fecha} aria-label="Fecha de la jornada" />}
+              />
             </Campo>
             <Campo etiqueta="Responsable">
               <Selector vacio="Sin asignar" {...register('responsableId')} opciones={(responsables.data ?? []).map((u) => ({ value: u.id, label: nombreCompleto(u) }))} />

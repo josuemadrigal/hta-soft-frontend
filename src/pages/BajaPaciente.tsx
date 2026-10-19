@@ -6,9 +6,10 @@ import { toast } from 'sonner';
 import { usePaciente } from '../api/consultas';
 import { darDeBaja } from '../api/recursos';
 import type { MotivoBaja } from '../api/tipos';
-import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, Tarjeta, Vacio } from '../components/ui';
+import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Tarjeta, Vacio } from '../components/ui';
 import { MOTIVOS_BAJA } from '../lib/etiquetas';
 import { cn, edadTexto, fecha, nombreCompleto } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const AYUDA: Record<MotivoBaja, string> = {
   FALLECIDO: 'Causa, si se conoce (infarto, ACV, otra enfermedad, accidente…)',
@@ -79,7 +80,7 @@ export function BajaPaciente() {
           <Tarjeta titulo="Detalle">
             <div className="grid gap-4 p-5 sm:grid-cols-[200px_minmax(0,1fr)]">
               <Campo etiqueta={motivo === 'FALLECIDO' ? 'Fecha del fallecimiento' : 'Fecha de la baja'} ayuda="Aproximada, si no se sabe el día">
-                <Entrada type="date" max={hoyIso()} value={fechaBaja} onChange={(e) => setFechaBaja(e.target.value)} />
+                <SelectorFecha corto max={hoyIso()} value={fechaBaja} onChange={setFechaBaja} />
               </Campo>
               <Campo etiqueta={motivo === 'FALLECIDO' ? 'Causa' : 'Detalle'} ayuda={AYUDA[motivo]}>
                 <AreaTexto rows={3} maxLength={500} value={detalle} onChange={(e) => setDetalle(e.target.value)} />

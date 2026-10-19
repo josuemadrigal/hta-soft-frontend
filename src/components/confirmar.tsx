@@ -9,6 +9,10 @@ type Opciones = {
   confirmar?: string;
   /** Acción destructiva: botón rojo. Por defecto true. */
   peligro?: boolean;
+  /** Texto del botón que cancela (por defecto "Cancelar"). */
+  cancelar?: string;
+  /** Ícono del círculo (por defecto, el triángulo de aviso). */
+  icono?: ReactNode;
 };
 
 type Pendiente = Opciones & { resolver: (ok: boolean) => void };
@@ -54,7 +58,7 @@ export function ProveedorConfirmar({ children }: { children: ReactNode }) {
           <div className="p-6">
             <div className="flex gap-4">
               <span className={`grid size-10 shrink-0 place-items-center rounded-full ${peligro ? 'bg-red-50 text-red-600' : 'bg-marca-100 text-marca-700'}`}>
-                <AlertTriangle className="size-5" />
+                {pendiente.icono ?? <AlertTriangle className="size-5" />}
               </span>
               <div className="min-w-0">
                 <h2 id="confirmar-titulo" className="font-semibold">
@@ -65,7 +69,7 @@ export function ProveedorConfirmar({ children }: { children: ReactNode }) {
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Boton variante="secundario" onClick={() => cerrar(false)} autoFocus>
-                Cancelar
+                {pendiente.cancelar ?? 'Cancelar'}
               </Boton>
               <Boton variante={peligro ? 'peligro' : 'primario'} onClick={() => cerrar(true)}>
                 {pendiente.confirmar ?? 'Eliminar'}

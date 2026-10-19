@@ -10,8 +10,9 @@ import { conQuien, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION } from
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { BotonesTrimestre } from '../components/Periodo';
-import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Paginacion, porPaginaDe, recordarPorPagina, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Cargando, EncabezadoPagina, ErrorCarga, Insignia, Paginacion, porPaginaDe, recordarPorPagina, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { fecha, fechaYHora, nombreCompleto } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const ACCIONES: Record<string, { texto: string; color: string }> = {
   CREATE: { texto: 'Creó', color: '#15803d' },
@@ -349,14 +350,14 @@ export function Auditoria() {
             opciones={(opcionesFiltro.data?.acciones ?? []).map((a) => ({ value: a, label: ACCIONES[a]?.texto ?? a }))}
           />
           <BotonesTrimestre desde={params.get('desde')} hasta={params.get('hasta')} onCambiar={(r) => cambiar(r)} />
-          <label className="flex items-center gap-2 text-sm text-tenue">
+          <div className="flex items-center gap-2 text-sm text-tenue">
             Desde
-            <Entrada type="date" className="w-auto" value={params.get('desde') ?? ''} onChange={(e) => cambiar({ desde: e.target.value })} />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-tenue">
+            <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Desde" value={params.get('desde')} max={params.get('hasta') || undefined} onChange={(v) => cambiar({ desde: v })} />
+          </div>
+          <div className="flex items-center gap-2 text-sm text-tenue">
             Hasta
-            <Entrada type="date" className="w-auto" value={params.get('hasta') ?? ''} onChange={(e) => cambiar({ hasta: e.target.value })} />
-          </label>
+            <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Hasta" value={params.get('hasta')} min={params.get('desde') || undefined} onChange={(v) => cambiar({ hasta: v })} />
+          </div>
           {hayFiltros && (
             <Boton variante="fantasma" icono={<X className="size-4" />} onClick={() => setParams({}, { replace: true })}>
               Limpiar

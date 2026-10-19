@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '../lib/formato';
 import { Selector } from './Selector';
-import { Entrada } from './ui';
+import { SelectorFecha } from './SelectorFecha';
 
 const PRIMER_ANIO = 2017; // inicio de los registros
 
@@ -111,9 +111,9 @@ export function Periodo({ desde, hasta, onCambiar }: { desde?: string | null; ha
       {modo === 'trimestre' && <BotonesTrimestre desde={desde} hasta={hasta} onCambiar={onCambiar} />}
       {modo === 'fechas' && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-tenue">
-          <Entrada type="date" className="w-auto" aria-label="Desde" value={desde ?? ''} onChange={(e) => onCambiar({ desde: e.target.value || undefined, hasta: hasta ?? undefined })} />
+          <SelectorFecha corto vacio="Desde" className="w-auto" aria-label="Desde" value={desde} max={hasta ?? undefined} onChange={(v) => onCambiar({ desde: v || undefined, hasta: hasta ?? undefined })} />
           a
-          <Entrada type="date" className="w-auto" aria-label="Hasta" value={hasta ?? ''} onChange={(e) => onCambiar({ desde: desde ?? undefined, hasta: e.target.value || undefined })} />
+          <SelectorFecha corto vacio="Hasta" className="w-auto" aria-label="Hasta" value={hasta} min={desde ?? undefined} onChange={(v) => onCambiar({ desde: desde ?? undefined, hasta: v || undefined })} />
         </div>
       )}
     </div>

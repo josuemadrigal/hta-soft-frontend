@@ -16,9 +16,10 @@ import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
-import { Avatar, Boton, Cargando, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
+import { Avatar, Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
 import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const ejeFecha = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', year: '2-digit' });
 
@@ -165,8 +166,8 @@ function GraficoTension({ id }: { id: number }) {
         </div>
         {rango === 'fechas' && (
           <div className="flex items-center gap-2 text-xs text-tenue">
-            <Entrada type="date" className="h-8 w-auto text-xs" aria-label="Desde" value={desde} onChange={(e) => setDesde(e.target.value)} />a
-            <Entrada type="date" className="h-8 w-auto text-xs" aria-label="Hasta" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <SelectorFecha corto vacio="Desde" className="h-8 w-auto text-xs" aria-label="Desde" value={desde} max={hasta || undefined} onChange={setDesde} />a
+            <SelectorFecha corto vacio="Hasta" className="h-8 w-auto text-xs" aria-label="Hasta" value={hasta} min={desde || undefined} onChange={setHasta} />
           </div>
         )}
         <span className="ml-auto text-xs text-tenue">

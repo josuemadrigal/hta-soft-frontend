@@ -3,7 +3,8 @@ import { useComunidades } from '../api/consultas';
 import type { FiltroReporte } from '../api/tipos';
 import { cn } from '../lib/formato';
 import { BotonesTrimestre } from './Periodo';
-import { Entrada, Selector, Tarjeta } from './ui';
+import { Selector, Tarjeta } from './ui';
+import { SelectorFecha } from './SelectorFecha';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -59,14 +60,14 @@ export function FiltroPeriodo({ conBatey = true }: { conBatey?: boolean }) {
         <span className="hidden h-6 w-px bg-borde sm:block" />
         <BotonesTrimestre desde={desde} hasta={hasta} onCambiar={(r) => cambiar(r)} />
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-tenue">
+          <div className="flex items-center gap-2 text-sm text-tenue">
             Desde
-            <Entrada type="date" className="w-auto" value={desde} onChange={(e) => cambiar({ desde: e.target.value })} />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-tenue">
+            <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Desde" value={desde} max={hasta || undefined} onChange={(v) => cambiar({ desde: v })} />
+          </div>
+          <div className="flex items-center gap-2 text-sm text-tenue">
             Hasta
-            <Entrada type="date" className="w-auto" value={hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />
-          </label>
+            <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Hasta" value={hasta} min={desde || undefined} onChange={(v) => cambiar({ hasta: v })} />
+          </div>
         </div>
         {conBatey && (
           <Selector

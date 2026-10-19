@@ -8,10 +8,11 @@ import { pacientesSinConsulta, reporteEntregas } from '../api/recursos';
 import type { ReporteEntregas } from '../api/tipos';
 import { COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { BotonesTrimestre } from '../components/Periodo';
-import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Cargando, EncabezadoPagina, ErrorCarga, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { descargarCsv } from '../lib/copiar';
 import { MOTIVOS_REPOSICION } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 // Fechas locales: toISOString correría el día después de las 8 p. m. en RD (UTC-4).
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -328,14 +329,14 @@ export function PantallaReporteEntregas() {
             <BotonesTrimestre desde={desde} hasta={hasta} onCambiar={(r) => cambiar(r)} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-tenue">
+            <div className="flex items-center gap-2 text-sm text-tenue">
               Desde
-              <Entrada type="date" className="w-auto" value={desde} onChange={(e) => cambiar({ desde: e.target.value })} />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-tenue">
+              <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Desde" value={desde} max={hasta || undefined} onChange={(v) => cambiar({ desde: v })} />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-tenue">
               Hasta
-              <Entrada type="date" className="w-auto" value={hasta} onChange={(e) => cambiar({ hasta: e.target.value })} />
-            </label>
+              <SelectorFecha corto vacio="Cualquier fecha" className="w-auto" aria-label="Hasta" value={hasta} min={desde || undefined} onChange={(v) => cambiar({ hasta: v })} />
+            </div>
             <Selector
               className="w-auto min-w-44"
               vacio="Todos los bateyes"

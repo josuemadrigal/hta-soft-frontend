@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Camera, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useComunidades } from '../api/consultas';
@@ -11,6 +11,7 @@ import type { Paciente } from '../api/tipos';
 import { ALCOHOL, ESTADOS, GENEROS, opciones, SAL, TABACO } from '../lib/etiquetas';
 import { edad, fecha, soloFecha } from '../lib/formato';
 import { Avatar, Boton, Campo, Casilla, Entrada, Selector, Tarjeta } from './ui';
+import { SelectorFecha } from './SelectorFecha';
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -61,7 +62,7 @@ export function FormularioPaciente({
     return () => URL.revokeObjectURL(url);
   }, [fotoNueva]);
   const fotoActual = vista ?? (quitarFoto ? null : (paciente?.photoUrl ?? null));
-  const { register, handleSubmit, formState, setValue, watch } = useForm<Entrada_, unknown, Salida>({
+  const { register, handleSubmit, formState, setValue, watch, control } = useForm<Entrada_, unknown, Salida>({
     resolver: zodResolver(esquema),
     defaultValues: paciente
       ? {
@@ -131,7 +132,6 @@ export function FormularioPaciente({
   });
 
   const registroEdad = register('edad', { onChange: (ev) => alCambiarEdad(ev.target.value) });
-  const registroFecha = register('birthDate', { onChange: (ev) => alCambiarFecha(ev.target.value) });
 
   return (
     <form onSubmit={handleSubmit((d) => guardar.mutate(d))} className="space-y-4" noValidate>
@@ -195,7 +195,24 @@ export function FormularioPaciente({
             <Entrada type="number" inputMode="numeric" min={0} max={120} {...registroEdad} aria-invalid={!!e.edad} />
           </Campo>
           <Campo etiqueta="Fecha de nacimiento" error={e.birthDate?.message} ayuda={estimada ? 'Aproximada' : undefined}>
-            <Entrada type="date" max={hoy()} {...registroFecha} aria-invalid={!!e.birthDate} />
+            <Controller
+              control={control}
+              name="birthDate"
+              render={({ field }) => (
+                <SelectorFecha
+                  corto
+                  empezarPorAnio
+                  max={hoy()}
+                  value={field.value}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    alCambiarFecha(v);
+                  }}
+                  aria-invalid={!!e.birthDate}
+                  aria-label="Fecha de nacimiento"
+                />
+              )}
+            />
           </Campo>
           <Campo etiqueta="Género" error={e.gender?.message}>
             <Selector opciones={opciones(GENEROS)} vacio={paciente ? undefined : 'Elegir…'} {...register('gender')} aria-invalid={!!e.gender} />

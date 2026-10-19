@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PackagePlus, Pencil, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useMedicamento, useMedicamentos, useMovimientos } from '../api/consultas';
@@ -10,6 +10,7 @@ import type { Lote, MovimientoInventario, OrigenLote } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, Insignia, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, diasHasta, fechaDia, fechaYHora, nombreCompleto } from '../lib/formato';
+import { SelectorFecha } from '../components/SelectorFecha';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORIGENES: Record<OrigenLote, string> = { DONACION: 'Donación', COMPRA: 'Compra', INICIAL: 'Saldo inicial', AJUSTE: 'Ajuste' };
@@ -174,7 +175,7 @@ export function EntradaInventario() {
   const navegar = useNavigate();
   const cliente = useQueryClient();
   const hoy = new Date().toISOString().slice(0, 10);
-  const { register, handleSubmit, formState, watch, reset } = useForm<FormEntrada>({
+  const { register, handleSubmit, formState, watch, reset, control } = useForm<FormEntrada>({
     defaultValues: { medicationId: params.get('med') ?? '', origen: 'DONACION', fechaEntrada: hoy, numero: '', vencimiento: '', procedencia: '', nota: '' },
   });
   const origen = watch('origen');
@@ -221,13 +222,21 @@ export function EntradaInventario() {
               <Entrada type="number" min={1} {...register('cantidad', { required: true, min: 1, valueAsNumber: true })} aria-invalid={!!e.cantidad} />
             </Campo>
             <Campo etiqueta="Vencimiento" ayuda="Si no se conoce, déjalo vacío (se dispensará al final).">
-              <Entrada type="date" min={hoy} {...register('vencimiento')} />
+              <Controller
+                control={control}
+                name="vencimiento"
+                render={({ field }) => <SelectorFecha corto vacio="Sin vencimiento" min={hoy} value={field.value} onChange={field.onChange} aria-label="Vencimiento" />}
+              />
             </Campo>
             <Campo etiqueta="Número de lote" ayuda="Opcional">
               <Entrada {...register('numero')} />
             </Campo>
             <Campo etiqueta="Fecha de entrada">
-              <Entrada type="date" max={hoy} {...register('fechaEntrada')} />
+              <Controller
+                control={control}
+                name="fechaEntrada"
+                render={({ field }) => <SelectorFecha corto max={hoy} value={field.value} onChange={field.onChange} aria-label="Fecha de entrada" />}
+              />
             </Campo>
           </div>
         </Tarjeta>

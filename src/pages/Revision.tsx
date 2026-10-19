@@ -12,6 +12,7 @@ import { useEliminarVisita } from '../components/eliminarVisita';
 import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { GENEROS, opciones } from '../lib/etiquetas';
 import { cn, edad, edadTexto, fecha, fechaDia, nombreCompleto, soloFecha } from '../lib/formato';
+import { SelectorFecha, ymd } from '../components/SelectorFecha';
 
 const TIPOS: { tipo: TipoCaso; texto: string; ayuda: string }[] = [
   { tipo: 'COMPARTIDO', texto: 'Código compartido', ayuda: 'Un mismo código con visitas a nombre de personas distintas. Separa las visitas de la otra persona en una ficha nueva.' },
@@ -253,7 +254,7 @@ function CamposNacimiento({ valor, alCambiar }: { valor: Nacimiento; alCambiar: 
         />
       </Campo>
       <Campo etiqueta="Fecha de nacimiento" ayuda={valor.estimada ? 'Aproximada' : undefined}>
-        <Entrada type="date" value={valor.fecha} onChange={(e) => alCambiar({ fecha: e.target.value, estimada: false })} />
+        <SelectorFecha corto empezarPorAnio max={ymd(new Date())} value={valor.fecha} onChange={(v) => alCambiar({ fecha: v, estimada: false })} />
       </Campo>
     </>
   );
