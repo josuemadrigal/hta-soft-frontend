@@ -37,6 +37,8 @@ export type Usuario = {
   createdAt: string;
   /** Cuándo confirmó su correo (null: sin confirmar). */
   emailVerificadoEn?: string | null;
+  /** Bloqueado por intentos fallidos hasta esta hora (null o pasada: puede entrar). */
+  bloqueadoHasta?: string | null;
   contrasenaCambiadaEn?: string | null;
 };
 

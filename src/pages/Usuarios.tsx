@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, KeyRound, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { Camera, Check, KeyRound, LockOpen, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useCatalogoPermisos, useRoles, useUsuario, useUsuarios } from '../api/consultas';
-import { borrarUsuario, crearUsuario, editarUsuario, reenviarConfirmacion, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
+import { borrarUsuario, crearUsuario, desbloquearUsuario, editarUsuario, reenviarConfirmacion, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
@@ -24,6 +24,15 @@ export function Usuarios() {
     onSuccess: (r) => {
       for (const k of [['usuarios'], ['visitas'], ['medicos'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
       toast.success(r.visitasReasignadas ? `Usuario eliminado. ${r.visitasReasignadas.toLocaleString('es-DO')} visitas reasignadas a ${r.reasignadasA.firstName}, con su historial intacto.` : 'Usuario eliminado');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const desbloquear = useMutation({
+    mutationFn: (u: Usuario) => desbloquearUsuario(u.id),
+    onSuccess: (_, u) => {
+      for (const k of [['usuarios'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success(`${nombreCompleto(u)} ya puede volver a entrar`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -53,58 +62,82 @@ export function Usuarios() {
           <ErrorCarga error={consulta.error} />
         ) : (
           <Tabla columnas={['Usuario', 'Rol', 'Estado', 'Alta', { texto: '', className: 'w-24' }]}>
-            {consulta.data.data.map((u) => (
-              <tr key={u.id} className="hover:bg-fondo">
-                <td className="px-5 py-3">
-                  <Link to={`/usuarios/${u.id}`} className="flex items-center gap-3">
-                    <Avatar persona={u} foto={u.photoUrl} tamano="size-8" />
-                    <div>
-                      <p className="font-medium">
-                        {nombreCompleto(u)} {u.id === yo?.id && <span className="text-xs font-normal text-tenue">(tú)</span>}
-                      </p>
-                      <p className="text-xs text-tenue">
-                        {u.email}
-                        {!u.emailVerificadoEn && <span className="ml-1.5 text-amber-700">· sin confirmar</span>}
-                      </p>
-                    </div>
-                  </Link>
-                </td>
-                <td className="px-5 py-3">{u.role.name}</td>
-                <td className="px-5 py-3">
-                  <Insignia color={u.isActive ? '#15803d' : undefined}>{u.isActive ? 'Activo' : 'Inactivo'}</Insignia>
-                </td>
-                <td className="px-5 py-3 text-tenue">{fecha(u.createdAt)}</td>
-                <td className="px-5 py-2 text-right whitespace-nowrap">
-                  <Boton variante="fantasma" className="h-8 px-2" aria-label="Editar" onClick={() => navegar(`/usuarios/${u.id}`)}>
-                    <Pencil className="size-4" />
-                  </Boton>
-                  {u.id !== yo?.id && (
-                    <Boton
-                      variante="fantasma"
-                      className="h-8 px-2 hover:text-red-600"
-                      aria-label="Eliminar"
-                      onClick={async () =>
-                        (await confirmar({
-                          titulo: `¿Eliminar a ${nombreCompleto(u)}?`,
-                          mensaje: (
-                            <>
-                              <p>La cuenta se borra y no podrá volver a entrar.</p>
-                              <p className="mt-2">
-                                Si atendió visitas, pasan a tu cuenta de administrador, pero <strong className="text-tinta">cada visita seguirá diciendo que la atendió {nombreCompleto(u)}</strong>{' '}
-                                y sus estadísticas siguen en Médicos. Queda registrado en Auditoría.
-                              </p>
-                              <p className="mt-2">Si solo quieres que no entre, mejor desactívalo.</p>
-                            </>
-                          ),
-                        })) && borrar.mutate(u.id)
-                      }
-                    >
-                      <Trash2 className="size-4" />
+            {consulta.data.data.map((u) => {
+              // Bloqueado por intentos fallidos: se le quita el bloqueo sin esperar los 15 minutos.
+              const bloqueado = !!u.bloqueadoHasta && new Date(u.bloqueadoHasta) > new Date();
+              return (
+                <tr key={u.id} className="hover:bg-fondo">
+                  <td className="px-5 py-3">
+                    <Link to={`/usuarios/${u.id}`} className="flex items-center gap-3">
+                      <Avatar persona={u} foto={u.photoUrl} tamano="size-8" />
+                      <div>
+                        <p className="font-medium">
+                          {nombreCompleto(u)} {u.id === yo?.id && <span className="text-xs font-normal text-tenue">(tú)</span>}
+                        </p>
+                        <p className="text-xs text-tenue">
+                          {u.email}
+                          {!u.emailVerificadoEn && <span className="ml-1.5 text-amber-700">· sin confirmar</span>}
+                        </p>
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3">{u.role.name}</td>
+                  <td className="px-5 py-3">
+                    {bloqueado ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <Insignia color="#dc2626">Bloqueado</Insignia>
+                        <span className="text-xs whitespace-nowrap text-tenue">
+                          Intentos fallidos · hasta las {new Date(u.bloqueadoHasta!).toLocaleTimeString('es-DO', { hour: 'numeric', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ) : (
+                      <Insignia color={u.isActive ? '#15803d' : undefined}>{u.isActive ? 'Activo' : 'Inactivo'}</Insignia>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-tenue">{fecha(u.createdAt)}</td>
+                  <td className="px-5 py-2 text-right whitespace-nowrap">
+                    {bloqueado && (
+                      <Boton
+                        variante="secundario"
+                        className="mr-1 h-8 px-2.5 text-sm"
+                        icono={<LockOpen className="size-4" />}
+                        cargando={desbloquear.isPending && desbloquear.variables?.id === u.id}
+                        onClick={() => desbloquear.mutate(u)}
+                      >
+                        Desbloquear
+                      </Boton>
+                    )}
+                    <Boton variante="fantasma" className="h-8 px-2" aria-label="Editar" onClick={() => navegar(`/usuarios/${u.id}`)}>
+                      <Pencil className="size-4" />
                     </Boton>
-                  )}
-                </td>
-              </tr>
-            ))}
+                    {u.id !== yo?.id && (
+                      <Boton
+                        variante="fantasma"
+                        className="h-8 px-2 hover:text-red-600"
+                        aria-label="Eliminar"
+                        onClick={async () =>
+                          (await confirmar({
+                            titulo: `¿Eliminar a ${nombreCompleto(u)}?`,
+                            mensaje: (
+                              <>
+                                <p>La cuenta se borra y no podrá volver a entrar.</p>
+                                <p className="mt-2">
+                                  Si atendió visitas, pasan a tu cuenta de administrador, pero <strong className="text-tinta">cada visita seguirá diciendo que la atendió {nombreCompleto(u)}</strong>{' '}
+                                  y sus estadísticas siguen en Médicos. Queda registrado en Auditoría.
+                                </p>
+                                <p className="mt-2">Si solo quieres que no entre, mejor desactívalo.</p>
+                              </>
+                            ),
+                          })) && borrar.mutate(u.id)
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                      </Boton>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </Tabla>
         )}
       </Tarjeta>

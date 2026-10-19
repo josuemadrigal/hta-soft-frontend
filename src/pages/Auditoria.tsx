@@ -29,6 +29,7 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   EXPORT: { texto: 'Exportó', color: '#7c3aed' },
   LOGIN: { texto: 'Inició sesión', color: '#6b665e' },
   BLOQUEO: { texto: 'Cuenta bloqueada', color: '#dc2626' },
+  DESBLOQUEO: { texto: 'Desbloqueó una cuenta', color: '#15803d' },
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   REACTIVAR: { texto: 'Reactivó', color: '#15803d' },
@@ -242,6 +243,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.action === 'VIEW') return 'Abrió la ficha del paciente';
   if (r.action === 'EXPORT') return `${d.exportacion}${d.filtros ? ` · filtros: ${Object.entries(d.filtros as Record<string, unknown>).map(([k, v]) => `${k}=${v}`).join(', ') || 'ninguno'}` : ''}`;
   if (r.action === 'LOGIN') return `Inició sesión${d.ip ? ` desde ${d.ip}` : ''}`;
+  if (r.action === 'DESBLOQUEO') return `${d.email}: puede volver a entrar sin esperar`;
   if (r.action === 'BLOQUEO') return `${d.email}: ${d.minutos} minutos bloqueada por intentos fallidos${d.ip ? ` (desde ${d.ip})` : ''}`;
   if (r.entity === 'Medication' && r.action === 'ENTRADA') return `Entrada de ${d.cantidad} unidades (${d.origen === 'COMPRA' ? 'compra' : 'donación'}${d.procedencia ? `: ${d.procedencia}` : ''})${d.vencimiento ? ` · vence ${fecha(String(d.vencimiento))}` : ''}`;
   if (r.entity === 'Medication' && r.action === 'AJUSTE') return `Lote ${d.lote}: ${Number(d.cantidad) > 0 ? '+' : ''}${d.cantidad} · ${d.motivo}`;
