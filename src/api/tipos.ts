@@ -589,6 +589,23 @@ export type IndicadorBatey = {
 };
 
 /** Panel del médico que consulta */
+/** Una fila de la planilla de la jornada (la de papel): por batey, contando pacientes. */
+export type FilaPlanilla = {
+  communityId: number | null;
+  batey: string;
+  fechas: string[];
+  evaluados: number;
+  enPrograma: number;
+  conToma: number;
+  existentesConMedicamento: number;
+  controlados: number;
+  noControlados: number;
+  datosDudosos: number;
+  nuevos: number;
+  nuevosConMedicamento: number;
+};
+export type Planilla = { periodo: { desde: string; hasta: string }; filas: FilaPlanilla[]; total: FilaPlanilla };
+
 export type MiPanel = {
   pacientes: number;
   controladosPct: number | null;

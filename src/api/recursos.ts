@@ -37,6 +37,7 @@ import type {
   Receta,
   RegistroAuditoria,
   ResumenReporte,
+  Planilla,
   ListaMedicos,
   DetalleMedico,
   ComparacionMedicos,
@@ -264,6 +265,7 @@ export const estadisticasRonda = (batey?: number) => api<EstadisticasRonda>(`/st
 export const pacientesAltoRiesgo = () => api<PacienteAltoRiesgo[]>('/stats/high-risk');
 export const visitasRecientes = () => api<VisitaReciente[]>('/stats/recent-visits');
 export const resumenReporte = (f: FiltroReporte) => api<ResumenReporte>(`/reports/summary${query(f)}`);
+export const planillaJornada = (f: { from: string; to: string }) => api<Planilla>(`/reports/planilla${query(f)}`);
 export const listarMedicos = (f: FiltroReporte, eliminados = false) => api<ListaMedicos>(`/doctors${query({ ...f, eliminados: eliminados ? 'true' : undefined })}`);
 export const detalleMedico = (id: number, f: FiltroReporte) => api<DetalleMedico>(`/doctors/${id}${query(f)}`);
 export const compararMedicos = (ids: number[], f: FiltroReporte) => api<ComparacionMedicos>(`/doctors/compare${query({ ...f, ids: ids.join(',') })}`);

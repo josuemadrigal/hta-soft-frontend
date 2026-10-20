@@ -57,6 +57,8 @@ export const useTendencia = (batey?: number) => useQuery({ queryKey: ['stats', '
 export const useRonda = (batey?: number) => useQuery({ queryKey: ['stats', 'ronda', batey], queryFn: () => r.estadisticasRonda(batey), placeholderData: keepPreviousData });
 export const useJornada = (comunidad: number | undefined) =>
   useQuery({ queryKey: ['jornada', comunidad], queryFn: () => r.pacientesJornada(comunidad!), enabled: !!comunidad });
+export const usePlanilla = (f: { from: string; to: string }) =>
+  useQuery({ queryKey: ['reportes', 'planilla', f], queryFn: () => r.planillaJornada(f), placeholderData: keepPreviousData });
 export const useResumenReporte = (f: FiltroReporte) =>
   useQuery({ queryKey: ['reportes', f], queryFn: () => r.resumenReporte(f), placeholderData: keepPreviousData });
 export const useMedicos = (f: FiltroReporte, eliminados = false) =>

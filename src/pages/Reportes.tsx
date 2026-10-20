@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, Download, FileSpreadsheet, HeartHandshake, PieChart, Pill, Users, X } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Download, FileSpreadsheet, HeartHandshake, PieChart, Pill, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -388,6 +388,9 @@ export function Reportes() {
         descripcion="Control, cobertura, cumplimiento y medicamentos según el periodo y los filtros. Cada gráfica se puede copiar como imagen."
         acciones={
           <>
+            <Boton variante="secundario" icono={<ClipboardList className="size-4" />} onClick={() => navegar('/reportes/planilla')}>
+              Planilla de la jornada
+            </Boton>
             <Boton variante="secundario" icono={<HeartHandshake className="size-4" />} onClick={() => navegar('/reportes/donantes')}>
               Informe para donantes
             </Boton>
