@@ -71,6 +71,8 @@ export function query(params: Record<string, string | number | undefined>) {
 export const iniciarSesion = (email: string, password: string) =>
   enviar<Sesion>('/auth/login', 'POST', { email, password });
 export const obtenerYo = () => api<Usuario>('/auth/me');
+/** ¿Sigue vigente la sesión? (401 si la cerraron: el cliente sale solo). */
+export const revisarSesion = () => api<{ ok: boolean }>('/auth/sesion');
 /** Devuelve tokens nuevos: las demás sesiones de la cuenta se cierran. */
 export const cambiarContrasena = (actual: string, nueva: string) => enviar<Sesion>('/auth/contrasena', 'PATCH', { actual, nueva });
 export const pedirConfirmacionCorreo = () => enviar<ResultadoCorreo>('/auth/correo/confirmacion', 'POST');

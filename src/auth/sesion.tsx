@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { EVENTO_SESION_EXPIRADA, guardarSesion, leerSesion, type Sesion } from '../api/client';
-import { iniciarSesion, obtenerYo } from '../api/recursos';
+import { iniciarSesion, obtenerYo, revisarSesion } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useConfiguracion } from '../api/consultas';
 import { toast } from 'sonner';
@@ -108,10 +108,28 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     };
   }, [hayUsuario, minutos, salir]);
 
+  // Si un administrador cierra sus sesiones (o la desactiva, o cambia la contraseña), se sale enseguida:
+  // cada 20 segundos y al volver a la pestaña se pregunta si la sesión sigue vigente. Un 401 la cierra.
+  useEffect(() => {
+    if (!hayUsuario) return;
+    const revisar = () => {
+      if (navigator.onLine && document.visibilityState === 'visible') revisarSesion().catch(() => undefined);
+    };
+    const reloj = window.setInterval(revisar, 20_000);
+    document.addEventListener('visibilitychange', revisar);
+    window.addEventListener('focus', revisar);
+    return () => {
+      window.clearInterval(reloj);
+      document.removeEventListener('visibilitychange', revisar);
+      window.removeEventListener('focus', revisar);
+    };
+  }, [hayUsuario]);
+
   useEffect(() => {
     const alExpirar = () => {
       setUsuario(null);
       void borrarDatosGuardados(cliente);
+      toast.info('Tu sesión se cerró. Vuelve a entrar con tu usuario y contraseña.');
     };
     window.addEventListener(EVENTO_SESION_EXPIRADA, alExpirar);
     return () => window.removeEventListener(EVENTO_SESION_EXPIRADA, alExpirar);

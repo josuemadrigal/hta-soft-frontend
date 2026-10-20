@@ -393,7 +393,7 @@ function SesionesUsuario({ usuario }: { usuario: Usuario }) {
     mutationFn: () => cerrarSesionesUsuario(usuario.id),
     onSuccess: () => {
       for (const k of [['usuarios'], ['usuario', usuario.id], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
-      toast.success(`Listo: ${nombreCompleto(usuario)} tendrá que volver a entrar en todos sus dispositivos.`);
+      toast.success(`Listo: a ${nombreCompleto(usuario)} se le cierra la app en todos sus dispositivos en unos segundos.`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -413,7 +413,7 @@ function SesionesUsuario({ usuario }: { usuario: Usuario }) {
               titulo: `¿Cerrar todas las sesiones de ${nombreCompleto(usuario)}?`,
               mensaje: (
                 <>
-                  <p>En cada tableta, teléfono o computadora donde tenga la app abierta tendrá que volver a entrar con su contraseña.</p>
+                  <p>En cada tableta, teléfono o computadora donde tenga la app abierta se le cierra en unos segundos, y tendrá que volver a entrar con su contraseña.</p>
                   <p className="mt-2">Úsalo si se perdió una tableta o dejó una sesión abierta en otro equipo. Lo que haya guardado sin internet no se pierde: se envía cuando vuelva a entrar.</p>
                 </>
               ),
