@@ -323,47 +323,56 @@ export function Jornada() {
             {elegidoSolo && comunidadId && <span className="text-xs text-tenue">{planHoy ? 'Jornada de hoy. Puedes cambiarlo.' : 'El último que usaste. Puedes cambiarlo.'}</span>}
           </label>
 
-          {comunidadId && lista.data && (
-            <div className="min-w-56 flex-1">
-              <p className="flex flex-wrap items-baseline gap-x-2">
-                <span className="tabular text-2xl font-semibold tracking-tight">{vistos}</span>
-                <span className="text-sm text-tenue" title={`Pacientes regulares: los que se han perdido como mucho ${visitasSinVenir} visitas. Se cambia en Configuración.`}>
-                  de {regulares} vistos en la ronda
-                </span>
-                <span className="tabular ml-auto text-sm text-tenue">
-                  <strong className="font-semibold text-tinta">{vistosHoy}</strong> hoy
-                  {noVinieron > 0 && (
+          {comunidadId && lista.data && (() => {
+            // Lo esperado en la ronda es lo que suele venir (promedio de las últimas 5 jornadas), no todos
+            // los regulares: nunca vienen todos. Sin jornadas anteriores, los regulares.
+            const a = asistenciaJ.data?.find((x) => x.communityId === comunidadId);
+            const esperados = a?.promedio ?? regulares;
+            const detalle = a ? `Promedio de las últimas ${a.jornadas.length}: ${a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ')}` : undefined;
+            const superado = vistos >= esperados && esperados > 0;
+            return (
+              <div className="min-w-56 flex-1">
+                <p className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="tabular text-2xl font-semibold tracking-tight">{vistos}</span>
+                  <span className="text-sm text-tenue" title={detalle}>
+                    de {a ? '~' : ''}
+                    {esperados} esperados en la ronda
+                  </span>
+                  <span className="tabular ml-auto text-sm text-tenue">
+                    <strong className="font-semibold text-tinta">{vistosHoy}</strong> hoy
+                    {noVinieron > 0 && (
+                      <>
+                        {' · '}
+                        <strong className="font-semibold text-tinta">{noVinieron}</strong> no vinieron
+                      </>
+                    )}
+                  </span>
+                </p>
+                <div
+                  className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.06]"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={esperados}
+                  aria-valuenow={Math.min(vistos, esperados)}
+                  aria-label="Vistos de los esperados en la ronda"
+                >
+                  <div
+                    className={cn('h-full rounded-full transition-[width] duration-300 ease-out', superado ? 'bg-green-600' : 'bg-marca-500')}
+                    style={{ width: `${esperados ? Math.min(100, (vistos / esperados) * 100) : 0}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-tenue" title={`Regulares: los que se han perdido como mucho ${visitasSinVenir} visitas. Se cambia en Configuración.`}>
+                  {a ? (
                     <>
-                      {' · '}
-                      <strong className="font-semibold text-tinta">{noVinieron}</strong> no vinieron
+                      Esperados: lo que suele venir <span className="hidden sm:inline">(promedio de las últimas {a.jornadas.length === 1 ? 'jornada' : `${a.jornadas.length} jornadas`})</span> ·{' '}
                     </>
-                  )}
-                </span>
-              </p>
-              <div
-                className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.06]"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={regulares}
-                aria-valuenow={vistos}
-                aria-label="Vistos en la ronda"
-              >
-                <div className="h-full rounded-full bg-marca-500 transition-[width] duration-300 ease-out" style={{ width: `${regulares ? (vistos / regulares) * 100 : 0}%` }} />
+                  ) : null}
+                  {regulares} pacientes regulares
+                  {superado && <span className="font-medium text-green-700"> · ya se superó lo esperado</span>}
+                </p>
               </div>
-              {/* Para saber cuántos esperar (y cuánto medicamento llevar): lo que suele venir */}
-              {(() => {
-                const a = asistenciaJ.data?.find((x) => x.communityId === comunidadId);
-                if (!a) return null;
-                const detalle = a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ');
-                return (
-                  <p className="mt-1.5 text-xs text-tenue" title={detalle}>
-                    Suelen venir <strong className="font-semibold text-tinta">~{a.promedio}</strong> por jornada{' '}
-                    <span className="hidden sm:inline">(promedio de las últimas {a.jornadas.length === 1 ? 'jornada' : `${a.jornadas.length} jornadas`})</span>
-                  </p>
-                );
-              })()}
-            </div>
-          )}
+            );
+          })()}
 
           {comunidadId && (
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">

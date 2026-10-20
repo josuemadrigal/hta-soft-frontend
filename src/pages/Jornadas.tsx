@@ -460,7 +460,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
 
       <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
         {[
-          { t: 'Esperados', v: r.esperados, ayuda: suelen ? `suelen venir ~${suelen.promedio} (últimas ${suelen.jornadas.length})` : `de ${r.activos} regulares` },
+          // Esperados: lo que suele venir (promedio de las últimas 5 jornadas del batey); nunca vienen todos los regulares.
+          { t: 'Esperados', v: suelen?.promedio ?? r.esperados, ayuda: suelen ? `promedio de las últimas ${suelen.jornadas.length} · ${r.esperados} regulares` : `de ${r.activos} regulares` },
           { t: 'Atendidos', v: r.atendidos, ayuda: r.atendidos - r.atendidosEsperados > 0 ? `${r.atendidos - r.atendidosEsperados} fuera de lista` : undefined },
           { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, color: r.faltan ? 'text-red-600' : '', ayuda: r.noVinieron ? `${r.noVinieron} marcados "No vino"` : undefined },
           { t: 'Controlados', v: r.controlados, ayuda: r.atendidos ? `${Math.round((r.controlados / r.atendidos) * 100)}% de los atendidos` : undefined },
