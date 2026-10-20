@@ -168,7 +168,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
 
   // En seguimiento = vinieron en los últimos 6 meses.
   const enSeguimiento = t.seen + t.pending;
-  // La ronda se mide contra lo esperado: lo que suele venir a las jornadas de cada batey (últimas 5).
+  // La ronda se mide contra lo esperado: la media alta de las últimas jornadas de cada batey (ver Configuración).
   const esperados = t.expected ?? enSeguimiento;
   const pctRonda = esperados ? Math.min(100, Math.round((t.seen / esperados) * 100)) : 0;
   const faltan = (c: { missing?: number; pending: number }) => c.missing ?? c.pending;

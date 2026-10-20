@@ -68,6 +68,7 @@ export function Configuracion() {
       </Tarjeta>
       <AjustesAlertas />
       <AjusteRegulares />
+      <AjusteEsperados />
       <AjustesEntregas />
       <AjusteAvisoInventario />
       <AjusteSesion />
@@ -187,6 +188,67 @@ function AjustesEntregas() {
 }
 
 /** Minutos sin actividad tras los que se cierra la sesión. */
+/** Esperados por jornada: la media alta de las últimas N jornadas (el promedio de las K con más pacientes). */
+function AjusteEsperados() {
+  const consulta = useConfiguracion();
+  const cliente = useQueryClient();
+  const [jornadas, setJornadas] = useState<number | ''>('');
+  const [mejores, setMejores] = useState<number | ''>('');
+  useEffect(() => {
+    if (!consulta.data) return;
+    setJornadas(consulta.data.jornadasParaEsperados ?? 6);
+    setMejores(consulta.data.mejoresParaEsperados ?? 3);
+  }, [consulta.data]);
+  const guardar = useMutation({
+    mutationFn: () => guardarConfiguracion({ jornadasParaEsperados: Number(jornadas), mejoresParaEsperados: Number(mejores) }),
+    onSuccess: () => {
+      for (const k of [['configuracion'], ['stats'], ['jornadas'], ['reportes']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success('Guardado. El cambio quedó en Auditoría.');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!consulta.data) return null;
+  const n = Number(jornadas);
+  const k = Number(mejores);
+  const validoN = jornadas !== '' && Number.isInteger(n) && n >= 2 && n <= 20;
+  const validoK = mejores !== '' && Number.isInteger(k) && k >= 1 && k <= n;
+  const sinCambios = n === (consulta.data.jornadasParaEsperados ?? 6) && k === (consulta.data.mejoresParaEsperados ?? 3);
+  return (
+    <Tarjeta titulo="Pacientes esperados por jornada" className="mt-4 max-w-2xl">
+      <div className="space-y-4 p-5">
+        <p className="text-sm text-tenue">
+          Cuántos pacientes se esperan en cada jornada de un batey (en Registro en jornada, la ronda y el panel). Se miran sus últimas jornadas y se promedian las que tuvieron más
+          pacientes: así un día flojo no baja lo esperado. Si las dos cifras son iguales, es el promedio simple.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Jornadas recientes que se miran" error={!validoN && jornadas !== '' ? 'Entre 2 y 20' : undefined}>
+            <Entrada type="number" min={2} max={20} value={jornadas} onChange={(e) => setJornadas(e.target.value === '' ? '' : Number(e.target.value))} />
+          </Campo>
+          <Campo etiqueta="De esas, cuántas de las mejores se promedian" error={!validoK && mejores !== '' ? `Entre 1 y ${validoN ? n : 20}` : undefined}>
+            <Entrada type="number" min={1} max={validoN ? n : 20} value={mejores} onChange={(e) => setMejores(e.target.value === '' ? '' : Number(e.target.value))} />
+          </Campo>
+        </div>
+        {validoN && validoK && (
+          <p className="rounded-lg bg-fondo px-3 py-2 text-sm">
+            {k === n ? (
+              <>Se espera el <strong>promedio</strong> de las últimas {n} jornadas.</>
+            ) : k === 1 ? (
+              <>Se espera lo de <strong>la jornada con más pacientes</strong> de las últimas {n}.</>
+            ) : (
+              <>
+                Se espera el promedio de <strong>las {k} con más pacientes</strong> de las últimas {n} jornadas.
+              </>
+            )}
+          </p>
+        )}
+        <Boton icono={<Save className="size-4" />} disabled={!validoN || !validoK || sinCambios} cargando={guardar.isPending} onClick={() => guardar.mutate()}>
+          Guardar
+        </Boton>
+      </div>
+    </Tarjeta>
+  );
+}
+
 /** Cuántas visitas puede perderse un paciente y seguir contándose como regular (jornada, ronda, "Qué llevar"). */
 function AjusteRegulares() {
   const consulta = useConfiguracion();

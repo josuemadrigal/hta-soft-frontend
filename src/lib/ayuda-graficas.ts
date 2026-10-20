@@ -59,8 +59,8 @@ export const AYUDA = {
     significa: 'Son factores que suben la presión. Indican qué temas conviene hablar en las charlas: sal, alcohol, tabaco y antecedentes en la familia.',
   },
   rondaPorBatey: {
-    lee: 'Cada fila es un batey, primero los que más faltan. Esperados es lo que suele venir (el promedio de pacientes de sus últimas 5 jornadas); la barra es cuántos ya se vieron en esta ronda contra esos esperados, y se pone verde al llegar. Faltan es lo que queda para llegar. Regulares son todos los que todavía vienen, y Dejaron de venir los regulares que llevan más de 6 meses sin venir.',
-    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Nunca vienen todos los regulares: por eso se mide contra lo que suele venir. Los que se perdieron más visitas de las que se fijan en Configuración ya no cuentan. Los bateyes de arriba son donde más falta la próxima jornada.',
+    lee: 'Cada fila es un batey, primero los que más faltan. Esperados es la media alta de sus últimas jornadas (el promedio de las que tuvieron más pacientes, para prepararse para un buen día; cuántas, se ajusta en Configuración); la barra es cuántos ya se vieron en esta ronda contra esos esperados, y se pone verde al llegar. Faltan es lo que queda para llegar. Regulares son todos los que todavía vienen, y Dejaron de venir los regulares que llevan más de 6 meses sin venir.',
+    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Nunca vienen todos los regulares: por eso se mide contra lo que viene en un buen día. Los que se perdieron más visitas de las que se fijan en Configuración ya no cuentan. Los bateyes de arriba son donde más falta la próxima jornada.',
   },
 
   visitasPorMedico: {

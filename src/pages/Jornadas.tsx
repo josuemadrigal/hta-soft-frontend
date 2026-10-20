@@ -355,7 +355,7 @@ export function JornadaDetalle() {
 
 function Detalle({ d }: { d: DetalleJornada }) {
   const j = d.jornada;
-  // Cuántos suelen venir a las jornadas de este batey (las últimas 5): para saber cuánto llevar.
+  // Cuántos se esperan en las jornadas de este batey (media alta de las últimas jornadas): para saber cuánto llevar.
   const suelen = useAsistenciaJornadas().data?.find((x) => x.communityId === j.communityId);
   const navegar = useNavigate();
   const cliente = useQueryClient();
@@ -460,8 +460,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
 
       <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
         {[
-          // Esperados: lo que suele venir (promedio de las últimas 5 jornadas del batey); nunca vienen todos los regulares.
-          { t: 'Esperados', v: suelen?.promedio ?? r.esperados, ayuda: suelen ? `promedio de las últimas ${suelen.jornadas.length} · ${r.esperados} regulares` : `de ${r.activos} regulares` },
+          // Esperados: media alta de las últimas jornadas del batey (ver Configuración); nunca vienen todos los regulares.
+          { t: 'Esperados', v: suelen?.promedio ?? r.esperados, ayuda: suelen ? `media alta de las últimas ${suelen.jornadas.length} · ${r.esperados} regulares` : `de ${r.activos} regulares` },
           { t: 'Atendidos', v: r.atendidos, ayuda: r.atendidos - r.atendidosEsperados > 0 ? `${r.atendidos - r.atendidosEsperados} fuera de lista` : undefined },
           { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, color: r.faltan ? 'text-red-600' : '', ayuda: r.noVinieron ? `${r.noVinieron} marcados "No vino"` : undefined },
           { t: 'Controlados', v: r.controlados, ayuda: r.atendidos ? `${Math.round((r.controlados / r.atendidos) * 100)}% de los atendidos` : undefined },

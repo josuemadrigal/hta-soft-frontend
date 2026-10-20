@@ -168,6 +168,8 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
       entregaInmediata: 'Entregar al guardar la visita (1 = sí)',
       avisoInventarioCorreo: 'Aviso diario del inventario por correo (1 = sí)',
       visitasSinVenirRegular: 'Visitas que se puede perder un paciente regular',
+      jornadasParaEsperados: 'Esperados: jornadas recientes que se miran',
+      mejoresParaEsperados: 'Esperados: cuántas de las mejores se promedian',
       reposicionMesesMaximo: 'Reposición sin consulta: meses desde la última visita',
     };
     const cambios = Object.keys(b).filter((k) => a[k] !== b[k]);

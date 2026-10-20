@@ -324,11 +324,11 @@ export function Jornada() {
           </label>
 
           {comunidadId && lista.data && (() => {
-            // Lo esperado en la ronda es lo que suele venir (promedio de las últimas 5 jornadas), no todos
+            // Lo esperado en la ronda es la media alta de las últimas jornadas (las de más pacientes; ver Configuración), no todos
             // los regulares: nunca vienen todos. Sin jornadas anteriores, los regulares.
             const a = asistenciaJ.data?.find((x) => x.communityId === comunidadId);
             const esperados = a?.promedio ?? regulares;
-            const detalle = a ? `Promedio de las últimas ${a.jornadas.length}: ${a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ')}` : undefined;
+            const detalle = a ? `Media alta de las últimas ${a.jornadas.length} (las ${a.mejores ?? 3} con más pacientes)${a.media !== undefined ? `; promedio simple ~${a.media}` : ''}: ${a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ')}` : undefined;
             const superado = vistos >= esperados && esperados > 0;
             return (
               <div className="min-w-56 flex-1">
@@ -364,7 +364,7 @@ export function Jornada() {
                 <p className="mt-1.5 text-xs text-tenue" title={`Regulares: los que se han perdido como mucho ${visitasSinVenir} visitas. Se cambia en Configuración.`}>
                   {a ? (
                     <>
-                      Esperados: lo que suele venir <span className="hidden sm:inline">(promedio de las últimas {a.jornadas.length === 1 ? 'jornada' : `${a.jornadas.length} jornadas`})</span> ·{' '}
+                      Esperados: lo que viene en un buen día <span className="hidden sm:inline">(media alta de las últimas {a.jornadas.length === 1 ? 'jornada' : `${a.jornadas.length} jornadas`})</span> ·{' '}
                     </>
                   ) : null}
                   {regulares} pacientes regulares

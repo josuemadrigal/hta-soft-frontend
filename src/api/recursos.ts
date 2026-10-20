@@ -203,6 +203,10 @@ export type Configuracion = {
   avisoInventarioCorreo?: number;
   /** Visitas que se puede perder un paciente y seguir contándose como regular (una cada 3 meses). */
   visitasSinVenirRegular?: number;
+  /** Esperados por jornada: las últimas N jornadas del batey… */
+  jornadasParaEsperados?: number;
+  /** …y el promedio de las que tuvieron más pacientes (media alta). */
+  mejoresParaEsperados?: number;
 };
 export const leerConfiguracion = () => api<Configuracion>('/settings');
 export const guardarConfiguracion = (d: Partial<Configuracion>) => enviar<Configuracion>('/settings', 'PATCH', d);
@@ -236,8 +240,11 @@ export const crearJornada = (d: DatosJornada) => enviar<Jornada>('/jornadas', 'P
 export const editarJornada = (id: number, d: Partial<DatosJornada>) => enviar<Jornada>(`/jornadas/${id}`, 'PATCH', d);
 export const cancelarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cancelar`, 'POST');
 export const cerrarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cerrar`, 'POST');
-/** Cuántos suelen venir: promedio de pacientes de las últimas 5 jornadas de cada batey. */
-export type AsistenciaJornadas = { communityId: number; promedio: number; jornadas: { fecha: string; pacientes: number }[] }[];
+/**
+ * Cuántos se esperan: media alta de las últimas jornadas de cada batey (promedio de las `mejores`, las de más
+ * pacientes; cuántas se mira y cuántas se promedian, en Configuración). media = promedio simple.
+ */
+export type AsistenciaJornadas = { communityId: number; promedio: number; media?: number; mejores?: number; jornadas: { fecha: string; pacientes: number }[] }[];
 export const asistenciaJornadas = () => api<AsistenciaJornadas>('/jornadas/asistencia');
 export const destinatariosResumen = () => api<{ correoConfigurado: boolean; usuarios: DestinatarioResumen[] }>('/jornadas/destinatarios');
 export type DatosResumen = { destinatarios: number[]; nombres: boolean; nota?: string };

@@ -34,7 +34,7 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
               <th className={th} title="Los que se han perdido como mucho las visitas que se fijan en Configuración">
                 Regulares
               </th>
-              <th className={th} title="Lo que suele venir: promedio de pacientes de las últimas 5 jornadas del batey">
+              <th className={th} title="Media alta de las últimas jornadas del batey: el promedio de las que tuvieron más pacientes (se ajusta en Configuración)">
                 Esperados
               </th>
               <th className="w-56 px-3 py-2.5 text-left font-medium">Vistos en la ronda</th>
@@ -50,7 +50,7 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
           </thead>
           <tbody className="divide-y divide-borde">
             {filas.map((c) => {
-              // Contra lo esperado (lo que suele venir); se puede pasar del 100 %.
+              // Contra lo esperado (media alta de las últimas jornadas); se puede pasar del 100 %.
               const esperados = c.expected ?? c.active;
               const pct = esperados ? Math.round((c.seen / esperados) * 100) : 0;
               const proxima = indicadores.data?.find((b) => b.id === c.communityId)?.proximaJornada ?? null;
