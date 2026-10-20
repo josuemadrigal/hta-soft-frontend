@@ -60,7 +60,7 @@ export const AYUDA = {
   },
   rondaPorBatey: {
     lee: 'Cada fila es un batey, primero los que tienen más pendientes. La barra es cuántos de sus pacientes ya se vieron en esta ronda; Pendientes son los que faltan y Dejaron de venir los que llevan más de 6 meses sin venir.',
-    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Los bateyes de arriba son donde más falta la próxima jornada.',
+    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Solo se cuentan los pacientes regulares (los que no se han perdido más visitas de las que se fijan en Configuración). Los bateyes de arriba son donde más falta la próxima jornada.',
   },
   visitasPorMedico: {
     lee: 'Cada barra es un médico (los 12 con más visitas): su altura es la cantidad de visitas (escala de la izquierda). El punto negro es el % de sus pacientes controlados (escala de la derecha).',

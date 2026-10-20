@@ -30,7 +30,9 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
           <thead>
             <tr className="border-b border-borde text-xs text-tenue">
               <th className="px-5 py-2.5 text-left font-medium">Batey</th>
-              <th className={th}>Pacientes</th>
+              <th className={th} title="Los que se han perdido como mucho las visitas que se fijan en Configuración">
+                Regulares
+              </th>
               <th className="w-56 px-3 py-2.5 text-left font-medium">Vistos en la ronda</th>
               <th className={th}>Pendientes</th>
               <th className={th} title="Más de 6 meses sin venir">

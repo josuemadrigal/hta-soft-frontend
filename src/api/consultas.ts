@@ -44,7 +44,7 @@ export const useAnaliticaPaciente = (id: number) =>
 export const useVisitas = (f: r.FiltroVisitas) =>
   useQuery({ queryKey: ['visitas', f], queryFn: () => r.listarVisitas(f), placeholderData: keepPreviousData });
 export const useVisita = (id: number) => useQuery({ queryKey: ['visitas', 'una', id], queryFn: () => r.obtenerVisita(id) });
-export const useConfiguracion = (activo = true) => useQuery({ queryKey: ['configuracion'], queryFn: r.leerConfiguracion, staleTime: 5 * 60_000, enabled: activo });
+export const useConfiguracion = (activo = true) => useQuery({ queryKey: ['configuracion'], queryFn: r.leerConfiguracion, staleTime: 60_000, enabled: activo });
 export const useQuienesAtienden = () => useQuery({ queryKey: ['visitas', 'atienden'], queryFn: r.listarQuienesAtienden, ...CATALOGO });
 
 export const useEstadisticasPanel = (batey?: number) => useQuery({ queryKey: ['stats', 'panel', batey], queryFn: () => r.estadisticasPanel(batey), placeholderData: keepPreviousData });

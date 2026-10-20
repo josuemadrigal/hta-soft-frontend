@@ -198,6 +198,8 @@ export type Configuracion = {
   reposicionMesesMaximo: number;
   /** 1 = aviso diario por correo de lotes vencidos, por vencer o bajo el mínimo. */
   avisoInventarioCorreo?: number;
+  /** Visitas que se puede perder un paciente y seguir contándose como regular (una cada 3 meses). */
+  visitasSinVenirRegular?: number;
 };
 export const leerConfiguracion = () => api<Configuracion>('/settings');
 export const guardarConfiguracion = (d: Partial<Configuracion>) => enviar<Configuracion>('/settings', 'PATCH', d);

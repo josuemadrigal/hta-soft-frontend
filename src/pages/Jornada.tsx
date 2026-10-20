@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useComunidades, useJornada, useJornadas } from '../api/consultas';
+import { useComunidades, useConfiguracion, useJornada, useJornadas } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { marcarNoVino, quitarNoVino, type DatosNoVino } from '../api/recursos';
 import type { Inasistencia, MotivoInasistencia, PacienteJornada } from '../api/tipos';
@@ -17,8 +17,9 @@ import { asistencia } from '../lib/asistencia';
 import { mensajeEntrega } from '../lib/entregas';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
 import { ymd } from '../components/SelectorFecha';
+import { corteRegulares, esRegular, tiempoSinVenir, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
 
-type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino';
+type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
 
 /** Asistencia (lib/asistencia.ts): "Pendiente" aún no viene en esta ronda; "No asiste desde…" lleva más de 6 meses sin venir. */
 const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> = {
@@ -28,12 +29,15 @@ const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> 
   hoy: { texto: 'Visto hoy', color: '#15803d', orden: 3 },
   ronda: { texto: 'Visto en la ronda', color: '#7a5c00', orden: 4 },
   noVino: { texto: 'No vino', color: '#6b665e', orden: 5 },
+  // Se perdió más visitas de las que se aceptan (Configuración): no cuenta como "por ver".
+  yaNoViene: { texto: 'Ya no viene', color: '#6b665e', orden: 6 },
 };
 
 const FILTROS = [
   { valor: 'pendientes', texto: 'Por ver' },
   { valor: 'hoy', texto: 'Vistos hoy' },
   { valor: 'novino', texto: 'No vinieron' },
+  { valor: 'yanovienen', texto: 'Ya no vienen' },
   { valor: 'todos', texto: 'Todos' },
 ] as const;
 
@@ -54,10 +58,11 @@ function textoNoVino(p: PacienteJornada, locales: Locales) {
   return `No vino · ${MOTIVOS_INASISTENCIA[motivo].toLowerCase()}${t ? ` · tratamiento dejado con ${conQuien(t.recibioNombre, t.recibioParentesco)}` : ''}`;
 }
 
-function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales): Estado {
+function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales, corte: Date): Estado {
   if (locales.visitas.has(p.id)) return 'hoy';
   const u = p.clinicalVisits[0];
   if (!(u && new Date(u.visitDate) >= hoy) && (locales.noVino.has(p.id) || p.inasistencias?.some((i) => i.fecha.slice(0, 10) === hoyYmd()))) return 'noVino';
+  if (!esRegular(u?.visitDate, p.registrationDate, corte)) return 'yaNoViene';
   if (!u) return 'nuevo';
   const visita = new Date(u.visitDate);
   if (visita >= hoy) return 'hoy';
@@ -93,6 +98,8 @@ export function Jornada() {
   // Un enlace viejo puede traer un batey que ya no existe: se trata como sin elegir.
   const comunidadId = comunidades.data?.some((c) => c.id === idPedido) ? idPedido : undefined;
   const lista = useJornada(comunidadId);
+  const configuracion = useConfiguracion();
+  const visitasSinVenir = configuracion.data?.visitasSinVenirRegular ?? VISITAS_SIN_VENIR_REGULAR;
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
   // Jornadas de hoy y de mañana: esos bateyes se descargan solos para trabajar sin señal.
   const manana = new Date();
@@ -210,15 +217,16 @@ export function Jornada() {
   const filas = useMemo(() => {
     const ronda = inicioRonda();
     const hoy = new Date(new Date().setHours(0, 0, 0, 0));
+    const corte = corteRegulares(visitasSinVenir);
     return (lista.data ?? [])
-      .map((p) => ({ p, estado: estadoDe(p, ronda, hoy, locales) }))
+      .map((p) => ({ p, estado: estadoDe(p, ronda, hoy, locales, corte) }))
       // Dentro de cada estado, la visita más reciente primero (los que faltan desde hace poco se recuperan más fácil).
       .sort(
         (a, b) =>
           ESTADOS[a.estado].orden - ESTADOS[b.estado].orden ||
           new Date(b.p.clinicalVisits[0]?.visitDate ?? 0).getTime() - new Date(a.p.clinicalVisits[0]?.visitDate ?? 0).getTime(),
       );
-  }, [lista.data, locales]);
+  }, [lista.data, locales, visitasSinVenir]);
 
   // Médicos que figuran como último en atender a alguien de este batey
   const medicosDelBatey = [
@@ -233,14 +241,18 @@ export function Jornada() {
   const vistos = filas.filter((f) => f.estado === 'hoy' || f.estado === 'ronda').length;
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
   const noVinieron = filas.filter((f) => f.estado === 'noVino').length;
-  const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino').length;
+  const yaNoVienen = filas.filter((f) => f.estado === 'yaNoViene').length;
+  // Los regulares: la ronda se mide contra ellos, no contra todos los registrados desde 2017.
+  const regulares = filas.length - yaNoVienen;
+  const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino' && f.estado !== 'yaNoViene').length;
   const q = busqueda.trim().toLowerCase();
   const visibles = filas.filter(({ p, estado }) => {
     if (medico && p.lastDoctorId !== medico) return false;
     if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
-    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino';
+    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino' && estado !== 'yaNoViene';
     if (filtro === 'hoy') return estado === 'hoy';
     if (filtro === 'novino') return estado === 'noVino';
+    if (filtro === 'yanovienen') return estado === 'yaNoViene';
     return true;
   });
 
@@ -307,7 +319,9 @@ export function Jornada() {
             <div className="min-w-56 flex-1">
               <p className="flex flex-wrap items-baseline gap-x-2">
                 <span className="tabular text-2xl font-semibold tracking-tight">{vistos}</span>
-                <span className="text-sm text-tenue">de {filas.length} vistos en la ronda</span>
+                <span className="text-sm text-tenue" title={`Pacientes regulares: los que se han perdido como mucho ${visitasSinVenir} visitas. Se cambia en Configuración.`}>
+                  de {regulares} vistos en la ronda
+                </span>
                 <span className="tabular ml-auto text-sm text-tenue">
                   <strong className="font-semibold text-tinta">{vistosHoy}</strong> hoy
                   {noVinieron > 0 && (
@@ -322,11 +336,11 @@ export function Jornada() {
                 className="mt-2 h-2 overflow-hidden rounded-full bg-black/[0.06]"
                 role="progressbar"
                 aria-valuemin={0}
-                aria-valuemax={filas.length}
+                aria-valuemax={regulares}
                 aria-valuenow={vistos}
                 aria-label="Vistos en la ronda"
               >
-                <div className="h-full rounded-full bg-marca-500 transition-[width] duration-300 ease-out" style={{ width: `${filas.length ? (vistos / filas.length) * 100 : 0}%` }} />
+                <div className="h-full rounded-full bg-marca-500 transition-[width] duration-300 ease-out" style={{ width: `${regulares ? (vistos / regulares) * 100 : 0}%` }} />
               </div>
             </div>
           )}
@@ -354,7 +368,7 @@ export function Jornada() {
             {/* Lo primero es en qué grupo se está: cada pestaña dice cuántos hay */}
             <div className="grid w-full grid-cols-2 gap-0.5 rounded-lg bg-black/5 p-0.5 text-sm sm:flex lg:w-auto" role="tablist" aria-label="Qué pacientes ver">
               {FILTROS.map((f) => {
-                const n = f.valor === 'pendientes' ? porVer : f.valor === 'hoy' ? vistosHoy : f.valor === 'novino' ? noVinieron : filas.length;
+                const n = f.valor === 'pendientes' ? porVer : f.valor === 'hoy' ? vistosHoy : f.valor === 'novino' ? noVinieron : f.valor === 'yanovienen' ? yaNoVienen : filas.length;
                 const activo = filtro === f.valor && !q;
                 return (
                   <button
@@ -389,11 +403,17 @@ export function Jornada() {
           ) : lista.isError ? (
             <ErrorCarga error={lista.error} />
           ) : visibles.length === 0 ? (
-            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : 'Nadie todavía'}>
+            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : filtro === 'yanovienen' ? 'Todos siguen viniendo' : 'Nadie todavía'}>
               {q ? 'Revisa cómo está escrito o busca por el código o la casa.' : filtro === 'pendientes' ? 'Todos los pacientes de este batey ya se vieron en la ronda.' : undefined}
             </Vacio>
           ) : (
             <ul className="divide-y divide-borde">
+              {filtro === 'yanovienen' && !q && (
+                <li className="bg-fondo px-5 py-3 text-sm text-tenue">
+                  Se perdieron más de {visitasSinVenir} {visitasSinVenir === 1 ? 'visita' : 'visitas'} (más de {tiempoSinVenir(visitasSinVenir)} sin venir), así que no cuentan como "por ver". Si alguno vuelve, al registrarle la visita
+                  vuelve a contar. El número se cambia en Configuración.
+                </li>
+              )}
               {visibles.map(({ p, estado }) => {
                 const u = p.clinicalVisits[0];
                 const e = ESTADOS[estado];
@@ -403,7 +423,7 @@ export function Jornada() {
                   ? { texto: 'Registrada · sin enviar', color: '#a16207' }
                   : estado === 'noVino'
                     ? { texto: textoNoVino(p, locales), color: e.color }
-                    : estado === 'sinVenir' && u
+                    : (estado === 'sinVenir' || estado === 'yaNoViene') && u
                       ? { texto: asistencia(u.visitDate).texto, color: asistencia(u.visitDate).masDeUnAno ? '#6b665e' : e.color }
                       : estado === 'pendiente'
                         ? null

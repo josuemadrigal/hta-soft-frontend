@@ -6,6 +6,7 @@ import { useConfiguracion } from '../api/consultas';
 import { guardarConfiguracion, type Configuracion as Ajustes } from '../api/recursos';
 import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, Segmentos, Tarjeta } from '../components/ui';
 import { cn } from '../lib/formato';
+import { tiempoSinVenir, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
 
 const PLAZOS = [
   { horas: 0, texto: 'No pueden' },
@@ -66,6 +67,7 @@ export function Configuracion() {
         </div>
       </Tarjeta>
       <AjustesAlertas />
+      <AjusteRegulares />
       <AjustesEntregas />
       <AjusteAvisoInventario />
       <AjusteSesion />
@@ -185,6 +187,51 @@ function AjustesEntregas() {
 }
 
 /** Minutos sin actividad tras los que se cierra la sesión. */
+/** Cuántas visitas puede perderse un paciente y seguir contándose como regular (jornada, ronda, "Qué llevar"). */
+function AjusteRegulares() {
+  const consulta = useConfiguracion();
+  const cliente = useQueryClient();
+  const [visitas, setVisitas] = useState<number | ''>('');
+  useEffect(() => {
+    if (consulta.data) setVisitas(consulta.data.visitasSinVenirRegular ?? VISITAS_SIN_VENIR_REGULAR);
+  }, [consulta.data]);
+  const guardar = useMutation({
+    mutationFn: () => guardarConfiguracion({ visitasSinVenirRegular: Number(visitas) }),
+    onSuccess: () => {
+      // Cambia quién cuenta en la jornada, la ronda y el panel.
+      for (const k of [['configuracion'], ['stats'], ['jornada'], ['jornadas'], ['reportes']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success('Guardado. El cambio quedó en Auditoría.');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!consulta.data) return null;
+  const actual = consulta.data.visitasSinVenirRegular ?? VISITAS_SIN_VENIR_REGULAR;
+  const n = Number(visitas);
+  const valido = visitas !== '' && Number.isInteger(n) && n >= 1 && n <= 40;
+  return (
+    <Tarjeta titulo="Pacientes regulares" className="mt-4 max-w-2xl">
+      <div className="space-y-4 p-5">
+        <p className="text-sm text-tenue">
+          No todos los registrados desde 2017 siguen viniendo. Un paciente cuenta como <strong className="text-tinta">regular</strong> mientras no se haya perdido más de este número de
+          visitas (una cada 3 meses). Los demás siguen en el sistema y se pueden buscar y atender, pero no salen como "por ver" en la jornada ni en la ronda, ni se les prepara
+          medicamento en "Qué llevar". Si uno vuelve, al registrarle la visita vuelve a contar.
+        </p>
+        <Campo
+          etiqueta="Visitas que se puede perder y seguir siendo regular"
+          error={!valido && visitas !== '' ? 'Entre 1 y 40 visitas' : undefined}
+          ayuda={valido ? `Con ${n}: deja de contar quien lleva más de ${tiempoSinVenir(n)} sin venir.` : undefined}
+          className="max-w-80"
+        >
+          <Entrada type="number" min={1} max={40} value={visitas} onChange={(e) => setVisitas(e.target.value === '' ? '' : Number(e.target.value))} />
+        </Campo>
+        <Boton icono={<Save className="size-4" />} disabled={!valido || n === actual} cargando={guardar.isPending} onClick={() => guardar.mutate()}>
+          Guardar
+        </Boton>
+      </div>
+    </Tarjeta>
+  );
+}
+
 /** El correo de cada mañana a quien gestiona el inventario (vencidos, por vencer, bajo el mínimo). */
 function AjusteAvisoInventario() {
   const consulta = useConfiguracion();
