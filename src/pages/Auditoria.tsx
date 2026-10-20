@@ -32,6 +32,7 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   BLOQUEO: { texto: 'Cuenta bloqueada', color: '#dc2626' },
   DESBLOQUEO: { texto: 'Desbloqueó una cuenta', color: '#15803d' },
   SESIONES_CERRADAS: { texto: 'Cerró las sesiones de un usuario', color: '#a16207' },
+  PLANILLA_ENVIADA: { texto: 'Envió la planilla por correo', color: '#2563eb' },
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   REACTIVAR: { texto: 'Reactivó', color: '#15803d' },
@@ -248,6 +249,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.action === 'VIEW') return 'Abrió la ficha del paciente';
   if (r.action === 'EXPORT') return `${d.exportacion}${d.filtros ? ` · filtros: ${Object.entries(d.filtros as Record<string, unknown>).map(([k, v]) => `${k}=${v}`).join(', ') || 'ninguno'}` : ''}`;
   if (r.action === 'LOGIN') return `Inició sesión${d.ip ? ` desde ${d.ip}` : ''}`;
+  if (r.action === 'PLANILLA_ENVIADA') return `Planilla de ${d.periodo} a ${(d.para as string[]).join(', ')}${d.simulado ? ' (sin enviar: el servidor no tiene correo)' : ''}`;
   if (r.action === 'SESIONES_CERRADAS') return `${d.nombre}: se cerraron todas sus sesiones; tiene que volver a entrar`;
   if (r.action === 'DESBLOQUEO') return `${d.email}: puede volver a entrar sin esperar`;
   if (r.action === 'BLOQUEO') return `${d.email}: ${d.minutos} minutos bloqueada por intentos fallidos${d.ip ? ` (desde ${d.ip})` : ''}`;

@@ -42,6 +42,7 @@ import { PantallaReporteEntregas } from './pages/ReporteEntregas';
 import { HojaPreparacion } from './pages/HojaPreparacion';
 import { HojaIndicaciones } from './pages/HojaIndicaciones';
 import { Planilla } from './pages/Planilla';
+import { EnviarPlanilla } from './pages/EnviarPlanilla';
 
 function Protegida({ children }: { children: ReactNode }) {
   const { usuario } = useSesion();
@@ -110,6 +111,7 @@ export function App() {
         <Route path="reportes/entregas" element={<ConPermiso permiso="reportes.ver"><PantallaReporteEntregas /></ConPermiso>} />
         <Route path="reportes/donantes" element={<ConPermiso permiso="reportes.ver"><Donantes /></ConPermiso>} />
         <Route path="reportes/planilla" element={<ConPermiso permiso="reportes.ver"><Planilla /></ConPermiso>} />
+        <Route path="reportes/planilla/enviar" element={<ConPermiso permiso="reportes.ver"><EnviarPlanilla /></ConPermiso>} />
         <Route path="metas" element={<ConPermiso permiso="reportes.ver"><Metas /></ConPermiso>} />
         <Route path="mapa" element={<ConPermiso permiso="pacientes.ver"><MapaBateyes /></ConPermiso>} />
         <Route path="clasificacion" element={<ConPermiso permiso="clasificacion.gestionar"><ClasificacionPA /></ConPermiso>} />

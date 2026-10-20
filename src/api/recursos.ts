@@ -275,6 +275,10 @@ export const pacientesAltoRiesgo = () => api<PacienteAltoRiesgo[]>('/stats/high-
 export const visitasRecientes = () => api<VisitaReciente[]>('/stats/recent-visits');
 export const resumenReporte = (f: FiltroReporte) => api<ResumenReporte>(`/reports/summary${query(f)}`);
 export const planillaJornada = (f: { from: string; to: string }) => api<Planilla>(`/reports/planilla${query(f)}`);
+export type DestinatariosPlanilla = { correoConfigurado: boolean; usuarios: { id: number; nombre: string; email: string; rol: string; confirmado: boolean }[]; otrosCorreos: string[] };
+export const destinatariosPlanilla = () => api<DestinatariosPlanilla>('/reports/planilla/destinatarios');
+export type DatosEnvioPlanilla = { from: string; to: string; periodo: string; destinatarios: number[]; correos: string[]; nota?: string };
+export const enviarPlanilla = (d: DatosEnvioPlanilla) => enviar<{ enviados: number; simulado: boolean; para: string[] }>('/reports/planilla/enviar', 'POST', d);
 export const listarMedicos = (f: FiltroReporte, eliminados = false) => api<ListaMedicos>(`/doctors${query({ ...f, eliminados: eliminados ? 'true' : undefined })}`);
 export const detalleMedico = (id: number, f: FiltroReporte) => api<DetalleMedico>(`/doctors/${id}${query(f)}`);
 export const compararMedicos = (ids: number[], f: FiltroReporte) => api<ComparacionMedicos>(`/doctors/compare${query({ ...f, ids: ids.join(',') })}`);

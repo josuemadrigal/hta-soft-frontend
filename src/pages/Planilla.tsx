@@ -1,4 +1,5 @@
-import { Download, Printer } from 'lucide-react';
+import { Download, Printer, Send } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import { usePlanilla } from '../api/consultas';
 import type { FilaPlanilla } from '../api/tipos';
@@ -40,6 +41,7 @@ export function Planilla() {
   const periodo = usePeriodoPanel();
   const consulta = usePlanilla({ from: `${periodo.desde}T00:00:00-04:00`, to: `${periodo.hasta}T23:59:59-04:00` });
   const [soloConVisitas, setSoloConVisitas] = useState(false);
+  const navegar = useNavigate();
 
   const filas = (consulta.data?.filas ?? []).filter((f) => !soloConVisitas || f.evaluados > 0);
   const total = consulta.data?.total;
@@ -63,8 +65,11 @@ export function Planilla() {
             <Boton variante="secundario" icono={<Download className="size-4" />} onClick={exportar} disabled={!consulta.data}>
               CSV
             </Boton>
-            <Boton icono={<Printer className="size-4" />} onClick={() => window.print()} disabled={!consulta.data}>
+            <Boton variante="secundario" icono={<Printer className="size-4" />} onClick={() => window.print()} disabled={!consulta.data}>
               Imprimir
+            </Boton>
+            <Boton icono={<Send className="size-4" />} onClick={() => navegar(`/reportes/planilla/enviar?desde=${periodo.desde}${periodo.hasta !== periodo.desde ? `&hasta=${periodo.hasta}` : ''}`)}>
+              Enviar por correo
             </Boton>
           </div>
         }
