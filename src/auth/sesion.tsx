@@ -81,13 +81,25 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         toast.info(`Se cerró la sesión tras ${minutos} minutos sin actividad.`);
       }
     };
+    // "En línea" (en Usuarios): mientras la persona usa la app, aunque no cambie de pantalla, se avisa al
+    // servidor cada 2 minutos. Si deja la pestaña de lado o sin tocarla 5 minutos, deja de aparecer en línea.
+    let ultimoAviso = Date.now();
+    const avisarActividad = () => {
+      const ahora = Date.now();
+      if (!navigator.onLine || document.visibilityState !== 'visible' || ahora - leer() > 5 * 60_000 || ahora - ultimoAviso < 120_000) return;
+      ultimoAviso = ahora;
+      obtenerYo().catch(() => undefined);
+    };
     revisar();
     // Sin conexión, revisar() no cierra: tampoco se cuenta como actividad haber abierto la app,
     // para que al volver la conexión se cierre si el tiempo ya se había cumplido.
     if (navigator.onLine) marcar();
     const eventos = ['pointerdown', 'keydown', 'scroll', 'touchstart'] as const;
     for (const e of eventos) window.addEventListener(e, marcar, { passive: true });
-    const reloj = window.setInterval(revisar, 30_000);
+    const reloj = window.setInterval(() => {
+      revisar();
+      avisarActividad();
+    }, 30_000);
     window.addEventListener('online', revisar);
     return () => {
       window.removeEventListener('online', revisar);

@@ -43,6 +43,8 @@ export type Usuario = {
   bloqueadoHasta?: string | null;
   /** Última vez que inició sesión. */
   ultimoAcceso?: string | null;
+  /** Última vez que usó la app (cada minuto como mucho): "en línea" si fue hace menos de 5 minutos. */
+  ultimaActividad?: string | null;
   contrasenaCambiadaEn?: string | null;
 };
 

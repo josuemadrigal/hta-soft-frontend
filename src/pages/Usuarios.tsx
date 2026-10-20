@@ -61,7 +61,7 @@ export function Usuarios() {
         ) : consulta.isError ? (
           <ErrorCarga error={consulta.error} />
         ) : (
-          <Tabla columnas={['Usuario', 'Rol', 'Estado', 'Alta', { texto: '', className: 'w-24' }]}>
+          <Tabla columnas={['Usuario', 'Rol', 'Estado', 'Conexión', 'Alta', { texto: '', className: 'w-24' }]}>
             {consulta.data.data.map((u) => {
               // Bloqueado por intentos fallidos: se le quita el bloqueo sin esperar los 15 minutos.
               const bloqueado = !!u.bloqueadoHasta && new Date(u.bloqueadoHasta) > new Date();
@@ -94,6 +94,9 @@ export function Usuarios() {
                     ) : (
                       <Insignia color={u.isActive ? '#15803d' : undefined}>{u.isActive ? 'Activo' : 'Inactivo'}</Insignia>
                     )}
+                  </td>
+                  <td className="px-5 py-3">
+                    <Conexion u={u} />
                   </td>
                   <td className="px-5 py-3 text-tenue">{fecha(u.createdAt)}</td>
                   <td className="px-5 py-2 text-right whitespace-nowrap">
@@ -143,6 +146,45 @@ export function Usuarios() {
         )}
       </Tarjeta>
     </>
+  );
+}
+
+const HACE = new Intl.RelativeTimeFormat('es-DO', { numeric: 'auto' });
+/** "hace 3 minutos", "ayer", "hace 5 días"… */
+function hace(iso: string) {
+  const s = (new Date(iso).getTime() - Date.now()) / 1000;
+  const pasos: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['minute', 60],
+    ['hour', 3600],
+    ['day', 86_400],
+    ['month', 2_592_000],
+  ];
+  if (Math.abs(s) < 60) return 'hace un momento';
+  for (let i = pasos.length - 1; i >= 0; i--) if (Math.abs(s) >= pasos[i][1]) return HACE.format(Math.round(s / pasos[i][1]), pasos[i][0]);
+  return HACE.format(Math.round(s / 60), 'minute');
+}
+
+/** En línea (usó la app hace menos de 5 minutos) o cuándo fue la última vez, y cuándo inició sesión. */
+function Conexion({ u }: { u: Usuario }) {
+  const actividad = u.ultimaActividad ?? u.ultimoAcceso ?? null;
+  const enLinea = !!u.ultimaActividad && Date.now() - new Date(u.ultimaActividad).getTime() < 5 * 60_000;
+  return (
+    <div className="text-sm whitespace-nowrap">
+      {enLinea ? (
+        <span className="flex items-center gap-1.5 font-medium text-green-700">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex size-full rounded-full bg-green-500 opacity-60 motion-safe:animate-ping" />
+            <span className="relative inline-flex size-2 rounded-full bg-green-600" />
+          </span>
+          En línea
+        </span>
+      ) : (
+        <span className="text-tenue" title={actividad ? fechaYHora(actividad) : undefined}>
+          {actividad ? `Última vez ${hace(actividad)}` : 'Nunca ha entrado'}
+        </span>
+      )}
+      {u.ultimoAcceso && <span className="block text-xs text-tenue">Entró: {fechaYHora(u.ultimoAcceso)}</span>}
+    </div>
   );
 }
 

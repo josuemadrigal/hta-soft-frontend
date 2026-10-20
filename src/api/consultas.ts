@@ -24,7 +24,8 @@ export const useConfigPA = () => useQuery({ queryKey: ['config-pa'], queryFn: r.
 export const useConfigPAUna = (id: number | undefined) =>
   useQuery({ queryKey: ['config-pa', id], queryFn: () => r.obtenerConfigPA(id!), enabled: !!id });
 
-export const useUsuarios = () => useQuery({ queryKey: ['usuarios'], queryFn: r.listarUsuarios });
+// Cada minuto, para que "En línea" se mantenga al día mientras la lista está abierta.
+export const useUsuarios = () => useQuery({ queryKey: ['usuarios'], queryFn: r.listarUsuarios, refetchInterval: 60_000 });
 export const useUsuario = (id: number | undefined) =>
   useQuery({ queryKey: ['usuarios', id], queryFn: () => r.obtenerUsuario(id!), enabled: !!id });
 export const useRoles = () => useQuery({ queryKey: ['roles'], queryFn: r.listarRoles });

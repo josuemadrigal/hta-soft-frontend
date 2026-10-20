@@ -118,7 +118,13 @@ export function Pacientes() {
                 value={filtro.medico ?? ''}
                 onChange={(e) => cambiar({ medico: e.target.value })}
                 // Con fechas, el médico es quien lo atendió en esas fechas: el número (de su última visita) ya no aplica.
-                opciones={(medicos.data ?? []).map((m) => ({ value: m.id, label: porFecha ? m.nombre : `${m.nombre} (${m.pacientes})` }))}
+                // Solo los usuarios activos por nombre; los demás (cuentas borradas, iniciales del Excel) juntos como "Otros".
+                opciones={[
+                  ...(medicos.data ?? []).filter((m) => m.activo !== false).map((m) => ({ value: m.id, label: porFecha ? m.nombre : `${m.nombre} (${m.pacientes})` })),
+                  ...((medicos.data ?? []).some((m) => m.activo === false)
+                    ? [{ value: 0, label: porFecha ? 'Otros' : `Otros (${(medicos.data ?? []).filter((m) => m.activo === false).reduce((a, m) => a + m.pacientes, 0)})` }]
+                    : []),
+                ]}
                 aria-label={porFecha ? 'Lo atendió en esas fechas' : 'Último que lo atendió'}
               />
               <Selector vacio="Cualquier asistencia" value={filtro.situacion ?? ''} onChange={(e) => cambiar({ situacion: e.target.value })} opciones={SITUACIONES_ASISTENCIA} aria-label="Asistencia" />

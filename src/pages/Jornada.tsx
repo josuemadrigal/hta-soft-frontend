@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useAsistenciaJornadas, useComunidades, useConfiguracion, useJornada, useJornadas } from '../api/consultas';
+import { useAsistenciaJornadas, useComunidades, useConfiguracion, useJornada, useJornadas, useResponsables } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { marcarNoVino, quitarNoVino, type DatosNoVino } from '../api/recursos';
 import type { Inasistencia, MotivoInasistencia, PacienteJornada } from '../api/tipos';
@@ -103,6 +103,7 @@ export function Jornada() {
   const lista = useJornada(comunidadId);
   const configuracion = useConfiguracion();
   const asistenciaJ = useAsistenciaJornadas();
+  const usuariosActivos = useResponsables();
   const visitasSinVenir = configuracion.data?.visitasSinVenirRegular ?? VISITAS_SIN_VENIR_REGULAR;
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
   // Jornadas de hoy y de mañana: esos bateyes se descargan solos para trabajar sin señal.
@@ -232,15 +233,17 @@ export function Jornada() {
       );
   }, [lista.data, locales, visitasSinVenir]);
 
-  // Médicos que figuran como último en atender a alguien de este batey
-  const medicosDelBatey = [
-    ...filas
-      .reduce((m, { p }) => {
-        if (p.lastDoctorId) m.set(p.lastDoctorId, { id: p.lastDoctorId, nombre: p.lastDoctorNombre ?? `#${p.lastDoctorId}`, n: (m.get(p.lastDoctorId)?.n ?? 0) + 1 });
-        return m;
-      }, new Map<number, { id: number; nombre: string; n: number }>())
-      .values(),
-  ].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // Médicos que figuran como último en atender a alguien de este batey. Solo los usuarios activos van por
+  // nombre; los demás (cuentas borradas o desactivadas, iniciales del Excel) se juntan como "Otros" (id 0).
+  const activos = new Set((usuariosActivos.data ?? []).map((u) => u.id));
+  const esOtro = (id: number) => usuariosActivos.data !== undefined && !activos.has(id);
+  const porMedico = filas.reduce((m, { p }) => {
+    if (!p.lastDoctorId) return m;
+    const id = esOtro(p.lastDoctorId) ? 0 : p.lastDoctorId;
+    m.set(id, { id, nombre: id === 0 ? 'Otros' : (p.lastDoctorNombre ?? `#${id}`), n: (m.get(id)?.n ?? 0) + 1 });
+    return m;
+  }, new Map<number, { id: number; nombre: string; n: number }>());
+  const medicosDelBatey = [...porMedico.values()].sort((a, b) => Number(a.id === 0) - Number(b.id === 0) || a.nombre.localeCompare(b.nombre));
 
   const vistos = filas.filter((f) => f.estado === 'hoy' || f.estado === 'ronda').length;
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
@@ -251,6 +254,7 @@ export function Jornada() {
   const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino' && f.estado !== 'yaNoViene').length;
   const q = busqueda.trim().toLowerCase();
   const visibles = filas.filter(({ p, estado }) => {
+    if (medico === 0 && !(p.lastDoctorId && esOtro(p.lastDoctorId))) return false;
     if (medico && p.lastDoctorId !== medico) return false;
     if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
     if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino' && estado !== 'yaNoViene';
@@ -408,7 +412,7 @@ export function Jornada() {
               className="h-10 w-full min-w-48 sm:w-auto"
               vacio="Lo atendió: cualquiera"
               value={medico}
-              onChange={(e) => setMedico(e.target.value ? Number(e.target.value) : '')}
+              onChange={(e) => setMedico(e.target.value === '' ? '' : Number(e.target.value))}
               opciones={medicosDelBatey.map((m) => ({ value: m.id, label: `${m.nombre} (${m.n})` }))}
               aria-label="Último que lo atendió"
             />

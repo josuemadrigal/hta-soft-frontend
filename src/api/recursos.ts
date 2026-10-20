@@ -127,7 +127,8 @@ export const subirFotoPaciente = (id: number, archivo: File) => {
 };
 export const quitarFotoPaciente = (id: number) => enviar<Paciente>(`/patients/${id}/photo`, 'DELETE');
 export const ultimosMedicos = (communityId?: number) =>
-  api<{ id: number; nombre: string; pacientes: number }[]>(`/patients/medicos${query({ communityId })}`);
+  // activo: es un usuario activo de la app (los demás se juntan como "Otros").
+  api<{ id: number; nombre: string; pacientes: number; activo?: boolean }[]>(`/patients/medicos${query({ communityId })}`);
 export const pacientesJornada = (comunidad: number) => api<PacienteJornada[]>(`/patients/jornada/${comunidad}`);
 
 /* Visitas y recetas */
