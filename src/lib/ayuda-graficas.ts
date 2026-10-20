@@ -59,9 +59,10 @@ export const AYUDA = {
     significa: 'Son factores que suben la presión. Indican qué temas conviene hablar en las charlas: sal, alcohol, tabaco y antecedentes en la familia.',
   },
   rondaPorBatey: {
-    lee: 'Cada fila es un batey, primero los que tienen más pendientes. La barra es cuántos de sus pacientes ya se vieron en esta ronda; Pendientes son los que faltan y Dejaron de venir los que llevan más de 6 meses sin venir.',
-    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Solo se cuentan los pacientes regulares (los que no se han perdido más visitas de las que se fijan en Configuración). Los bateyes de arriba son donde más falta la próxima jornada.',
+    lee: 'Cada fila es un batey, primero los que más faltan. Esperados es lo que suele venir (el promedio de pacientes de sus últimas 5 jornadas); la barra es cuántos ya se vieron en esta ronda contra esos esperados, y se pone verde al llegar. Faltan es lo que queda para llegar. Regulares son todos los que todavía vienen, y Dejaron de venir los regulares que llevan más de 6 meses sin venir.',
+    significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Nunca vienen todos los regulares: por eso se mide contra lo que suele venir. Los que se perdieron más visitas de las que se fijan en Configuración ya no cuentan. Los bateyes de arriba son donde más falta la próxima jornada.',
   },
+
   visitasPorMedico: {
     lee: 'Cada barra es un médico (los 12 con más visitas): su altura es la cantidad de visitas (escala de la izquierda). El punto negro es el % de sus pacientes controlados (escala de la derecha).',
     significa: `Compara el trabajo de cada médico en el periodo. ${CONTROLADO} El % depende también de los pacientes que le tocaron: uno que atiende a muchos nuevos tendrá un % más bajo al principio.`,

@@ -364,9 +364,14 @@ export type TendenciaPanel = {
 
 export type EstadisticasRonda = {
   round: { label: string; start: string; end: string };
-  /** pending = pendientes de la ronda (vinieron hace menos de 6 meses); absent = no asisten hace más de 6 meses (absentYear: más de un año) */
-  totals: { active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number };
-  byCommunity: { communityId: number; name: string; active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number; lastVisit: string | null }[];
+  /**
+   * active = regulares; pending = regulares a los que les toca (vinieron hace menos de 6 meses); absent = regulares que no
+   * asisten hace más de 6 meses (absentYear: más de un año); retired = ya no vienen (no son regulares);
+   * expected = esperados en la ronda (promedio de las últimas 5 jornadas); missing = faltan para llegar a los esperados.
+   */
+  totals: { active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number };
+  byCommunity: { communityId: number; name: string; active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number; lastVisit: string | null }[];
+  visitasSinVenirRegular?: number;
   /** Pendientes de la ronda cuya última toma fue grado 2 o crisis */
   priority: { total: number; lista: { id: number; patientCode: string; firstName: string; lastName: string; address: string | null; communityId: number; presion: string; categoria: CategoriaPA; lastVisitDate: string }[] };
   absentPatients: {

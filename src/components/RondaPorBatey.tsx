@@ -1,4 +1,4 @@
-import { CalendarPlus } from 'lucide-react';
+import { CalendarPlus, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useIndicadoresBateyes } from '../api/consultas';
 import type { EstadisticasRonda } from '../api/tipos';
@@ -18,8 +18,9 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
   const navegar = useNavigate();
   const { tiene } = useSesion();
   const indicadores = useIndicadoresBateyes();
-  // Primero donde hay más pendientes: ahí hace falta la próxima jornada.
-  const filas = [...ronda.byCommunity].sort((a, b) => b.pending - a.pending || b.active - a.active);
+  // Primero donde más faltan para llegar a lo esperado: ahí hace falta la próxima jornada.
+  const faltan = (c: (typeof ronda.byCommunity)[number]) => c.missing ?? c.pending;
+  const filas = [...ronda.byCommunity].sort((a, b) => faltan(b) - faltan(a) || b.active - a.active);
   const th = 'px-3 py-2.5 text-right font-medium whitespace-nowrap';
   const td = 'px-3 py-2.5 text-right tabular-nums';
 
@@ -33,8 +34,13 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
               <th className={th} title="Los que se han perdido como mucho las visitas que se fijan en Configuración">
                 Regulares
               </th>
+              <th className={th} title="Lo que suele venir: promedio de pacientes de las últimas 5 jornadas del batey">
+                Esperados
+              </th>
               <th className="w-56 px-3 py-2.5 text-left font-medium">Vistos en la ronda</th>
-              <th className={th}>Pendientes</th>
+              <th className={th} title="Los que faltan para llegar a lo esperado">
+                Faltan
+              </th>
               <th className={th} title="Más de 6 meses sin venir">
                 Dejaron de venir
               </th>
@@ -44,23 +50,28 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
           </thead>
           <tbody className="divide-y divide-borde">
             {filas.map((c) => {
-              const pct = c.active ? Math.round((c.seen / c.active) * 100) : 0;
+              // Contra lo esperado (lo que suele venir); se puede pasar del 100 %.
+              const esperados = c.expected ?? c.active;
+              const pct = esperados ? Math.round((c.seen / esperados) * 100) : 0;
               const proxima = indicadores.data?.find((b) => b.id === c.communityId)?.proximaJornada ?? null;
               return (
                 <tr key={c.communityId} onClick={() => navegar(`/jornada?batey=${c.communityId}`)} className="cursor-pointer hover:bg-fondo">
                   <td className="px-5 py-2.5 font-medium whitespace-nowrap">{c.name}</td>
-                  <td className={td}>{miles(c.active)}</td>
+                  <td className={`${td} text-tenue`} title={c.retired ? `${c.retired} más ya no vienen` : undefined}>
+                    {miles(c.active)}
+                  </td>
+                  <td className={td}>~{miles(esperados)}</td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
-                        <div className="h-full rounded-full bg-tinta" style={{ width: `${pct}%` }} />
+                        <div className={pct >= 100 ? 'h-full rounded-full bg-green-600' : 'h-full rounded-full bg-tinta'} style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
                       <span className="w-20 text-right text-xs text-tenue tabular-nums">
                         {miles(c.seen)} · {pct}%
                       </span>
                     </div>
                   </td>
-                  <td className={td}>{miles(c.pending)}</td>
+                  <td className={td}>{faltan(c) ? miles(faltan(c)) : <Check className="ml-auto size-4 text-green-700" aria-label="Ya se llegó a lo esperado" />}</td>
                   <td className={`${td} text-tenue`} title={c.absentYear ? `${c.absentYear} de ellos hace más de un año` : undefined}>
                     {c.absent ? miles(c.absent) : '—'}
                   </td>

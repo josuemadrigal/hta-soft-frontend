@@ -166,9 +166,12 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
   const finRonda = new Date(r.round.end);
   const diasParaCerrar = Math.max(0, Math.ceil((finRonda.getTime() - Date.now()) / 86_400_000));
 
-  // En seguimiento = vinieron en los últimos 6 meses. La ronda se mide contra ellos.
+  // En seguimiento = vinieron en los últimos 6 meses.
   const enSeguimiento = t.seen + t.pending;
-  const pctRonda = enSeguimiento ? Math.round((t.seen / enSeguimiento) * 100) : 0;
+  // La ronda se mide contra lo esperado: lo que suele venir a las jornadas de cada batey (últimas 5).
+  const esperados = t.expected ?? enSeguimiento;
+  const pctRonda = esperados ? Math.min(100, Math.round((t.seen / esperados) * 100)) : 0;
+  const faltan = (c: { missing?: number; pending: number }) => c.missing ?? c.pending;
 
   // Tendencia del control
   const trimestres = tendencia.data?.trimestres ?? [];
@@ -190,7 +193,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
 
   // Para hacer
   const conJornada = new Set((proximas.data ?? []).map((j) => j.communityId));
-  const sinJornada = r.byCommunity.filter((c) => !conJornada.has(c.communityId) && c.pending > 0).sort((a, b) => b.pending - a.pending);
+  const sinJornada = r.byCommunity.filter((c) => !conJornada.has(c.communityId) && faltan(c) > 0).sort((a, b) => faltan(b) - faltan(a));
   const pendientes: Pendiente[] = [];
   const proxima = proximas.data?.[0];
   if (proxima) {
@@ -212,8 +215,8 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
       icono: <CalendarPlus className="size-4" />,
       texto: (
         <>
-          <strong>{sinJornada.length === 1 ? '1 batey' : `${sinJornada.length} bateyes`}</strong> sin jornada planificada esta ronda; el de más pendientes es{' '}
-          <strong>{sinJornada[0].name}</strong> ({miles(sinJornada[0].pending)}).
+          <strong>{sinJornada.length === 1 ? '1 batey' : `${sinJornada.length} bateyes`}</strong> sin jornada planificada esta ronda; donde más faltan para lo esperado es{' '}
+          <strong>{sinJornada[0].name}</strong> ({miles(faltan(sinJornada[0]))}).
         </>
       ),
       a: `/jornadas/nueva?batey=${sinJornada[0].communityId}`,
@@ -325,7 +328,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
           titulo={`Ronda ${r.round.label}`}
           valor={`${pctRonda}%`}
           progreso={pctRonda}
-          detalle={`${miles(t.seen)} de ${miles(enSeguimiento)} vistos · cierra en ${diasParaCerrar} días`}
+          detalle={`${miles(t.seen)} de ~${miles(esperados)} esperados · cierra en ${diasParaCerrar} días`}
           icono={<CalendarCheck className="size-4" />}
           a="/jornadas"
         />
@@ -349,7 +352,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
         <Indicador
           titulo="Dejaron de venir"
           valor={miles(t.absent)}
-          detalle={`Más de 6 meses sin venir · ${miles(t.absentYear)} hace más de un año`}
+          detalle={`Más de 6 meses sin venir${t.retired ? ` · ${miles(t.retired)} ya no vienen (no cuentan)` : ` · ${miles(t.absentYear)} hace más de un año`}`}
           icono={<SearchX className="size-4" />}
           a="/pacientes?situacion=sin-venir&orden=ausencia"
         />
@@ -438,7 +441,8 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
             {(proximas.data ?? []).length > 0 && (
               <ul className="divide-y divide-borde border-b border-borde">
                 {proximas.data!.slice(0, 4).map((j) => {
-                  const pendientesBatey = r.byCommunity.find((c) => c.communityId === j.communityId)?.pending ?? 0;
+                  const fila = r.byCommunity.find((c) => c.communityId === j.communityId);
+                  const pendientesBatey = fila ? faltan(fila) : 0;
                   return (
                     <li key={j.id}>
                       <Link to={`/jornadas/${j.id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-fondo">
@@ -449,7 +453,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
                         </span>
                         <span className="shrink-0 text-right text-xs text-tenue">
                           <span className="tabular block text-base font-semibold text-tinta">{miles(pendientesBatey)}</span>
-                          pendientes
+                          faltan
                         </span>
                       </Link>
                     </li>
@@ -467,7 +471,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{c.name}</span>
                         <span className="tabular block truncate text-xs text-tenue">
-                          {miles(c.pending)} pendientes · última visita {fecha(c.lastVisit)}
+                          {miles(faltan(c))} faltan de ~{miles(c.expected ?? c.active)} · última visita {fecha(c.lastVisit)}
                         </span>
                       </span>
                       {tiene('jornadas.planificar') && (
