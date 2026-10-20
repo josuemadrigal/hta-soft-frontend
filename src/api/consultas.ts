@@ -59,6 +59,7 @@ export const useJornada = (comunidad: number | undefined) =>
   useQuery({ queryKey: ['jornada', comunidad], queryFn: () => r.pacientesJornada(comunidad!), enabled: !!comunidad });
 export const usePlanilla = (f: { from: string; to: string }) =>
   useQuery({ queryKey: ['reportes', 'planilla', f], queryFn: () => r.planillaJornada(f), placeholderData: keepPreviousData });
+export const useConsumoMedicamentos = (activo = true) => useQuery({ queryKey: ['medicamentos', 'consumo'], queryFn: r.consumoMedicamentos, enabled: activo, staleTime: 10 * 60_000 });
 export const useResumenReporte = (f: FiltroReporte) =>
   useQuery({ queryKey: ['reportes', f], queryFn: () => r.resumenReporte(f), placeholderData: keepPreviousData });
 export const useMedicos = (f: FiltroReporte, eliminados = false) =>
@@ -75,7 +76,7 @@ export const useCasosRevision = (f: { tipo?: TipoCaso; descartados?: boolean }) 
   useQuery({ queryKey: ['revision', f], queryFn: () => r.casosRevision(f), placeholderData: keepPreviousData });
 export const useRevisionPaciente = (id: number) => useQuery({ queryKey: ['revision', 'paciente', id], queryFn: () => r.revisionPaciente(id) });
 
-export const useMetas = (anio: number) => useQuery({ queryKey: ['metas', anio], queryFn: () => r.metasAnio(anio), placeholderData: keepPreviousData });
+export const useMetas = (anio: number, batey?: number) => useQuery({ queryKey: ['metas', anio, batey ?? 0], queryFn: () => r.metasAnio(anio, batey), placeholderData: keepPreviousData });
 export const useReporteDonantes = (anio: number, trimestre: number | null) =>
   useQuery({ queryKey: ['donantes', anio, trimestre], queryFn: () => r.reporteDonantes(anio, trimestre), placeholderData: keepPreviousData });
 export const useIndicadoresBateyes = () => useQuery({ queryKey: ['bateyes-indicadores'], queryFn: r.indicadoresBateyes });

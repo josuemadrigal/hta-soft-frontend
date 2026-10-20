@@ -31,6 +31,7 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   LOGIN: { texto: 'Inició sesión', color: '#6b665e' },
   BLOQUEO: { texto: 'Cuenta bloqueada', color: '#dc2626' },
   DESBLOQUEO: { texto: 'Desbloqueó una cuenta', color: '#15803d' },
+  SESIONES_CERRADAS: { texto: 'Cerró las sesiones de un usuario', color: '#a16207' },
   ENTRADA: { texto: 'Entrada', color: '#15803d' },
   AJUSTE: { texto: 'Ajuste', color: '#a16207' },
   REACTIVAR: { texto: 'Reactivó', color: '#15803d' },
@@ -149,6 +150,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     const n = Number(d.visitasReasignadas ?? 0);
     return `${d.usuario} (${d.email}, ${d.rol})${n ? ` · ${n.toLocaleString('es-DO')} visitas reasignadas a ${d.reasignadasA}; cada una conserva quién atendió` : ' · sin visitas'}`;
   }
+  if (r.entity === 'User' && d.cambio === 'correo') return `${d.nombre}: cambió su correo de ${d.antes} a ${d.despues}`;
   if (r.entity === 'User' && d.cambio === 'usuario') return `${d.nombre}: cambió su usuario para entrar de ${d.antes ?? '(ninguno)'} a ${d.despues}`;
   if (r.entity === 'User' && d.cambio === 'nombre') return `Cambió el nombre: ${d.antes} → ${d.despues} (${Number(d.visitasActualizadas).toLocaleString('es-DO')} visitas actualizadas)`;
   if (r.entity === 'Configuracion') {
@@ -163,6 +165,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
       alertaVisitasSinControl: 'Alerta: visitas seguidas sin control',
       sesionMinutosInactividad: 'Cierre de sesión por inactividad (min)',
       entregaInmediata: 'Entregar al guardar la visita (1 = sí)',
+      avisoInventarioCorreo: 'Aviso diario del inventario por correo (1 = sí)',
       reposicionMesesMaximo: 'Reposición sin consulta: meses desde la última visita',
     };
     const cambios = Object.keys(b).filter((k) => a[k] !== b[k]);
@@ -202,7 +205,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     const antes = (d.antes ?? {}) as Record<string, number>;
     return Object.entries((d.despues ?? {}) as Record<string, number | null>)
       .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${antes[k] ?? '—'} → ${v ?? 'sin meta'}`)
-      .join(' · ') + ` (año ${d.anio})`;
+      .join(' · ') + ` (año ${d.anio}${d.batey ? ` · ${d.batey}` : ''})`;
   }
   if (r.entity === 'Patient' && r.action === 'MERGE') {
     const c = d.conservado as { codigo: string; nombre: string };
@@ -245,6 +248,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.action === 'VIEW') return 'Abrió la ficha del paciente';
   if (r.action === 'EXPORT') return `${d.exportacion}${d.filtros ? ` · filtros: ${Object.entries(d.filtros as Record<string, unknown>).map(([k, v]) => `${k}=${v}`).join(', ') || 'ninguno'}` : ''}`;
   if (r.action === 'LOGIN') return `Inició sesión${d.ip ? ` desde ${d.ip}` : ''}`;
+  if (r.action === 'SESIONES_CERRADAS') return `${d.nombre}: se cerraron todas sus sesiones; tiene que volver a entrar`;
   if (r.action === 'DESBLOQUEO') return `${d.email}: puede volver a entrar sin esperar`;
   if (r.action === 'BLOQUEO') return `${d.email}: ${d.minutos} minutos bloqueada por intentos fallidos${d.ip ? ` (desde ${d.ip})` : ''}`;
   if (r.entity === 'Medication' && r.action === 'ENTRADA') return `Entrada de ${d.cantidad} unidades (${d.origen === 'COMPRA' ? 'compra' : 'donación'}${d.procedencia ? `: ${d.procedencia}` : ''})${d.vencimiento ? ` · vence ${fecha(String(d.vencimiento))}` : ''}`;

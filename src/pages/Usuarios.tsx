@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, KeyRound, LockOpen, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { Camera, Check, KeyRound, LockOpen, LogOut, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useCatalogoPermisos, useRoles, useUsuario, useUsuarios } from '../api/consultas';
-import { borrarUsuario, crearUsuario, desbloquearUsuario, editarUsuario, reenviarConfirmacion, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
+import { borrarUsuario, cerrarSesionesUsuario, crearUsuario, desbloquearUsuario, editarUsuario, reenviarConfirmacion, subirFotoUsuario, type DatosUsuario } from '../api/recursos';
 import type { Usuario } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { Avatar, Boton, Campo, Cargando, Casilla, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
-import { cn, fecha, nombreCompleto } from '../lib/formato';
+import { cn, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
 
 export function Usuarios() {
   const consulta = useUsuarios();
@@ -301,6 +301,7 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
             <div className="space-y-4">
               <FotoUsuario usuario={usuario} />
               <CorreoUsuario usuario={usuario} />
+              {!esYo && <SesionesUsuario usuario={usuario} />}
             </div>
           ) : (
             <Tarjeta titulo="Foto">
@@ -337,6 +338,49 @@ function CorreoUsuario({ usuario }: { usuario: Usuario }) {
             </Boton>
           </>
         )}
+      </div>
+    </Tarjeta>
+  );
+}
+
+/** Cerrar todas sus sesiones: si se perdió o se robaron una tablet, o dejó una sesión abierta en otra computadora. */
+function SesionesUsuario({ usuario }: { usuario: Usuario }) {
+  const cliente = useQueryClient();
+  const confirmar = useConfirmar();
+  const cerrar = useMutation({
+    mutationFn: () => cerrarSesionesUsuario(usuario.id),
+    onSuccess: () => {
+      for (const k of [['usuarios'], ['usuario', usuario.id], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success(`Listo: ${nombreCompleto(usuario)} tendrá que volver a entrar en todos sus dispositivos.`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <Tarjeta titulo="Sesiones">
+      <div className="space-y-3 p-5 text-sm">
+        <p className="text-tenue">
+          Último inicio de sesión: <span className="text-tinta">{usuario.ultimoAcceso ? fechaYHora(usuario.ultimoAcceso) : 'nunca'}</span>
+        </p>
+        <Boton
+          variante="secundario"
+          className="w-full"
+          icono={<LogOut className="size-4" />}
+          cargando={cerrar.isPending}
+          onClick={async () =>
+            (await confirmar({
+              titulo: `¿Cerrar todas las sesiones de ${nombreCompleto(usuario)}?`,
+              mensaje: (
+                <>
+                  <p>En cada tableta, teléfono o computadora donde tenga la app abierta tendrá que volver a entrar con su contraseña.</p>
+                  <p className="mt-2">Úsalo si se perdió una tableta o dejó una sesión abierta en otro equipo. Lo que haya guardado sin internet no se pierde: se envía cuando vuelva a entrar.</p>
+                </>
+              ),
+              confirmar: 'Cerrar sesiones',
+            })) && cerrar.mutate()
+          }
+        >
+          Cerrar todas sus sesiones
+        </Boton>
       </div>
     </Tarjeta>
   );

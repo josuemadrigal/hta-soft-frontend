@@ -6,6 +6,7 @@ import type { Usuario } from '../api/tipos';
 import { useConfiguracion } from '../api/consultas';
 import { toast } from 'sonner';
 import { borrarDatosGuardados } from '../offline/datos';
+import { sincronizar } from '../offline/cola';
 
 type ContextoSesion = {
   usuario: Usuario | null;
@@ -114,6 +115,8 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         const sesion = await iniciarSesion(email, password);
         if (!sesion.user.isActive) throw new Error('Este usuario está desactivado.');
         guardarSesion(sesion);
+        // Lo que quedó guardado sin internet (o esperando sesión) se envía ya.
+        void sincronizar();
         // Empieza a contar la inactividad desde ahora (no desde la sesión anterior).
         try {
           localStorage.setItem('hta:ultima-actividad', String(Date.now()));

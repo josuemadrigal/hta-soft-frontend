@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useConfiguracion } from '../api/consultas';
 import { guardarConfiguracion, type Configuracion as Ajustes } from '../api/recursos';
-import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, Tarjeta } from '../components/ui';
+import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, Segmentos, Tarjeta } from '../components/ui';
 import { cn } from '../lib/formato';
 
 const PLAZOS = [
@@ -67,6 +67,7 @@ export function Configuracion() {
       </Tarjeta>
       <AjustesAlertas />
       <AjustesEntregas />
+      <AjusteAvisoInventario />
       <AjusteSesion />
     </>
   );
@@ -184,6 +185,42 @@ function AjustesEntregas() {
 }
 
 /** Minutos sin actividad tras los que se cierra la sesión. */
+/** El correo de cada mañana a quien gestiona el inventario (vencidos, por vencer, bajo el mínimo). */
+function AjusteAvisoInventario() {
+  const consulta = useConfiguracion();
+  const cliente = useQueryClient();
+  const guardar = useMutation({
+    mutationFn: (v: number) => guardarConfiguracion({ avisoInventarioCorreo: v }),
+    onSuccess: () => {
+      cliente.invalidateQueries({ queryKey: ['configuracion'] });
+      toast.success('Guardado. El cambio quedó en Auditoría.');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  if (!consulta.data) return null;
+  const activo = (consulta.data.avisoInventarioCorreo ?? 1) === 1;
+  return (
+    <Tarjeta titulo="Avisos del inventario por correo" className="mt-4 max-w-2xl">
+      <div className="space-y-4 p-5">
+        <p className="text-sm text-tenue">
+          Cada mañana, después de las 7, se manda un correo a quienes gestionan el inventario (con el correo confirmado) si hay lotes vencidos, lotes por vencer o medicamentos bajo el
+          mínimo. Si nada cambió desde el último aviso, no se repite hasta pasada una semana.
+        </p>
+        <Segmentos
+          etiqueta="Avisos del inventario por correo"
+          valor={activo ? 'si' : 'no'}
+          alCambiar={(v) => guardar.mutate(v === 'si' ? 1 : 0)}
+          className="max-w-xs"
+          opciones={[
+            { value: 'si', label: 'Mandar avisos' },
+            { value: 'no', label: 'No mandar' },
+          ]}
+        />
+      </div>
+    </Tarjeta>
+  );
+}
+
 function AjusteSesion() {
   const consulta = useConfiguracion();
   const cliente = useQueryClient();

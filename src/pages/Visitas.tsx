@@ -24,7 +24,7 @@ export function Visitas() {
     communityId: num(params.get('batey')),
     from: params.get('desde') ?? undefined,
     // Hasta el final del día elegido.
-    to: params.get('hasta') ? `${params.get('hasta')}T23:59:59` : undefined,
+    to: params.get('hasta') ?? undefined,
     doctorId: num(params.get('atendio')),
     bpClassificationId: num(params.get('categoria')),
     visitType: params.get('tipo') ?? undefined,

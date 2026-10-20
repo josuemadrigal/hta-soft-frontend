@@ -11,6 +11,7 @@ import { useSesion } from '../auth/sesion';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, Insignia, Paginacion, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, diasHasta, fechaDia, fechaYHora, nombreCompleto } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { ymd } from '../components/SelectorFecha';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORIGENES: Record<OrigenLote, string> = { DONACION: 'Donación', COMPRA: 'Compra', INICIAL: 'Saldo inicial', AJUSTE: 'Ajuste' };
@@ -174,7 +175,7 @@ export function EntradaInventario() {
   const medicamentos = useMedicamentos();
   const navegar = useNavigate();
   const cliente = useQueryClient();
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = ymd(new Date());
   const { register, handleSubmit, formState, watch, reset, control } = useForm<FormEntrada>({
     defaultValues: { medicationId: params.get('med') ?? '', origen: 'DONACION', fechaEntrada: hoy, numero: '', vencimiento: '', procedencia: '', nota: '' },
   });

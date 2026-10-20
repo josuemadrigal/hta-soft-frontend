@@ -4,9 +4,10 @@ import type { FiltroReporte } from '../api/tipos';
 import { cn } from '../lib/formato';
 import { BotonesTrimestre } from './Periodo';
 import { Selector, Tarjeta } from './ui';
-import { SelectorFecha } from './SelectorFecha';
+import { SelectorFecha, ymd } from './SelectorFecha';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Fecha local (no UTC): después de las 8 p. m. en RD, toISOString ya daría mañana.
+const iso = (d: Date) => ymd(d);
 
 function presets() {
   const hoy = new Date();
@@ -24,7 +25,8 @@ export function useFiltroPeriodo(): FiltroReporte & { desde: string; hasta: stri
   const [porDefecto] = presets();
   const desde = params.get('desde') ?? porDefecto.desde;
   const hasta = params.get('hasta') ?? porDefecto.hasta;
-  return { desde, hasta, from: desde, to: `${hasta}T23:59:59`, communityId: Number(params.get('batey')) || undefined };
+  // Días de RD: el servidor toma "YYYY-MM-DD" como el día entero.
+  return { desde, hasta, from: desde, to: hasta, communityId: Number(params.get('batey')) || undefined };
 }
 
 export function FiltroPeriodo({ conBatey = true }: { conBatey?: boolean }) {

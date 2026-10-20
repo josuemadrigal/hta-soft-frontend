@@ -98,7 +98,9 @@ export async function sincronizar() {
         await del(p.id, almacen);
         enviados++;
       } catch (e) {
-        if (esFaltaDeConexion(e)) break;
+        // Sin conexión, o sin sesión (venció o la cerraron): se espera, sin marcarlo como error.
+        // Se envía solo en cuanto vuelva la conexión o la persona vuelva a entrar.
+        if (esFaltaDeConexion(e) || (e instanceof ErrorApi && e.status === 401)) break;
         // 409: ya estaba (un envío anterior llegó aunque no recibimos la respuesta).
         if (e instanceof ErrorApi && e.status === 409) {
           await del(p.id, almacen);

@@ -77,6 +77,7 @@ export const pedirConfirmacionCorreo = () => enviar<ResultadoCorreo>('/auth/corr
 export const confirmarCorreo = (token: string) => enviar<{ email: string }>('/auth/correo/confirmar', 'POST', { token });
 export const olvideContrasena = (email: string) => enviar<{ ok: true }>('/auth/contrasena/olvido', 'POST', { email });
 export const restablecerContrasena = (token: string, nueva: string) => enviar<{ email: string }>('/auth/contrasena/restablecer', 'POST', { token, nueva });
+export const cerrarSesionesUsuario = (userId: number) => enviar<Usuario>(`/users/${userId}/cerrar-sesiones`, 'POST');
 export const desbloquearUsuario = (userId: number) => enviar<Usuario>(`/users/${userId}/desbloquear`, 'POST');
 export const reenviarConfirmacion = (userId: number) => enviar<ResultadoCorreo>(`/users/${userId}/confirmacion-correo`, 'POST');
 
@@ -107,6 +108,12 @@ export type DatosPaciente = Omit<
 
 export const listarPacientes = (f: FiltroPacientes) =>
   api<Paginado<Paciente>>(`/patients${query({ limit: 15, ...f })}`);
+/** Pacientes que podrían ser la misma persona (antes de registrar uno nuevo). */
+export type PacienteParecido = Pick<Paciente, 'id' | 'patientCode' | 'firstName' | 'lastName' | 'birthDate' | 'birthDateIsEstimated' | 'status' | 'lastVisitDate' | 'address' | 'communityId'> & { community: { name: string } };
+export const pacientesParecidos = (d: { nombre: string; apellido: string; batey?: number; nacimiento?: string }) => api<PacienteParecido[]>(`/patients/parecidos${query(d)}`);
+/** Lo que se entrega por mes de cada medicamento (últimos 12 meses, o los que haya). */
+export type ConsumoMedicamentos = { meses: number; medicamentos: { medicationId: number; entregadas: number; porMes: number }[] };
+export const consumoMedicamentos = () => api<ConsumoMedicamentos>('/medication/consumo');
 export const obtenerPaciente = (id: number) => api<Paciente | null>(`/patients/${id}`);
 export const tensionPaciente = (id: number) => api<PuntoTension[]>(`/patients/${id}/timeline`);
 export const analiticaPaciente = (id: number) => api<AnaliticaPaciente>(`/patients/${id}/analytics`);
@@ -189,6 +196,8 @@ export type Configuracion = {
   entregaInmediata: number;
   /** Reposición sin consulta: hasta estos meses desde la última visita. */
   reposicionMesesMaximo: number;
+  /** 1 = aviso diario por correo de lotes vencidos, por vencer o bajo el mínimo. */
+  avisoInventarioCorreo?: number;
 };
 export const leerConfiguracion = () => api<Configuracion>('/settings');
 export const guardarConfiguracion = (d: Partial<Configuracion>) => enviar<Configuracion>('/settings', 'PATCH', d);
@@ -303,8 +312,9 @@ export const regenerarCodigoPaciente = (id: number) => enviar<Paciente>(`/patien
 export const cambiarCodigoPaciente = (id: number, codigo: string) => enviar<Paciente>(`/patients/${id}/codigo`, 'POST', { codigo });
 
 /* Metas, donantes, mapa */
-export const metasAnio = (anio: number) => api<MetasAnio>(`/metas/${anio}`);
-export const guardarMetas = (anio: number, valores: Partial<Record<ClaveIndicador, number | null>>) => enviar<MetasAnio>(`/metas/${anio}`, 'PUT', { valores });
+export const metasAnio = (anio: number, batey?: number) => api<MetasAnio>(`/metas/${anio}${batey ? `?batey=${batey}` : ''}`);
+export const guardarMetas = (anio: number, valores: Partial<Record<ClaveIndicador, number | null>>, batey?: number) =>
+  enviar<MetasAnio>(`/metas/${anio}${batey ? `?batey=${batey}` : ''}`, 'PUT', { valores });
 /** trimestre null = año completo */
 export const reporteDonantes = (anio: number, trimestre: number | null) => api<ReporteDonantes>(`/reports/donantes?anio=${anio}${trimestre ? `&trimestre=${trimestre}` : ''}`);
 export const descargarPdfDonantes = (anio: number, trimestre: number | null) =>

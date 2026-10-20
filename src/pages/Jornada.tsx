@@ -16,6 +16,7 @@ import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insigni
 import { asistencia } from '../lib/asistencia';
 import { mensajeEntrega } from '../lib/entregas';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
+import { ymd } from '../components/SelectorFecha';
 
 type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino';
 
@@ -93,6 +94,10 @@ export function Jornada() {
   const comunidadId = comunidades.data?.some((c) => c.id === idPedido) ? idPedido : undefined;
   const lista = useJornada(comunidadId);
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
+  // Jornadas de hoy y de mañana: esos bateyes se descargan solos para trabajar sin señal.
+  const manana = new Date();
+  manana.setDate(manana.getDate() + 1);
+  const pronto = useJornadas({ desde: hoyYmd(), hasta: ymd(manana), estado: 'PLANIFICADA' });
   const planHoy = hoyPlan.data?.find((j) => j.communityId === comunidadId);
 
   // Al entrar sin batey elegido se pone solo el de la jornada de hoy (una sola vez: si después lo
@@ -328,7 +333,7 @@ export function Jornada() {
 
           {comunidadId && (
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <DescargarBatey comunidadId={comunidadId} total={lista.data?.length} enLinea={enLinea} />
+              <DescargarBatey comunidadId={comunidadId} total={lista.data?.length} enLinea={enLinea} automatica={!!pronto.data?.some((j) => j.communityId === comunidadId)} />
               <Boton variante="secundario" className="h-10" icono={<UserPlus className="size-4" />} onClick={() => navegar(`/pacientes/nuevo?batey=${comunidadId}`)}>
                 Paciente nuevo
               </Boton>
@@ -504,22 +509,35 @@ function MenuNoVino({ alElegir }: { alElegir: (m: MotivoInasistencia) => void })
 }
 
 /** Deja el batey en el dispositivo para trabajar sin internet (lista, fichas y catálogos). */
-function DescargarBatey({ comunidadId, total, enLinea }: { comunidadId: number; total?: number; enLinea: boolean }) {
+/** Más de esto desde la última descarga: se vuelve a bajar sola (los datos pudieron cambiar). */
+const VIGENCIA_DESCARGA_MS = 12 * 60 * 60 * 1000;
+
+function DescargarBatey({ comunidadId, total, enLinea, automatica }: { comunidadId: number; total?: number; enLinea: boolean; automatica: boolean }) {
   const cliente = useQueryClient();
   const [avance, setAvance] = useState<{ hechos: number; total: number } | null>(null);
   const [cuando, setCuando] = useState(() => jornadasDescargadas()[comunidadId] ?? null);
   useEffect(() => setCuando(jornadasDescargadas()[comunidadId] ?? null), [comunidadId]);
-  const descargar = async () => {
+  const descargar = async (sola = false) => {
     try {
       const n = await descargarJornada(cliente, comunidadId, (hechos, t) => setAvance({ hechos, total: t }));
       setCuando(new Date().toISOString());
-      toast.success(`Listo: ${n} pacientes disponibles sin internet en este dispositivo.`);
+      toast.success(sola ? `Jornada descargada sola: ${n} pacientes disponibles sin internet.` : `Listo: ${n} pacientes disponibles sin internet en este dispositivo.`);
     } catch (e) {
-      toast.error(`No se pudo descargar: ${e instanceof Error ? e.message : 'error'}`);
+      // La descarga automática no molesta si falla: queda el botón para intentarlo a mano.
+      if (!sola) toast.error(`No se pudo descargar: ${e instanceof Error ? e.message : 'error'}`);
     } finally {
       setAvance(null);
     }
   };
+  // Batey con jornada hoy o mañana: se descarga solo al abrirlo (con internet), si no estaba o tiene más de 12 horas.
+  const intentado = useRef<number | null>(null);
+  useEffect(() => {
+    if (!automatica || !enLinea || avance || intentado.current === comunidadId) return;
+    const previa = jornadasDescargadas()[comunidadId];
+    if (previa && Date.now() - new Date(previa).getTime() < VIGENCIA_DESCARGA_MS) return;
+    intentado.current = comunidadId;
+    void descargar(true);
+  }, [automatica, enLinea, comunidadId]); // eslint-disable-line react-hooks/exhaustive-deps
   // Un solo botón en la barra: dice si ya está listo para trabajar sin señal y lo actualiza.
   return (
     <Boton

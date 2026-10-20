@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import { useMetas } from '../api/consultas';
+import { useComunidades, useMetas } from '../api/consultas';
 import { guardarMetas } from '../api/recursos';
 import type { ClaveIndicador, EstadoMeta, IndicadorAnual, MotivoBaja } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { COLOR, EJE, TOOLTIP } from '../components/graficas';
-import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tarjeta } from '../components/ui';
+import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tarjeta } from '../components/ui';
 import { MOTIVOS_BAJA } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { AYUDA } from '../lib/ayuda-graficas';
@@ -29,13 +29,25 @@ export function Metas() {
   const [params, setParams] = useSearchParams();
   const actual = new Date().getFullYear();
   const anio = Number(params.get('anio')) || actual;
-  const consulta = useMetas(anio);
+  // Sin batey: las metas de toda la fundación; con batey, las de ese batey.
+  const batey = Number(params.get('batey')) || undefined;
+  const comunidades = useComunidades();
+  const nombreBatey = comunidades.data?.find((c) => c.id === batey)?.name;
+  const consulta = useMetas(anio, batey);
   const puedeEditar = useSesion().tiene('metas.gestionar');
   const [editando, setEditando] = useState(false);
-  const cambiarAnio = (a: number) => {
+  const cambiar = (c: { anio?: number; batey?: number | null }) => {
     setEditando(false);
-    setParams(a === actual ? {} : { anio: String(a) }, { replace: true });
+    setParams(
+      (p) => {
+        if (c.anio !== undefined) (c.anio === actual ? p.delete('anio') : p.set('anio', String(c.anio)));
+        if (c.batey !== undefined) (c.batey ? p.set('batey', String(c.batey)) : p.delete('batey'));
+        return p;
+      },
+      { replace: true },
+    );
   };
+  const cambiarAnio = (a: number) => cambiar({ anio: a });
 
   return (
     <>
@@ -44,6 +56,14 @@ export function Metas() {
         descripcion="Lo que la fundación se propone cada año y cómo va. Los porcentajes se comparan con la meta; los conteos, con lo que corresponde a la parte del año transcurrida."
         acciones={
           <>
+            <Selector
+              aria-label="Batey"
+              className="w-56"
+              vacio="Toda la fundación"
+              value={batey ?? ''}
+              onChange={(e) => cambiar({ batey: Number(e.target.value) || null })}
+              opciones={(comunidades.data ?? []).filter((c) => c.isActive || c.id === batey).map((c) => ({ value: c.id, label: c.name }))}
+            />
             <div className="flex items-center rounded-lg border border-borde bg-superficie">
               <Boton variante="fantasma" className="h-9 px-2" onClick={() => cambiarAnio(anio - 1)} aria-label="Año anterior">
                 <ChevronLeft className="size-4" />
@@ -55,7 +75,7 @@ export function Metas() {
             </div>
             {puedeEditar && !editando && (
               <Boton icono={<Pencil className="size-4" />} onClick={() => setEditando(true)}>
-                Fijar metas {anio}
+                Fijar metas {anio}{nombreBatey ? ` · ${nombreBatey}` : ''}
               </Boton>
             )}
           </>
@@ -66,7 +86,7 @@ export function Metas() {
       ) : consulta.isError ? (
         <ErrorCarga error={consulta.error} />
       ) : editando ? (
-        <EditarMetas anio={anio} indicadores={consulta.data.indicadores} alTerminar={() => setEditando(false)} />
+        <EditarMetas anio={anio} batey={batey} nombreBatey={nombreBatey} indicadores={consulta.data.indicadores} alTerminar={() => setEditando(false)} />
       ) : (
         <div className={cn('space-y-4 transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
           {anio === actual && (
@@ -82,7 +102,7 @@ export function Metas() {
           )}
           {!consulta.data.indicadores.some((i) => i.meta !== null) && (
             <p className="rounded-lg bg-marca-50 px-4 py-3 text-sm">
-              <Target className="mr-1.5 inline size-4" /> Aún no hay metas para {anio}.{puedeEditar ? ' Usa "Fijar metas" para definirlas; mientras tanto se muestran los valores logrados.' : ''}
+              <Target className="mr-1.5 inline size-4" /> Aún no hay metas para {anio}{nombreBatey ? ` en ${nombreBatey}` : ''}.{puedeEditar ? ' Usa "Fijar metas" para definirlas; mientras tanto se muestran los valores logrados.' : ''}
             </p>
           )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -158,7 +178,7 @@ function TarjetaIndicador({ i, anio, fraccion }: { i: IndicadorAnual; anio: numb
   );
 }
 
-function EditarMetas({ anio, indicadores, alTerminar }: { anio: number; indicadores: IndicadorAnual[]; alTerminar: () => void }) {
+function EditarMetas({ anio, batey, nombreBatey, indicadores, alTerminar }: { anio: number; batey?: number; nombreBatey?: string; indicadores: IndicadorAnual[]; alTerminar: () => void }) {
   const cliente = useQueryClient();
   const [valores, setValores] = useState<Record<string, string>>(Object.fromEntries(indicadores.map((i) => [i.clave, i.meta === null ? '' : String(i.meta)])));
   const guardar = useMutation({
@@ -169,12 +189,12 @@ function EditarMetas({ anio, indicadores, alTerminar }: { anio: number; indicado
         const nuevo = v === '' ? null : Number(v);
         if (nuevo !== i.meta) cambios[i.clave] = nuevo;
       }
-      return guardarMetas(anio, cambios);
+      return guardarMetas(anio, cambios, batey);
     },
     onSuccess: (r) => {
-      cliente.setQueryData(['metas', anio], r);
+      cliente.setQueryData(['metas', anio, batey ?? 0], r);
       cliente.invalidateQueries({ queryKey: ['donantes'] });
-      toast.success(`Metas de ${anio} guardadas. El cambio quedó en Auditoría.`);
+      toast.success(`Metas de ${anio}${nombreBatey ? ` para ${nombreBatey}` : ''} guardadas. El cambio quedó en Auditoría.`);
       alTerminar();
     },
     onError: (e) => toast.error(e.message),
@@ -187,7 +207,7 @@ function EditarMetas({ anio, indicadores, alTerminar }: { anio: number; indicado
   };
 
   return (
-    <Tarjeta titulo={`Metas para ${anio}`} className="max-w-3xl">
+    <Tarjeta titulo={`Metas para ${anio}${nombreBatey ? ` · ${nombreBatey}` : ' · toda la fundación'}`} className="max-w-3xl">
       <div className="divide-y divide-borde">
         {indicadores.map((i) => (
           <div key={i.clave} className="grid items-center gap-3 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_140px]">

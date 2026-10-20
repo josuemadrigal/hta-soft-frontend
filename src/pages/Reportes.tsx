@@ -14,10 +14,11 @@ import { descargarCsv } from '../lib/copiar';
 import { BotonesTrimestre } from '../components/Periodo';
 import { CATEGORIAS, colorCategoria, GENEROS, opciones } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
-import { SelectorFecha } from '../components/SelectorFecha';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { SelectorFecha, ymd } from '../components/SelectorFecha';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Fecha local (no UTC): después de las 8 p. m. en RD, toISOString ya daría mañana.
+const iso = (d: Date) => ymd(d);
 const hoy = new Date();
 const PRESETS = [
   { texto: 'Últimos 12 meses', desde: iso(new Date(hoy.getFullYear() - 1, hoy.getMonth(), hoy.getDate())), hasta: iso(hoy) },
@@ -352,7 +353,7 @@ export function Reportes() {
   const comunidades = useComunidades();
   const filtro: FiltroReporte = {
     from: params.get('desde') ?? PRESETS[0].desde,
-    to: params.get('hasta') ? `${params.get('hasta')}T23:59:59` : undefined,
+    to: params.get('hasta') ?? undefined,
     communityId: Number(params.get('batey')) || undefined,
     gender: (params.get('genero') as Genero) || undefined,
     ageMin: params.get('edadMin') ? Number(params.get('edadMin')) : undefined,
@@ -366,7 +367,7 @@ export function Reportes() {
     mutationFn: () => {
       const q = new URLSearchParams();
       for (const [k, v] of Object.entries(filtro)) if (v !== undefined && v !== '') q.set(k, String(v));
-      return descargar(`/reports/excel?${q}`, `reporte-hta_${filtro.from ?? ''}_${params.get('hasta') ?? new Date().toISOString().slice(0, 10)}.xlsx`);
+      return descargar(`/reports/excel?${q}`, `reporte-hta_${filtro.from ?? ''}_${params.get('hasta') ?? ymd(new Date())}.xlsx`);
     },
     onError: (e) => toast.error(`No se pudo generar el Excel: ${e.message}`),
   });

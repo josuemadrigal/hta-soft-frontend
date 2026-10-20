@@ -41,6 +41,8 @@ export type Usuario = {
   emailVerificadoEn?: string | null;
   /** Bloqueado por intentos fallidos hasta esta hora (null o pasada: puede entrar). */
   bloqueadoHasta?: string | null;
+  /** Última vez que inició sesión. */
+  ultimoAcceso?: string | null;
   contrasenaCambiadaEn?: string | null;
 };
 

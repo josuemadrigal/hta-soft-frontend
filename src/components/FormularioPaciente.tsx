@@ -1,19 +1,20 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Camera, CheckCircle2, Save, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Camera, CheckCircle2, Save, Trash2, UserRoundSearch } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useComunidades } from '../api/consultas';
-import { crearPaciente, editarPaciente, quitarFotoPaciente, subirFotoPaciente, type DatosPaciente } from '../api/recursos';
+import { crearPaciente, editarPaciente, pacientesParecidos, quitarFotoPaciente, subirFotoPaciente, type DatosPaciente, type PacienteParecido } from '../api/recursos';
 import type { Paciente } from '../api/tipos';
 import { ALCOHOL, ESTADOS, GENEROS, SAL, TABACO } from '../lib/etiquetas';
 import { cn, edad, fecha, soloFecha } from '../lib/formato';
 import { Avatar, Boton, Campo, Entrada, Segmentos, Selector, Tarjeta } from './ui';
-import { SelectorFecha } from './SelectorFecha';
+import { SelectorFecha, ymd } from './SelectorFecha';
 
-const hoy = () => new Date().toISOString().slice(0, 10);
+const hoy = () => ymd(new Date());
 
 const esquema = z.object({
   firstName: z.string().trim().min(1, 'Requerido'),
@@ -131,6 +132,24 @@ export function FormularioPaciente({
     onError: (err) => toast.error(err.message),
   });
 
+  // Antes de registrar uno nuevo: ¿ya existe? Si hay parecidos se pregunta; si no hay conexión, se sigue.
+  const navegar = useNavigate();
+  const [parecidos, setParecidos] = useState<{ lista: PacienteParecido[]; datos: Salida } | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const alGuardar = async (d: Salida) => {
+    if (paciente) return guardar.mutate(d);
+    setBuscando(true);
+    try {
+      const lista = await pacientesParecidos({ nombre: d.firstName, apellido: d.lastName, batey: d.communityId, nacimiento: d.birthDate });
+      if (lista.length) return setParecidos({ lista, datos: d });
+    } catch {
+      /* sin conexión: no se puede comprobar */
+    } finally {
+      setBuscando(false);
+    }
+    guardar.mutate(d);
+  };
+
   const registroEdad = register('edad', { onChange: (ev) => alCambiarEdad(ev.target.value) });
 
   // Lo que se ve mientras se llena: para el resumen y la barra de abajo.
@@ -171,7 +190,7 @@ export function FormularioPaciente({
         {textoFalta}
       </p>
       <div className="border-t border-borde p-5">
-        <Boton type="submit" className="h-11 w-full" cargando={guardar.isPending} icono={<Save className="size-4" />}>
+        <Boton type="submit" className="h-11 w-full" cargando={guardar.isPending || buscando} icono={<Save className="size-4" />}>
           {textoGuardar}
         </Boton>
       </div>
@@ -189,7 +208,20 @@ export function FormularioPaciente({
   );
 
   return (
-    <form onSubmit={handleSubmit((d) => guardar.mutate(d))} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]" noValidate>
+    <>
+    {parecidos && (
+      <AvisoParecidos
+        lista={parecidos.lista}
+        alAbrir={(id) => navegar(`/pacientes/${id}`)}
+        alSeguir={() => {
+          const d = parecidos.datos;
+          setParecidos(null);
+          guardar.mutate(d);
+        }}
+        alCancelar={() => setParecidos(null)}
+      />
+    )}
+    <form onSubmit={handleSubmit(alGuardar)} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]" noValidate>
       <div className="min-w-0 space-y-4">
         <Tarjeta titulo="Quién es">
           <div className="flex flex-col gap-6 p-5 sm:flex-row sm:items-start">
@@ -394,7 +426,7 @@ export function FormularioPaciente({
               <p className="truncate text-sm font-medium">{nombreVista || (paciente ? 'Paciente' : 'Paciente nuevo')}</p>
               <p className={cn('truncate text-xs', listo ? 'text-green-700' : 'text-amber-800')}>{textoFalta}</p>
             </div>
-            <Boton type="submit" className="h-11 shrink-0 px-5" cargando={guardar.isPending} icono={<Save className="size-4" />}>
+            <Boton type="submit" className="h-11 shrink-0 px-5" cargando={guardar.isPending || buscando} icono={<Save className="size-4" />}>
               {textoGuardar}
             </Boton>
           </div>
@@ -403,5 +435,72 @@ export function FormularioPaciente({
 
       <aside className="hidden xl:sticky xl:top-6 xl:block xl:self-start">{resumen}</aside>
     </form>
+    </>
+  );
+}
+
+/** Puede que ya esté registrado (otro batey, otra forma de escribir el nombre): se pregunta antes de crear otra ficha. */
+function AvisoParecidos({ lista, alAbrir, alSeguir, alCancelar }: { lista: PacienteParecido[]; alAbrir: (id: number) => void; alSeguir: () => void; alCancelar: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      onCancel={(e) => {
+        e.preventDefault();
+        alCancelar();
+      }}
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-borde bg-superficie p-0 text-tinta shadow-2xl backdrop:bg-tinta/40 backdrop:backdrop-blur-[2px]"
+      aria-labelledby="parecidos-titulo"
+    >
+      <div className="p-6">
+        <div className="flex gap-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-marca-100 text-marca-700">
+            <UserRoundSearch className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="parecidos-titulo" className="font-semibold text-balance">
+              {lista.length === 1 ? 'Puede que ya esté registrado' : `Hay ${lista.length} pacientes parecidos`}
+            </h2>
+            <p className="mt-1 text-sm text-tenue">Revisa si es la misma persona antes de crear otra ficha: así no se parte su historial en dos.</p>
+          </div>
+        </div>
+        <ul className="mt-4 divide-y divide-borde rounded-xl border border-borde">
+          {lista.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => alAbrir(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-fondo">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">
+                    {p.firstName} {p.lastName}
+                  </span>
+                  <span className="block text-xs text-tenue">
+                    <span className="font-mono text-tinta/70">{p.patientCode}</span> · {p.community.name} · {p.birthDateIsEstimated ? '~' : ''}
+                    {edad(p.birthDate)} años{p.address ? ` · Casa ${p.address}` : ''}
+                  </span>
+                  <span className="block text-xs text-tenue">
+                    {p.status !== 'ACTIVE' ? `${ESTADOS[p.status]} · ` : ''}
+                    {p.lastVisitDate ? `Última visita: ${fecha(p.lastVisitDate)}` : 'Sin visitas'}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-marca-700">
+                  Es este <ArrowRight className="size-4" />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Boton variante="fantasma" onClick={alCancelar}>
+            Volver al formulario
+          </Boton>
+          <Boton variante="secundario" onClick={alSeguir} autoFocus>
+            Es otra persona: registrar
+          </Boton>
+        </div>
+      </div>
+    </dialog>
   );
 }
