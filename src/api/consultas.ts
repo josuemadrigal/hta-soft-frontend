@@ -60,6 +60,7 @@ export const useJornada = (comunidad: number | undefined) =>
 export const usePlanilla = (f: { from: string; to: string }) =>
   useQuery({ queryKey: ['reportes', 'planilla', f], queryFn: () => r.planillaJornada(f), placeholderData: keepPreviousData });
 export const useConsumoMedicamentos = (activo = true) => useQuery({ queryKey: ['medicamentos', 'consumo'], queryFn: r.consumoMedicamentos, enabled: activo, staleTime: 10 * 60_000 });
+export const useAsistenciaJornadas = () => useQuery({ queryKey: ['jornadas', 'asistencia'], queryFn: r.asistenciaJornadas, staleTime: 30 * 60_000 });
 export const useResumenReporte = (f: FiltroReporte) =>
   useQuery({ queryKey: ['reportes', f], queryFn: () => r.resumenReporte(f), placeholderData: keepPreviousData });
 export const useMedicos = (f: FiltroReporte, eliminados = false) =>

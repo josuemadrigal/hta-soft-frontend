@@ -7,11 +7,11 @@ import { ListaAlertas, useUmbrales } from '../components/Alertas';
 import { alertasClinicas, tomaDe } from '../lib/alertas';
 import { usePermisosVisita } from '../auth/permisosVisita';
 import { useEliminarVisita } from '../components/eliminarVisita';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
-import { useAnaliticaPaciente, useJornadas, usePaciente, useTensionPaciente } from '../api/consultas';
+import { useJornadas, usePaciente } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
@@ -133,8 +133,18 @@ const RANGOS = [
   { valor: 'fechas', texto: 'Fechas' },
 ] as const;
 
-function GraficoTension({ id }: { id: number }) {
-  const { data } = useTensionPaciente(id);
+/**
+ * La gráfica sale de las visitas que ya trae la ficha (todas): así se ve también sin internet, en la
+ * jornada, con lo descargado, y sin pedir nada más al servidor.
+ */
+function GraficoTension({ visitas }: { visitas: Visita[] }) {
+  const data = useMemo(
+    () =>
+      [...visitas]
+        .sort((x, y) => new Date(x.visitDate).getTime() - new Date(y.visitDate).getTime())
+        .map((v) => ({ date: v.visitDate, systolic: v.systolicManual ?? v.systolicAuto, diastolic: v.diastolicManual ?? v.diastolicAuto })),
+    [visitas],
+  );
   const [rango, setRango] = useState<(typeof RANGOS)[number]['valor']>('todo');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -310,7 +320,6 @@ export function Paciente() {
   const volver = pedido?.startsWith('/') && !pedido.startsWith('//') ? pedido : '/pacientes';
   const navegar = useNavigate();
   const consulta = usePaciente(id);
-  const analitica = useAnaliticaPaciente(id);
   const { tiene } = useSesion();
   const puedeRevisar = tiene('datos.revisar');
   const confirmar = useConfirmar();
@@ -351,7 +360,21 @@ export function Paciente() {
   const p = consulta.data;
   if (!p) return <Vacio titulo="Paciente no encontrado"><Link to="/pacientes" className="text-marca-700 hover:underline">Volver al listado</Link></Vacio>;
 
-  const a = analitica.data && 'bpStats' in analitica.data ? analitica.data : null;
+  // Promedio y máxima de las tomas, con las visitas de la ficha (también sin internet).
+  const a = (() => {
+    const ts = (p.clinicalVisits ?? []).map((v) => ({ s: v.systolicManual ?? v.systolicAuto, d: v.diastolicManual ?? v.diastolicAuto })).filter((t): t is { s: number; d: number } => !!t.s && !!t.d);
+    if (!ts.length) return null;
+    const prom = (xs: number[]) => Math.round(xs.reduce((x, y) => x + y, 0) / xs.length);
+    return {
+      totalVisits: p.clinicalVisits?.length ?? 0,
+      bpStats: { systolic: { avg: prom(ts.map((t) => t.s)), max: Math.max(...ts.map((t) => t.s)) }, diastolic: { avg: prom(ts.map((t) => t.d)), max: Math.max(...ts.map((t) => t.d)) } },
+      // Del más viejo al más reciente, solo las visitas con peso.
+      weightTrend: [...(p.clinicalVisits ?? [])]
+        .filter((v) => v.weightKg)
+        .reverse()
+        .map((v) => ({ date: v.visitDate, weight: v.weightKg, bmi: v.bmi })),
+    };
+  })();
   // Se registró en un batey y luego se cambió: el código sigue con el prefijo del anterior.
   const codigoDeOtroBatey = !!p.community?.abbreviation && !new RegExp(`^${p.community.abbreviation}\\d+$`).test(p.patientCode);
   const ultima = p.clinicalVisits?.[0];
@@ -607,7 +630,7 @@ export function Paciente() {
               </span>
             }
           >
-            <GraficoTension id={id} />
+            <GraficoTension visitas={p.clinicalVisits ?? []} />
           </Tarjeta>
 
           <Tarjeta titulo={`Visitas (${p.clinicalVisits?.length ?? 0})`}>

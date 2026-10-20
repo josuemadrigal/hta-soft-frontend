@@ -233,6 +233,9 @@ export const crearJornada = (d: DatosJornada) => enviar<Jornada>('/jornadas', 'P
 export const editarJornada = (id: number, d: Partial<DatosJornada>) => enviar<Jornada>(`/jornadas/${id}`, 'PATCH', d);
 export const cancelarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cancelar`, 'POST');
 export const cerrarJornada = (id: number) => enviar<Jornada>(`/jornadas/${id}/cerrar`, 'POST');
+/** Cuántos suelen venir: promedio de pacientes de las últimas 5 jornadas de cada batey. */
+export type AsistenciaJornadas = { communityId: number; promedio: number; jornadas: { fecha: string; pacientes: number }[] }[];
+export const asistenciaJornadas = () => api<AsistenciaJornadas>('/jornadas/asistencia');
 export const destinatariosResumen = () => api<{ correoConfigurado: boolean; usuarios: DestinatarioResumen[] }>('/jornadas/destinatarios');
 export type DatosResumen = { destinatarios: number[]; nombres: boolean; nota?: string };
 export const enviarResumenJornada = (id: number, d: DatosResumen) => enviar<ResultadoCorreo>(`/jornadas/${id}/enviar-resumen`, 'POST', d);

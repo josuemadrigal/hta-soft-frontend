@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useComunidades, useConfiguracion, useJornada, useJornadas } from '../api/consultas';
+import { useAsistenciaJornadas, useComunidades, useConfiguracion, useJornada, useJornadas } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { marcarNoVino, quitarNoVino, type DatosNoVino } from '../api/recursos';
 import type { Inasistencia, MotivoInasistencia, PacienteJornada } from '../api/tipos';
@@ -70,6 +70,9 @@ function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales, 
   return asistencia(u.visitDate).clave === 'sin-venir' ? 'sinVenir' : 'pendiente';
 }
 
+const FECHA_CORTA = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const fechaCorta = (ymd: string) => FECHA_CORTA.format(new Date(`${ymd}T00:00:00Z`));
+
 const CLAVE_BATEY = 'hta:ultimoBatey';
 const leerUltimoBatey = () => {
   try {
@@ -99,6 +102,7 @@ export function Jornada() {
   const comunidadId = comunidades.data?.some((c) => c.id === idPedido) ? idPedido : undefined;
   const lista = useJornada(comunidadId);
   const configuracion = useConfiguracion();
+  const asistenciaJ = useAsistenciaJornadas();
   const visitasSinVenir = configuracion.data?.visitasSinVenirRegular ?? VISITAS_SIN_VENIR_REGULAR;
   const hoyPlan = useJornadas({ desde: hoyYmd(), hasta: hoyYmd(), estado: 'PLANIFICADA' });
   // Jornadas de hoy y de mañana: esos bateyes se descargan solos para trabajar sin señal.
@@ -342,6 +346,18 @@ export function Jornada() {
               >
                 <div className="h-full rounded-full bg-marca-500 transition-[width] duration-300 ease-out" style={{ width: `${regulares ? (vistos / regulares) * 100 : 0}%` }} />
               </div>
+              {/* Para saber cuántos esperar (y cuánto medicamento llevar): lo que suele venir */}
+              {(() => {
+                const a = asistenciaJ.data?.find((x) => x.communityId === comunidadId);
+                if (!a) return null;
+                const detalle = a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ');
+                return (
+                  <p className="mt-1.5 text-xs text-tenue" title={detalle}>
+                    Suelen venir <strong className="font-semibold text-tinta">~{a.promedio}</strong> por jornada{' '}
+                    <span className="hidden sm:inline">(promedio de las últimas {a.jornadas.length === 1 ? 'jornada' : `${a.jornadas.length} jornadas`})</span>
+                  </p>
+                );
+              })()}
             </div>
           )}
 
