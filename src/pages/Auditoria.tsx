@@ -149,6 +149,7 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     const n = Number(d.visitasReasignadas ?? 0);
     return `${d.usuario} (${d.email}, ${d.rol})${n ? ` · ${n.toLocaleString('es-DO')} visitas reasignadas a ${d.reasignadasA}; cada una conserva quién atendió` : ' · sin visitas'}`;
   }
+  if (r.entity === 'User' && d.cambio === 'usuario') return `${d.nombre}: cambió su usuario para entrar de ${d.antes ?? '(ninguno)'} a ${d.despues}`;
   if (r.entity === 'User' && d.cambio === 'nombre') return `Cambió el nombre: ${d.antes} → ${d.despues} (${Number(d.visitasActualizadas).toLocaleString('es-DO')} visitas actualizadas)`;
   if (r.entity === 'Configuracion') {
     const a = (d.antes ?? {}) as Record<string, number>;
