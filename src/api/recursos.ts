@@ -299,9 +299,11 @@ export type PacienteDeCifra = {
   lastName: string;
   gender: Genero;
   birthDate: string;
-  phoneNumber: string | null;
+  birthDateIsEstimated: boolean;
   community: { id: number; name: string };
   visita: string | null;
+  atendio: string | null;
+  tratamiento: { medicamento: string; dosis: number; pastillas: number }[];
   presion: string | null;
   categoria: CategoriaPA | null;
   estado?: 'visto' | 'le-toca' | 'sin-venir' | 'sin-visitas' | 'ya-no-viene';

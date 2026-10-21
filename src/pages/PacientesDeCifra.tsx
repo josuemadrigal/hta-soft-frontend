@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, Search, Users } from 'lucide-react';
+import { Check, Search, Users, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAsistenciaJornadas, useComunidades } from '../api/consultas';
 import { pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
 import { COLUMNAS_PLANILLA } from '../components/TablaPlanilla';
-import { Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, edadTexto, fecha, fechaDia, nombreCompleto } from '../lib/formato';
 
@@ -84,82 +84,153 @@ function Listado({ fuente, columna, batey, desde, hasta }: { fuente: 'planilla' 
         : pacientesDeRonda({ columna, communityId: batey }),
   });
   const [buscar, setBuscar] = useState('');
+  const [medico, setMedico] = useState('');
+  const [presion, setPresion] = useState('');
+  const [medicamento, setMedicamento] = useState('');
+  const navegar = useNavigate();
 
   if (consulta.isPending) return <Cargando forma="lista" texto="Buscando los pacientes…" />;
   if (consulta.isError) return <ErrorCarga error={consulta.error} />;
 
+  const todos = consulta.data;
   const q = buscar.trim().toLowerCase();
-  const filas = consulta.data
-    .filter((p) => !q || `${nombreCompleto(p)} ${p.patientCode}`.toLowerCase().includes(q))
+  const filas = todos
+    .filter((p) => {
+      if (q && !`${nombreCompleto(p)} ${p.patientCode}`.toLowerCase().includes(q)) return false;
+      if (medico && p.atendio !== medico) return false;
+      if (medicamento === 'sin' ? p.tratamiento.length > 0 : medicamento && !p.tratamiento.some((t) => t.medicamento === medicamento)) return false;
+      const c = p.categoria;
+      if (presion === 'controlados' && !(c === 'NORMAL' || c === 'ELEVATED')) return false;
+      if (presion === 'noControlados' && !(c === 'GRADE_1' || c === 'GRADE_2' || c === 'CRISIS')) return false;
+      if (presion === 'sinToma' && c) return false;
+      if (presion && !['controlados', 'noControlados', 'sinToma'].includes(presion) && c !== presion) return false;
+      return true;
+    })
     .sort((a, b) => (fuente === 'ronda' ? ORDEN_ESTADO.indexOf(a.estado ?? '') - ORDEN_ESTADO.indexOf(b.estado ?? '') : 0));
-  const variosBateyes = new Set(consulta.data.map((p) => p.community.id)).size > 1;
+  const variosBateyes = new Set(todos.map((p) => p.community.id)).size > 1;
   const conEstado = fuente === 'ronda' && columna !== 'vistos' && columna !== 'yaNoVienen' && columna !== 'dejaron';
+  // Las opciones salen de la lista misma, con cuántos tiene cada una.
+  const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+  const medicos = contar(todos.flatMap((p) => (p.atendio ? [p.atendio] : [])));
+  const medicamentos = contar(todos.flatMap((p) => [...new Set(p.tratamiento.map((t) => t.medicamento))]));
+  const hayFiltros = !!(q || medico || presion || medicamento);
+  const limpiar = () => {
+    setBuscar('');
+    setMedico('');
+    setPresion('');
+    setMedicamento('');
+  };
+  const visitaTexto = fuente === 'planilla' && columna !== 'enPrograma' ? 'Visita contada' : 'Última visita';
 
   return (
     <Tarjeta
       titulo={
         <span className="flex items-center gap-2">
-          <Users className="size-4" /> {consulta.data.length.toLocaleString('es-DO')} {consulta.data.length === 1 ? 'paciente' : 'pacientes'}
+          <Users className="size-4" /> {hayFiltros ? `${filas.length} de ${todos.length}` : todos.length.toLocaleString('es-DO')} {todos.length === 1 ? 'paciente' : 'pacientes'}
         </span>
       }
-      accion={
-        consulta.data.length > 8 && (
-          <div className="relative w-56">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
-            <Entrada placeholder="Buscar nombre o código" className="h-8 pl-8 text-sm" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-          </div>
-        )
-      }
     >
-      {consulta.data.length === 0 ? (
+      {todos.length === 0 ? (
         <Vacio titulo="No hay pacientes en esta cifra" />
       ) : (
-        <Tabla
-          columnas={[
-            'Paciente',
-            ...(variosBateyes ? ['Batey'] : []),
-            'Edad',
-            fuente === 'planilla' && columna !== 'enPrograma' ? 'Visita contada' : 'Última visita',
-            { texto: 'Presión', className: 'text-right' },
-            'Clasificación',
-            ...(conEstado ? ['Asistencia'] : []),
-            'Teléfono',
-          ]}
-        >
-          {filas.map((p) => (
-            <tr key={p.id} className="hover:bg-fondo">
-              <td className="px-5 py-2.5">
-                <Link to={`/pacientes/${p.id}`} className="font-medium hover:underline">
-                  {nombreCompleto(p)}
-                </Link>
-                <span className="block font-mono text-xs text-tenue">{p.patientCode}</span>
-              </td>
-              {variosBateyes && <td className="px-5 py-2.5 whitespace-nowrap">{p.community.name}</td>}
-              <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{edadTexto(p)}</td>
-              <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{p.visita ? fecha(p.visita) : 'Nunca ha venido'}</td>
-              <td className="tabular px-5 py-2.5 text-right font-mono">{p.presion ?? <span className="text-tenue">—</span>}</td>
-              <td className="px-5 py-2.5">
-                {p.categoria ? (
-                  <Insignia color={colorCategoria(p.categoria)}>
-                    <span className="size-1.5 rounded-full" style={{ backgroundColor: colorCategoria(p.categoria) }} />
-                    {CATEGORIAS[p.categoria]}
-                  </Insignia>
-                ) : (
-                  <span className="text-xs text-tenue">Sin clasificar</span>
-                )}
-              </td>
-              {conEstado && <td className="px-5 py-2.5">{p.estado && <Insignia color={ESTADOS[p.estado].color}>{ESTADOS[p.estado].texto}</Insignia>}</td>}
-              <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{p.phoneNumber || '—'}</td>
-            </tr>
-          ))}
-          {filas.length === 0 && (
-            <tr>
-              <td colSpan={8} className="px-5 py-8 text-center text-tenue">
-                Nadie coincide con "{buscar}".
-              </td>
-            </tr>
-          )}
-        </Tabla>
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b border-borde px-5 py-3">
+            <div className="relative min-w-48 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
+              <Entrada placeholder="Buscar nombre o código" aria-label="Buscar paciente" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+            </div>
+            {medicos.length > 0 && (
+              <Selector className="w-52" aria-label="Lo atendió" vacio="Cualquier médico" value={medico} onChange={(e) => setMedico(e.target.value)} opciones={medicos.map(([m, n]) => ({ value: m, label: `${m} (${n})` }))} />
+            )}
+            <Selector
+              className="w-52"
+              aria-label="Presión"
+              vacio="Cualquier presión"
+              value={presion}
+              onChange={(e) => setPresion(e.target.value)}
+              opciones={[
+                { value: 'controlados', label: 'Controlados (< 140/90)' },
+                { value: 'noControlados', label: 'No controlados (≥ 140/90)' },
+                ...(['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE_2', 'CRISIS'] as const).map((c) => ({ value: c, label: CATEGORIAS[c] })),
+                { value: 'sinToma', label: 'Sin toma' },
+              ]}
+            />
+            {medicamentos.length > 0 && (
+              <Selector
+                className="w-56"
+                aria-label="Medicamento"
+                vacio="Cualquier tratamiento"
+                value={medicamento}
+                onChange={(e) => setMedicamento(e.target.value)}
+                opciones={[...medicamentos.map(([m, n]) => ({ value: m, label: `${m} (${n})` })), { value: 'sin', label: 'Sin tratamiento' }]}
+              />
+            )}
+            {hayFiltros && (
+              <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
+                Limpiar
+              </Boton>
+            )}
+          </div>
+          <Tabla
+            columnas={[
+              'Paciente',
+              visitaTexto,
+              'Presión',
+              'Atendió',
+              'Tratamiento',
+              ...(conEstado ? ['Asistencia'] : []),
+            ]}
+          >
+            {filas.map((p) => (
+              <tr key={p.id} onClick={() => navegar(`/pacientes/${p.id}`)} className="cursor-pointer align-top hover:bg-fondo">
+                <td className="px-5 py-2.5">
+                  <span className="font-medium whitespace-nowrap">{nombreCompleto(p)}</span>
+                  <span className="block text-xs whitespace-nowrap text-tenue">
+                    <span className="font-mono">{p.patientCode}</span> · {edadTexto(p)}
+                    {variosBateyes && ` · ${p.community.name}`}
+                  </span>
+                </td>
+                <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{p.visita ? fecha(p.visita) : 'Nunca ha venido'}</td>
+                <td className="px-5 py-2.5 whitespace-nowrap">
+                  <span className="tabular mr-2 font-mono">{p.presion ?? '—'}</span>
+                  {p.categoria ? (
+                    <Insignia color={colorCategoria(p.categoria)}>
+                      <span className="size-1.5 rounded-full" style={{ backgroundColor: colorCategoria(p.categoria) }} />
+                      {CATEGORIAS[p.categoria]}
+                    </Insignia>
+                  ) : (
+                    <span className="text-xs text-tenue">Sin clasificar</span>
+                  )}
+                </td>
+                <td className="px-5 py-2.5 whitespace-nowrap">{p.atendio ?? <span className="text-tenue">—</span>}</td>
+                <td className="px-5 py-2.5">
+                  {p.tratamiento.length ? (
+                    <ul className="space-y-0.5">
+                      {p.tratamiento.map((t, i) => (
+                        <li key={i} className="min-w-44">
+                          <span className="whitespace-nowrap">{t.medicamento}</span>{' '}
+                          <span className="text-xs whitespace-nowrap text-tenue" title={`${t.dosis} al día · ${t.pastillas} pastillas entregadas`}>
+                            {t.dosis}/día · {t.pastillas.toLocaleString('es-DO')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-xs text-tenue">Sin tratamiento</span>
+                  )}
+                </td>
+                {conEstado && <td className="px-5 py-2.5">{p.estado && <Insignia color={ESTADOS[p.estado].color}>{ESTADOS[p.estado].texto}</Insignia>}</td>}
+              </tr>
+            ))}
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-tenue">
+                  Nadie coincide con los filtros.
+                </td>
+              </tr>
+            )}
+          </Tabla>
+        </>
       )}
     </Tarjeta>
   );
