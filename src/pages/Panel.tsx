@@ -284,37 +284,6 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
         </div>
       )}
 
-      {/* 1 · Para hacer */}
-      {pendientes.length > 0 && (
-        <Tarjeta titulo="Para hacer" className="mb-6">
-          <ul className="divide-y divide-borde">
-            {pendientes.map((p, i) => {
-              const contenido = (
-                <>
-                  <span className={cn('grid size-8 shrink-0 place-items-center rounded-full', p.tono === 'aviso' ? 'bg-amber-100 text-amber-800' : 'bg-marca-100 text-tinta')}>{p.icono}</span>
-                  <span className="flex-1 text-sm">{p.texto}</span>
-                  <ArrowRight className="size-4 shrink-0 text-tenue" />
-                </>
-              );
-              const clase = 'flex items-center gap-3 px-5 py-3 hover:bg-fondo';
-              return (
-                <li key={i}>
-                  {p.a.startsWith('#') ? (
-                    <a href={p.a} className={clase}>
-                      {contenido}
-                    </a>
-                  ) : (
-                    <Link to={p.a} className={clase}>
-                      {contenido}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </Tarjeta>
-      )}
-
       {/* 2 · Cifras: cómo está todo hoy */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador
@@ -426,6 +395,40 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
           </Tarjeta>
         </div>
       </Seccion>
+
+      {/* Para hacer: compacto y más abajo; arriba van la actividad y las cifras */}
+      {pendientes.length > 0 && (
+        <section className="mt-8" aria-labelledby="para-hacer">
+          <h2 id="para-hacer" className="mb-2 text-sm font-semibold text-tenue">
+            Para hacer
+          </h2>
+          <ul className="grid gap-px overflow-hidden rounded-xl border border-borde bg-borde lg:grid-cols-2 [&>li]:bg-superficie lg:[&>li:last-child:nth-child(odd)]:col-span-2">
+            {pendientes.map((p, i) => {
+              const contenido = (
+                <>
+                  <span className={cn('grid size-6 shrink-0 place-items-center rounded-full [&>svg]:size-3.5', p.tono === 'aviso' ? 'bg-amber-100 text-amber-800' : 'bg-marca-100 text-tinta')}>{p.icono}</span>
+                  <span className="flex-1 text-[13px] leading-snug">{p.texto}</span>
+                  <ArrowRight className="size-3.5 shrink-0 text-tenue" />
+                </>
+              );
+              const clase = 'flex h-full items-center gap-2.5 px-4 py-2 hover:bg-fondo';
+              return (
+                <li key={i}>
+                  {p.a.startsWith('#') ? (
+                    <a href={p.a} className={clase}>
+                      {contenido}
+                    </a>
+                  ) : (
+                    <Link to={p.a} className={clase}>
+                      {contenido}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* 4 · Esta ronda */}
       <Seccion titulo="Esta ronda" detalle={`Del ${fecha(r.round.start)} al ${fecha(r.round.end)}`}>
