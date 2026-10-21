@@ -9,6 +9,7 @@ import { ymd } from '../components/SelectorFecha';
 import { Boton, Cargando, EncabezadoPagina, Vacio } from '../components/ui';
 import { atendio, edadTexto, nombreCompleto } from '../lib/formato';
 import { usePendientes } from '../offline/cola';
+import { useVolver } from '../lib/navegacion';
 
 const HORA = new Intl.DateTimeFormat('es-DO', { hour: 'numeric', minute: '2-digit' });
 
@@ -20,6 +21,7 @@ export function NuevaVisita() {
   const pedido = params.get('volver');
   const volver = pedido?.startsWith('/') && !pedido.startsWith('//') ? pedido : `/pacientes/${id}`;
   const navegar = useNavigate();
+  const volverA = useVolver();
   const paciente = usePaciente(id);
   const pendientes = usePendientes();
   // Ya eligió "Registrar otra visita": no se vuelve a preguntar.
@@ -45,7 +47,7 @@ export function NuevaVisita() {
         }
         volver={{ a: volver, texto: volver.startsWith('/jornada') ? 'Jornada' : nombreCompleto(p) }}
       />
-      <FormularioVisita paciente={p} alGuardar={() => navegar(volver)} />
+      <FormularioVisita paciente={p} alGuardar={() => volverA(volver)} />
       {!otra && (deHoy || pendienteHoy) && (
         <AvisoVisitaHoy
           paciente={p}

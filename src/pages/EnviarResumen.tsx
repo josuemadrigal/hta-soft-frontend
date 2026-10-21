@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Mail, Send } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { useDetalleJornada } from '../api/consultas';
 import { destinatariosResumen, enviarResumenJornada } from '../api/recursos';
@@ -10,6 +10,7 @@ import { AreaTexto, Boton, Campo, Cargando, Casilla, EncabezadoPagina, ErrorCarg
 import { useEnLinea } from '../offline/datos';
 import { cn } from '../lib/formato';
 import { diaJornada } from './Jornadas';
+import { useVolver } from '../lib/navegacion';
 
 /** /jornadas/:id/enviar-resumen — manda el resumen por correo a quien se elija. Nunca sale solo. */
 export function EnviarResumen() {
@@ -18,7 +19,7 @@ export function EnviarResumen() {
   const lista = useQuery({ queryKey: ['jornadas', 'destinatarios'], queryFn: destinatariosResumen });
   const { usuario } = useSesion();
   const enLinea = useEnLinea();
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const [elegidos, setElegidos] = useState<Set<number>>(new Set());
   const [nombres, setNombres] = useState(false);
@@ -33,7 +34,7 @@ export function EnviarResumen() {
           ? 'Resumen generado. El servidor no tiene correo configurado: quedó en la consola del backend.'
           : `Resumen enviado a ${r.para?.join(', ')}.`,
       );
-      navegar(`/jornadas/${id}`);
+      volverA(`/jornadas/${id}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -118,7 +119,7 @@ export function EnviarResumen() {
           </Tarjeta>
 
           <div className="flex justify-end gap-2">
-            <Boton variante="secundario" onClick={() => navegar(`/jornadas/${id}`)}>
+            <Boton variante="secundario" onClick={() => volverA(`/jornadas/${id}`)}>
               Cancelar
             </Boton>
             <Boton

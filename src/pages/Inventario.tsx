@@ -12,6 +12,7 @@ import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, Insignia,
 import { cn, diasHasta, fechaDia, fechaYHora, nombreCompleto } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
 import { ymd } from '../components/SelectorFecha';
+import { useVolver } from '../lib/navegacion';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORIGENES: Record<OrigenLote, string> = { DONACION: 'Donación', COMPRA: 'Compra', INICIAL: 'Saldo inicial', AJUSTE: 'Ajuste' };
@@ -272,6 +273,7 @@ export function AjusteInventario() {
   const [params] = useSearchParams();
   const consulta = useMedicamento(id);
   const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const { register, handleSubmit, watch, formState } = useForm<{ loteId: string; tipo: 'AJUSTE' | 'VENCIDO'; sentido: 'resta' | 'suma'; cantidad?: number; motivo: string; detalle: string }>({
     defaultValues: { loteId: params.get('lote') ?? '', tipo: 'AJUSTE', sentido: 'resta', motivo: 'Conteo físico', detalle: '' },
@@ -289,7 +291,7 @@ export function AjusteInventario() {
       cliente.invalidateQueries({ queryKey: ['medicamentos'] });
       cliente.invalidateQueries({ queryKey: ['stats'] });
       toast.success('Ajuste registrado en el kárdex');
-      navegar(`/medicamentos/${id}`);
+      volverA(`/medicamentos/${id}`);
     },
     onError: (e) => toast.error(e.message),
   });

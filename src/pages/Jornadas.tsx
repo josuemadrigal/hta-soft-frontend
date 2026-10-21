@@ -290,7 +290,7 @@ function FormularioJornada({ jornada }: { jornada?: Jornada }) {
     onSuccess: (j) => {
       invalidar(cliente);
       toast.success(jornada ? 'Jornada actualizada' : `Jornada planificada en ${j.community.name}`);
-      navegar(`/jornadas/${j.id}`);
+      navegar(`/jornadas/${j.id}`, { replace: true });
     },
     onError: (e) => toast.error(e.message),
   });

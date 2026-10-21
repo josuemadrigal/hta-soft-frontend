@@ -1,5 +1,5 @@
 import { Lock, Trash2 } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { useUsuarios, useVisita } from '../api/consultas';
 import type { Paciente, Visita } from '../api/tipos';
 import { usePermisosVisita } from '../auth/permisosVisita';
@@ -8,6 +8,7 @@ import { useEliminarVisita } from '../components/eliminarVisita';
 import { FormularioVisita } from '../components/FormularioVisita';
 import { Boton, Cargando, EncabezadoPagina, Vacio } from '../components/ui';
 import { atendio, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
+import { useVolver } from '../lib/navegacion';
 
 /** /visitas/:id/editar — médico: las suyas dentro del plazo; administrador: cualquiera. */
 export function EditarVisita() {
@@ -27,7 +28,7 @@ export function EditarVisita() {
 }
 
 function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const [params] = useSearchParams();
   const pedido = params.get('volver');
   const volver = pedido?.startsWith('/') && !pedido.startsWith('//') ? pedido : `/pacientes/${visita.patientId}`;
@@ -35,7 +36,7 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
   const permisos = usePermisosVisita();
   const esAdmin = permisos.puedeEliminar;
   const usuarios = useUsuarios();
-  const eliminar = useEliminarVisita(() => navegar(volver));
+  const eliminar = useEliminarVisita(() => volverA(volver));
   const hasta = permisos.editableHasta(visita);
   const p = visita.patient;
   // Cambiar quién atendió: solo la administración.
@@ -65,7 +66,7 @@ function Formulario({ visita }: { visita: Visita & { patient: Paciente } }) {
         </p>
       )}
       {/* La misma pantalla que al registrar la visita, con sus datos cargados */}
-      {medicos && usuarios.isPending ? <Cargando /> : <FormularioVisita paciente={p} visita={visita} medicos={medicos} alGuardar={() => navegar(volver)} />}
+      {medicos && usuarios.isPending ? <Cargando /> : <FormularioVisita paciente={p} visita={visita} medicos={medicos} alGuardar={() => volverA(volver)} />}
     </>
   );
 }

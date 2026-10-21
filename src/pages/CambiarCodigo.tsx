@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { toast } from 'sonner';
 import { usePaciente } from '../api/consultas';
 import { cambiarCodigoPaciente } from '../api/recursos';
 import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, Tarjeta, Vacio } from '../components/ui';
 import { nombreCompleto } from '../lib/formato';
+import { useVolver } from '../lib/navegacion';
 
 const FORMATO = /^[A-Z]{1,6}\d{1,8}$/;
 
@@ -14,7 +15,7 @@ const FORMATO = /^[A-Z]{1,6}\d{1,8}$/;
 export function CambiarCodigo() {
   const id = Number(useParams().id);
   const consulta = usePaciente(id);
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const [codigo, setCodigo] = useState('');
   const limpio = codigo.trim().toUpperCase();
@@ -25,7 +26,7 @@ export function CambiarCodigo() {
     onSuccess: (r) => {
       for (const k of [['paciente'], ['pacientes'], ['jornada'], ['auditoria'], ['comunidades']]) cliente.invalidateQueries({ queryKey: k });
       toast.success(`Código cambiado a ${r.patientCode}. El anterior quedó en Auditoría.`);
-      navegar(`/pacientes/${id}`);
+      volverA(`/pacientes/${id}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -74,7 +75,7 @@ export function CambiarCodigo() {
           </div>
         </Tarjeta>
         <div className="flex justify-end gap-2">
-          <Boton variante="secundario" onClick={() => navegar(`/pacientes/${id}`)}>
+          <Boton variante="secundario" onClick={() => volverA(`/pacientes/${id}`)}>
             Cancelar
           </Boton>
           <Boton type="submit" icono={<Save className="size-4" />} disabled={!valido || limpio === p.patientCode} cargando={guardar.isPending}>

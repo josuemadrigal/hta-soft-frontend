@@ -9,6 +9,7 @@ import type { Rol } from '../api/tipos';
 import { useConfirmar } from '../components/confirmar';
 import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn } from '../lib/formato';
+import { useVolver } from '../lib/navegacion';
 
 export function Roles() {
   const consulta = useRoles();
@@ -99,7 +100,7 @@ export function RolEditor() {
 
 function FormularioRol({ rol }: { rol?: Rol }) {
   const cliente = useQueryClient();
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const catalogo = useCatalogoPermisos();
   const bloqueado = !!rol?.isSystem;
   const { register, handleSubmit, formState, watch, setValue } = useForm<DatosRol>({
@@ -117,7 +118,7 @@ function FormularioRol({ rol }: { rol?: Rol }) {
       cliente.invalidateQueries({ queryKey: ['roles'] });
       cliente.invalidateQueries({ queryKey: ['usuarios'] });
       toast.success(rol ? 'Rol actualizado' : 'Rol creado');
-      navegar('/roles');
+      volverA('/roles');
     },
     onError: (e) => toast.error(e.message),
   });
@@ -189,7 +190,7 @@ function FormularioRol({ rol }: { rol?: Rol }) {
         </Tarjeta>
 
         <div className="flex justify-end gap-2">
-          <Boton variante="secundario" onClick={() => navegar('/roles')}>
+          <Boton variante="secundario" onClick={() => volverA('/roles')}>
             Cancelar
           </Boton>
           <Boton type="submit" cargando={guardar.isPending}>

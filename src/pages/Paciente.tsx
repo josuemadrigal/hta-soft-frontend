@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarClock, Camera, ChevronDown, ClipboardPlus, GitMerge, History, Home, MoreHorizontal, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarClock, Camera, ChevronDown, ClipboardPlus, GitMerge, History, Home, MoreHorizontal, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
 import { eliminarPaciente, entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
 import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
@@ -16,7 +16,7 @@ import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
 import type { Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
-import { Avatar, Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
+import { Avatar, Boton, Cargando, EnlaceVolver, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
 import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
@@ -339,7 +339,7 @@ export function Paciente() {
       for (const k of [['pacientes'], ['jornada'], ['stats'], ['auditoria'], ['revision']]) cliente.invalidateQueries({ queryKey: k });
       cliente.removeQueries({ queryKey: ['paciente', id] });
       toast.success(`Ficha ${r.codigo} eliminada. Queda una copia en Auditoría.`);
-      navegar('/pacientes');
+      navegar('/pacientes', { replace: true });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -399,9 +399,7 @@ export function Paciente() {
 
   return (
     <>
-      <Link to={volver} className="mb-4 inline-flex items-center gap-1.5 text-sm text-tenue hover:text-tinta">
-        <ArrowLeft className="size-4" /> {volver.startsWith('/jornada') ? 'Jornada' : 'Pacientes'}
-      </Link>
+      <EnlaceVolver a={volver} texto={volver.startsWith('/jornada') ? 'Jornada' : 'Pacientes'} className="mb-4" />
 
       <div className="mb-6 flex flex-wrap items-start gap-5">
         <FotoPaciente paciente={p} />

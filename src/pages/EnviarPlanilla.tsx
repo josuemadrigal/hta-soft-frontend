@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Mail, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { usePlanilla } from '../api/consultas';
 import { destinatariosPlanilla, enviarPlanilla } from '../api/recursos';
@@ -10,6 +10,7 @@ import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, ErrorCarga, Insign
 import { cn } from '../lib/formato';
 import { usePeriodoPanel } from '../lib/periodo-panel';
 import { useEnLinea } from '../offline/datos';
+import { useVolver } from '../lib/navegacion';
 
 /** Separa lo que se escribió en "Otros correos": por comas, punto y coma, espacios o renglones. */
 const separar = (s: string) =>
@@ -27,7 +28,7 @@ export function EnviarPlanilla() {
   const lista = useQuery({ queryKey: ['reportes', 'planilla', 'destinatarios'], queryFn: destinatariosPlanilla });
   const { usuario } = useSesion();
   const enLinea = useEnLinea();
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const volver = `/reportes/planilla?desde=${periodo.desde}${periodo.hasta !== periodo.desde ? `&hasta=${periodo.hasta}` : ''}`;
   const [elegidos, setElegidos] = useState<Set<number>>(new Set());
@@ -48,7 +49,7 @@ export function EnviarPlanilla() {
       cliente.invalidateQueries({ queryKey: ['auditoria'] });
       cliente.invalidateQueries({ queryKey: ['reportes', 'planilla', 'destinatarios'] });
       toast.success(r.simulado ? 'Planilla generada. El servidor no tiene correo configurado: quedó en la consola del backend.' : `Planilla enviada a ${r.para.join(', ')}.`);
-      navegar(volver);
+      volverA(volver);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -129,7 +130,7 @@ export function EnviarPlanilla() {
           </Tarjeta>
 
           <div className="flex justify-end gap-2">
-            <Boton variante="secundario" onClick={() => navegar(volver)}>
+            <Boton variante="secundario" onClick={() => volverA(volver)}>
               Cancelar
             </Boton>
             <Boton

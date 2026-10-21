@@ -17,6 +17,7 @@ import type { ConfigPA } from '../api/tipos';
 import { copiarComoImagen } from '../lib/copiar';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, iniciales } from '../lib/formato';
+import { hayAnterior, useVolver } from '../lib/navegacion';
 
 /* Botones */
 
@@ -278,6 +279,28 @@ export function Tarjeta({
   );
 }
 
+/**
+ * "← Volver": a la pantalla anterior, como el botón Atrás. Si no hay una (se abrió el enlace directo),
+ * va a `a` y dice su nombre (`texto`). Con Ctrl/Cmd se abre en otra pestaña, como cualquier enlace.
+ */
+export function EnlaceVolver({ a, texto, className }: { a: string; texto: string; className?: string }) {
+  const irAtras = useVolver();
+  const anterior = hayAnterior();
+  return (
+    <Link
+      to={a}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        irAtras(a);
+      }}
+      className={cn('inline-flex items-center gap-1.5 text-sm text-tenue hover:text-tinta', className)}
+    >
+      <ArrowLeft className="size-4" /> {anterior ? 'Volver' : texto}
+    </Link>
+  );
+}
+
 export function EncabezadoPagina({
   titulo,
   descripcion,
@@ -287,16 +310,12 @@ export function EncabezadoPagina({
   titulo: string;
   descripcion?: ReactNode;
   acciones?: ReactNode;
-  /** Pantallas de formulario: enlace a la lista de la que vienen. */
+  /** Enlace para volver: a la pantalla anterior; si no hay (enlace directo), a `a`. */
   volver?: { a: string; texto: string };
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      {volver && (
-        <Link to={volver.a} className="-mb-2 inline-flex w-full items-center gap-1.5 text-sm text-tenue hover:text-tinta">
-          <ArrowLeft className="size-4" /> {volver.texto}
-        </Link>
-      )}
+      {volver && <EnlaceVolver a={volver.a} texto={volver.texto} className="-mb-2 w-full" />}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
         {descripcion && <p className="mt-1 text-sm text-tenue">{descripcion}</p>}

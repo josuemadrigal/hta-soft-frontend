@@ -9,6 +9,7 @@ import type { ConfigPA } from '../api/tipos';
 import { useConfirmar } from '../components/confirmar';
 import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria, opciones } from '../lib/etiquetas';
+import { useVolver } from '../lib/navegacion';
 
 export function ClasificacionPA() {
   const consulta = useConfigPA();
@@ -95,7 +96,7 @@ type Datos = Omit<ConfigPA, 'id'>;
 
 function FormularioConfig({ config }: { config?: ConfigPA }) {
   const cliente = useQueryClient();
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const { register, handleSubmit, formState, getValues } = useForm<Datos>({
     defaultValues: config
       ? { ...config, colorHex: colorCategoria(config) }
@@ -106,7 +107,7 @@ function FormularioConfig({ config }: { config?: ConfigPA }) {
     onSuccess: () => {
       cliente.invalidateQueries({ queryKey: ['config-pa'] });
       toast.success('Rango guardado');
-      navegar('/clasificacion');
+      volverA('/clasificacion');
     },
     onError: (e) => toast.error(e.message),
   });
@@ -146,7 +147,7 @@ function FormularioConfig({ config }: { config?: ConfigPA }) {
           </div>
         </Tarjeta>
         <div className="flex justify-end gap-2">
-          <Boton variante="secundario" onClick={() => navegar('/clasificacion')}>
+          <Boton variante="secundario" onClick={() => volverA('/clasificacion')}>
             Cancelar
           </Boton>
           <Boton type="submit" cargando={guardar.isPending}>

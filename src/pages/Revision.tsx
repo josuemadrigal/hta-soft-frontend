@@ -662,7 +662,7 @@ function Unir({ a, b, caso }: { a: Paciente; b: Paciente; caso: string | null })
     onSuccess: () => {
       invalidar();
       toast.success(`${drop.patientCode} se unió a ${keep.patientCode}. Se puede deshacer desde Auditoría.`);
-      navegar(`/pacientes/${keep.id}`);
+      navegar(`/pacientes/${keep.id}`, { replace: true });
     },
     onError: (e) => toast.error(e.message),
   });

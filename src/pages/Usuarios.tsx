@@ -11,6 +11,7 @@ import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { Avatar, Boton, Campo, Cargando, Casilla, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
+import { useVolver } from '../lib/navegacion';
 
 export function Usuarios() {
   const consulta = useUsuarios();
@@ -204,6 +205,7 @@ type Datos = Omit<DatosUsuario, 'roleId'> & { roleId: string; confirmar?: string
 function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
   const cliente = useQueryClient();
   const navegar = useNavigate();
+  const volverA = useVolver();
   const sesion = useSesion();
   const roles = useRoles();
   const catalogo = useCatalogoPermisos();
@@ -235,7 +237,7 @@ function FormularioUsuario({ usuario }: { usuario?: Usuario }) {
       const r = u as Usuario & { confirmacionEnviada?: boolean };
       if (!usuario) toast.success(r.confirmacionEnviada ? `Usuario creado. Le enviamos un enlace a ${u.email} para confirmar su correo.` : 'Usuario creado. No se pudo enviar el correo de confirmación: reenvíalo desde su ficha.');
       else toast.success(u.email !== usuario.email ? `Usuario actualizado. Le enviamos un enlace a ${u.email} para confirmar el correo nuevo.` : 'Usuario actualizado');
-      navegar('/usuarios');
+      volverA('/usuarios');
     },
     onError: (err) => toast.error(err.message === 'User with this email already exists' ? 'Ya existe un usuario con ese correo.' : err.message),
   });

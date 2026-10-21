@@ -277,7 +277,7 @@ function FormularioMedicamento({ medicamento }: { medicamento?: Medicamento }) {
       cliente.invalidateQueries({ queryKey: ['medicamentos'] });
       cliente.invalidateQueries({ queryKey: ['stats'] });
       toast.success(medicamento ? 'Medicamento actualizado' : 'Medicamento creado. Registra su primera entrada.');
-      navegar(medicamento ? `/medicamentos/${m.id}` : `/medicamentos/entrada?med=${m.id}`);
+      navegar(medicamento ? `/medicamentos/${m.id}` : `/medicamentos/entrada?med=${m.id}`, { replace: true });
     },
     onError: (e) => toast.error(e.message),
   });

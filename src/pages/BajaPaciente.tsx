@@ -10,6 +10,7 @@ import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Tarjeta, Vacio } f
 import { MOTIVOS_BAJA } from '../lib/etiquetas';
 import { cn, edadTexto, fecha, nombreCompleto } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { useVolver } from '../lib/navegacion';
 
 const AYUDA: Record<MotivoBaja, string> = {
   FALLECIDO: 'Causa, si se conoce (infarto, ACV, otra enfermedad, accidente…)',
@@ -29,6 +30,7 @@ export function BajaPaciente() {
   const id = Number(useParams().id);
   const consulta = usePaciente(id);
   const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const [motivo, setMotivo] = useState<MotivoBaja | ''>('');
   const [fechaBaja, setFechaBaja] = useState(hoyIso());
@@ -39,7 +41,7 @@ export function BajaPaciente() {
     onSuccess: () => {
       for (const k of [['paciente'], ['pacientes'], ['jornada'], ['jornadas'], ['stats'], ['auditoria'], ['metas']]) cliente.invalidateQueries({ queryKey: k });
       toast.success(motivo === 'FALLECIDO' ? 'Fallecimiento registrado.' : 'Baja registrada.');
-      navegar(`/pacientes/${id}`);
+      volverA(`/pacientes/${id}`);
     },
     onError: (e) => toast.error(e.message),
   });

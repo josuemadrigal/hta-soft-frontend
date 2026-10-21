@@ -11,6 +11,7 @@ import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { SelectorUbicacion } from '../components/Mapa';
 import { Boton, Campo, Cargando, Casilla, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { useVolver } from '../lib/navegacion';
 
 export function Comunidades() {
   const consulta = useComunidades();
@@ -81,7 +82,7 @@ type Datos = Omit<Comunidad, 'id'>;
 
 function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
   const cliente = useQueryClient();
-  const navegar = useNavigate();
+  const volverA = useVolver();
   const { register, handleSubmit, watch, formState } = useForm<Datos>({
     defaultValues: comunidad ?? { name: '', abbreviation: '', municipality: '', province: '', sequenceCounter: 1000, isActive: true },
   });
@@ -105,7 +106,7 @@ function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
       cliente.invalidateQueries({ queryKey: ['comunidades'] });
       cliente.invalidateQueries({ queryKey: ['bateyes-indicadores'] });
       toast.success(comunidad ? 'Batey actualizado' : 'Batey creado');
-      navegar('/comunidades');
+      volverA('/comunidades');
     },
     onError: (e) => toast.error(e.message === 'Abbreviation already exists' ? 'Ya existe un batey con ese prefijo.' : e.message),
   });
@@ -186,7 +187,7 @@ function FormularioComunidad({ comunidad }: { comunidad?: Comunidad }) {
           </p>
         </Tarjeta>
         <div className="flex justify-end gap-2">
-          <Boton variante="secundario" onClick={() => navegar('/comunidades')}>
+          <Boton variante="secundario" onClick={() => volverA('/comunidades')}>
             Cancelar
           </Boton>
           <Boton type="submit" cargando={guardar.isPending}>

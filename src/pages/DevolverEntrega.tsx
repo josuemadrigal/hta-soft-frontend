@@ -9,12 +9,14 @@ import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarg
 import { DESTINOS_DEVOLUCION, MOTIVOS_DEVOLUCION } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { useEnLinea } from '../offline/datos';
+import { useVolver } from '../lib/navegacion';
 
 /** /entregas/:id/devolver — corregir una entrega o registrar lo que el paciente devolvió. */
 export function DevolverEntrega() {
   const id = Number(useParams().id);
   const consulta = useQuery({ queryKey: ['entregas', 'entrega', id], queryFn: () => obtenerEntrega(id) });
   const navegar = useNavigate();
+  const volverA = useVolver();
   const cliente = useQueryClient();
   const enLinea = useEnLinea();
   const [motivo, setMotivo] = useState<MotivoDevolucion | ''>('');
@@ -37,7 +39,7 @@ export function DevolverEntrega() {
     onSuccess: () => {
       for (const k of [['entregas'], ['paciente', e!.patientId], ['medicamentos'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
       toast.success(motivo === 'CORRECCION' ? 'Entrega corregida. Lo que faltaba quedó pendiente otra vez.' : destino === 'DESCARTE' ? 'Devolución registrada: las pastillas se descartaron.' : 'Devolución registrada: las pastillas volvieron al inventario.');
-      navegar(`/pacientes/${e!.patientId}`);
+      volverA(`/pacientes/${e!.patientId}`);
     },
     onError: (err) => toast.error(err.message),
   });
