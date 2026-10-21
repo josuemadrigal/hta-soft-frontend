@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import { usePlanilla } from '../api/consultas';
 import { BarraPeriodo } from '../components/BarraPeriodo';
-import { COLUMNAS_PLANILLA, TablaPlanilla } from '../components/TablaPlanilla';
+import { COLUMNAS_PLANILLA, enlaceCifra, TablaPlanilla } from '../components/TablaPlanilla';
 import { Boton, Cargando, Casilla, EncabezadoPagina, ErrorCarga, Tarjeta } from '../components/ui';
 import { descargarCsv } from '../lib/copiar';
 import { cn } from '../lib/formato';
@@ -64,7 +64,7 @@ export function Planilla() {
           <ErrorCarga error={consulta.error} />
         ) : (
           <div className={cn('overflow-x-auto transition-opacity print:overflow-visible', consulta.isPlaceholderData && 'opacity-60')}>
-            <TablaPlanilla filas={filas} total={total} vacio={`No hubo visitas ${periodo.frase}.`} />
+            <TablaPlanilla filas={filas} total={total} vacio={`No hubo visitas ${periodo.frase}.`} enlace={(columna, batey) => enlaceCifra(columna, batey, periodo.desde, periodo.hasta)} />
           </div>
         )}
       </Tarjeta>

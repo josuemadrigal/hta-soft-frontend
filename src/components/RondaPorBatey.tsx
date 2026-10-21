@@ -1,4 +1,5 @@
 import { CalendarPlus, Check } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useIndicadoresBateyes } from '../api/consultas';
 import type { EstadisticasRonda } from '../api/tipos';
@@ -9,6 +10,20 @@ import { Tarjeta } from './ui';
 import { AYUDA } from '../lib/ayuda-graficas';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
+
+/** Una cifra de la ronda que abre la lista de sus pacientes (sin abrir la jornada de la fila). */
+function Cifra({ columna, batey, children }: { columna: string; batey: number; children: ReactNode }) {
+  return (
+    <Link
+      to={`/reportes/pacientes?fuente=ronda&columna=${columna}&batey=${batey}`}
+      onClick={(e) => e.stopPropagation()}
+      className="-mx-1.5 -my-1 rounded px-1.5 py-1 underline decoration-tinta/20 underline-offset-4 hover:bg-tinta/5 hover:decoration-tinta"
+      title="Ver los pacientes"
+    >
+      {children}
+    </Link>
+  );
+}
 
 /**
  * Ronda actual por batey en una tabla: cuánto se ha visto, cuántos están pendientes, cuántos dejaron
@@ -25,7 +40,7 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
   const td = 'px-3 py-2.5 text-right tabular-nums';
 
   return (
-    <Tarjeta titulo={`Ronda ${ronda.round.label} por batey`} copiable ayuda={AYUDA.rondaPorBatey} accion={<span className="text-xs text-tenue">Toca un batey para abrir su jornada</span>}>
+    <Tarjeta titulo={`Ronda ${ronda.round.label} por batey`} copiable ayuda={AYUDA.rondaPorBatey} accion={<span className="text-xs text-tenue">Toca un número para ver los pacientes; el batey abre su jornada</span>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -58,22 +73,41 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
                 <tr key={c.communityId} onClick={() => navegar(`/jornada?batey=${c.communityId}`)} className="cursor-pointer hover:bg-fondo">
                   <td className="px-5 py-2.5 font-medium whitespace-nowrap">{c.name}</td>
                   <td className={`${td} text-tenue`} title={c.retired ? `${c.retired} más ya no vienen` : undefined}>
-                    {miles(c.active)}
+                    <Cifra columna="regulares" batey={c.communityId}>
+                      {miles(c.active)}
+                    </Cifra>
                   </td>
-                  <td className={td}>~{miles(esperados)}</td>
+                  <td className={td}>
+                    <Cifra columna="esperados" batey={c.communityId}>
+                      ~{miles(esperados)}
+                    </Cifra>
+                  </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
                         <div className={pct >= 100 ? 'h-full rounded-full bg-green-600' : 'h-full rounded-full bg-tinta'} style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
                       <span className="w-20 text-right text-xs text-tenue tabular-nums">
-                        {miles(c.seen)} · {pct}%
+                        {c.seen ? (
+                          <Cifra columna="vistos" batey={c.communityId}>
+                            {miles(c.seen)}
+                          </Cifra>
+                        ) : (
+                          0
+                        )}{' '}
+                        · {pct}%
                       </span>
                     </div>
                   </td>
-                  <td className={td}>{faltan(c) ? miles(faltan(c)) : <Check className="ml-auto size-4 text-green-700" aria-label="Ya se llegó a lo esperado" />}</td>
+                  <td className={td}>{faltan(c) ? <Cifra columna="faltan" batey={c.communityId}>{miles(faltan(c))}</Cifra> : <Check className="ml-auto size-4 text-green-700" aria-label="Ya se llegó a lo esperado" />}</td>
                   <td className={`${td} text-tenue`} title={c.absentYear ? `${c.absentYear} de ellos hace más de un año` : undefined}>
-                    {c.absent ? miles(c.absent) : '—'}
+                    {c.absent ? (
+                      <Cifra columna="dejaron" batey={c.communityId}>
+                        {miles(c.absent)}
+                      </Cifra>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className={`${td} whitespace-nowrap text-tenue`}>{fecha(c.lastVisit)}</td>
                   <td className="px-5 py-2.5 whitespace-nowrap">

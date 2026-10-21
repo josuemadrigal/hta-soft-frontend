@@ -2,3 +2,7 @@ node_modules
 dist
 .env.local
 .DS_Store
+
+# Salida de tsc si se corre sin --noEmit: nunca va al repo (Vite tomaría el .js antes que el .tsx)
+src/**/*.js
+vite.config.js

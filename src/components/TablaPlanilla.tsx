@@ -1,10 +1,11 @@
+import { Link } from 'react-router';
 import type { FilaPlanilla } from '../api/tipos';
 import { cn } from '../lib/formato';
 
-type Clave = keyof Omit<FilaPlanilla, 'communityId' | 'batey' | 'fechas'>;
+export type ClavePlanilla = keyof Omit<FilaPlanilla, 'communityId' | 'batey' | 'fechas'>;
 
 /** Las columnas de la planilla de papel, en su orden y con su texto en inglés y en español (va a los donantes). */
-export const COLUMNAS_PLANILLA: { clave: Clave; en: string; es: string; grupo?: 'existentes' | 'nuevos' }[] = [
+export const COLUMNAS_PLANILLA: { clave: ClavePlanilla; en: string; es: string; grupo?: 'existentes' | 'nuevos' }[] = [
   { clave: 'evaluados', en: '# of evaluated patients', es: '# de pacientes evaluados' },
   { clave: 'enPrograma', en: '# of existing patients', es: '# de pacientes existentes (en el programa)' },
   { clave: 'conToma', en: '# of BP checks', es: '# de pacientes consultados' },
@@ -15,6 +16,10 @@ export const COLUMNAS_PLANILLA: { clave: Clave; en: string; es: string; grupo?: 
   { clave: 'nuevos', en: '# of new patients', es: '# de pacientes nuevos', grupo: 'nuevos' },
   { clave: 'nuevosConMedicamento', en: '# of new patients placed on HTN meds', es: '# de pacientes nuevos que recibieron medicamentos para HTN', grupo: 'nuevos' },
 ];
+
+/** La página con los pacientes de una cifra de la planilla. */
+export const enlaceCifra = (columna: ClavePlanilla, batey: number | null, desde: string, hasta: string) =>
+  `/reportes/pacientes?fuente=planilla&columna=${columna}${batey ? `&batey=${batey}` : ''}&desde=${desde}&hasta=${hasta}`;
 
 const CORTA = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short' });
 const fechaDe = (s: string) => {
@@ -29,7 +34,8 @@ export function textoFechas(fechas: string[]) {
 }
 
 /** La planilla como en el papel: una fila por batey y las 9 columnas en el mismo orden. */
-export function TablaPlanilla({ filas, total, vacio }: { filas: FilaPlanilla[]; total?: FilaPlanilla; vacio: string }) {
+/** `enlace` hace que cada cifra abra la lista de sus pacientes (communityId null = el total). */
+export function TablaPlanilla({ filas, total, vacio, enlace }: { filas: FilaPlanilla[]; total?: FilaPlanilla; vacio: string; enlace?: (columna: ClavePlanilla, communityId: number | null) => string }) {
   return (
     <table className="w-full min-w-[1080px] border-collapse text-sm print:min-w-0 print:text-[11px]">
       <thead>
@@ -48,7 +54,7 @@ export function TablaPlanilla({ filas, total, vacio }: { filas: FilaPlanilla[]; 
       </thead>
       <tbody className="divide-y divide-borde">
         {filas.map((f) => (
-          <Fila key={f.communityId} f={f} />
+          <Fila key={f.communityId} f={f} enlace={enlace} />
         ))}
         {filas.length === 0 && (
           <tr>
@@ -60,14 +66,14 @@ export function TablaPlanilla({ filas, total, vacio }: { filas: FilaPlanilla[]; 
       </tbody>
       {total && filas.length > 1 && (
         <tfoot>
-          <Fila f={total} total />
+          <Fila f={total} total enlace={enlace} />
         </tfoot>
       )}
     </table>
   );
 }
 
-function Fila({ f, total }: { f: FilaPlanilla; total?: boolean }) {
+function Fila({ f, total, enlace }: { f: FilaPlanilla; total?: boolean; enlace?: (columna: ClavePlanilla, communityId: number | null) => string }) {
   const vacio = f.evaluados === 0 && !total;
   return (
     <tr className={cn(total ? 'border-t-2 border-tinta/20 bg-fondo font-semibold' : 'hover:bg-fondo/60', vacio && 'text-tenue')}>
@@ -91,7 +97,13 @@ function Fila({ f, total }: { f: FilaPlanilla; total?: boolean }) {
               c.clave === 'controlados' && v > 0 && !vacio && 'text-green-700',
             )}
           >
-            {mostrar ? v.toLocaleString('es-DO') : ''}
+            {!mostrar ? '' : enlace && v > 0 ? (
+              <Link to={enlace(c.clave, f.communityId)} className="-mx-1.5 -my-1 rounded px-1.5 py-1 underline decoration-tinta/20 underline-offset-4 hover:bg-tinta/5 hover:decoration-tinta print:no-underline" title="Ver los pacientes">
+                {v.toLocaleString('es-DO')}
+              </Link>
+            ) : (
+              v.toLocaleString('es-DO')
+            )}
           </td>
         );
       })}

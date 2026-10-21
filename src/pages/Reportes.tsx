@@ -6,7 +6,7 @@ import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, R
 import { toast } from 'sonner';
 import { descargar } from '../api/client';
 import { useComunidades, usePlanilla, useResumenReporte, useRonda } from '../api/consultas';
-import { TablaPlanilla } from '../components/TablaPlanilla';
+import { enlaceCifra, TablaPlanilla } from '../components/TablaPlanilla';
 import { RondaPorBatey } from '../components/RondaPorBatey';
 import type { CategoriaPA, FiltroReporte, Genero, ResumenReporte } from '../api/tipos';
 import { Barras, EJE, REJILLA, SERIES, TOOLTIP, LEYENDA } from '../components/graficas';
@@ -502,7 +502,7 @@ function PlanillaReporte({ desde, hasta, batey }: { desde: string; hasta: string
         <ErrorCarga error={consulta.error} />
       ) : (
         <div className={cn('overflow-x-auto transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
-          <TablaPlanilla filas={filas} total={total} vacio="No hubo visitas en este periodo." />
+          <TablaPlanilla filas={filas} total={total} vacio="No hubo visitas en este periodo." enlace={(columna, b) => enlaceCifra(columna, b ?? batey ?? null, desde || '2017-01-01', hastaReal)} />
         </div>
       )}
     </Tarjeta>
