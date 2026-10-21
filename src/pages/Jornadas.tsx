@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, Mail, MapPin, Package, Pencil, Printer, Tent, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, Search, Stethoscope, X, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, Mail, MapPin, Package, Pencil, Printer, Tent, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -8,9 +8,9 @@ import { useAsistenciaJornadas, useComunidades, useDetalleJornada, useJornadas, 
 import { cancelarJornada, cerrarJornada, crearJornada, editarJornada } from '../api/recursos';
 import type { DetalleJornada, EstadoJornada, Jornada } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
-import { conQuien, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
+import { CATEGORIAS, conQuien, MOTIVOS_INASISTENCIA } from '../lib/etiquetas';
 import { useConfirmar } from '../components/confirmar';
-import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
 
@@ -395,7 +395,37 @@ function Detalle({ d }: { d: DetalleJornada }) {
     if (await confirmar({ titulo: 'Cancelar la jornada', mensaje: `La jornada de ${j.community.name} del ${diaJornada(j.fecha)} quedará cancelada.`, confirmar: 'Cancelar jornada' })) accion.mutate('cancelar');
   };
 
-  const pacientes = d.pacientes.filter((p) => (vista === 'faltan' ? p.esperado && !p.atendidoHoy : vista === 'atendidos' ? p.atendidoHoy : true));
+  // Filtros de la lista: texto, quién lo atendió ese día, cómo está la presión y si es nuevo.
+  const [buscar, setBuscar] = useState('');
+  const [medico, setMedico] = useState('');
+  const [presion, setPresion] = useState('');
+  const [soloNuevos, setSoloNuevos] = useState(false);
+  const elegirMedico = (m: string) => {
+    setMedico(m);
+    if (m) setVista('atendidos');
+    document.getElementById('pacientes-jornada')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const q = buscar.trim().toLowerCase();
+  const enVista = d.pacientes.filter((p) => (vista === 'faltan' ? p.esperado && !p.atendidoHoy : vista === 'atendidos' ? p.atendidoHoy : true));
+  const pacientes = enVista.filter((p) => {
+    if (q && !`${nombreCompleto(p)} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q)) return false;
+    if (medico && !(p.atendidoHoy && p.atendio === medico)) return false;
+    if (soloNuevos && !p.nuevo) return false;
+    const c = p.categoria?.categoryName;
+    if (presion === 'controlados' && !(c === 'NORMAL' || c === 'ELEVATED')) return false;
+    if (presion === 'noControlados' && !(c === 'GRADE_1' || c === 'GRADE_2' || c === 'CRISIS')) return false;
+    if (presion === 'sinToma' && c) return false;
+    if (presion && !['controlados', 'noControlados', 'sinToma'].includes(presion) && c !== presion) return false;
+    return true;
+  });
+  const hayFiltros = !!(q || medico || presion || soloNuevos);
+  const limpiar = () => {
+    setBuscar('');
+    setMedico('');
+    setPresion('');
+    setSoloNuevos(false);
+  };
+  const medicos = d.porMedico ?? [];
   const faltaAlgo = d.llevar.some((m) => m.falta > 0);
 
   return (
@@ -538,6 +568,54 @@ function Detalle({ d }: { d: DetalleJornada }) {
             </Tabla>
           )}
         </Tarjeta>
+        {medicos.length > 0 && (
+          <Tarjeta
+            titulo={<span className="flex items-center gap-2"><Stethoscope className="size-4" /> Por médico</span>}
+            accion={<span className="text-xs text-tenue">Toca un médico para ver sus pacientes</span>}
+          >
+            <Tabla
+              columnas={[
+                'Médico',
+                { texto: 'Pacientes', className: 'text-right' },
+                { texto: 'Pastillas', className: 'text-right' },
+                { texto: 'Controlados', className: 'text-right' },
+                { texto: 'Nuevos', className: 'text-right' },
+              ]}
+            >
+              {medicos.map((m) => {
+                const pct = m.conToma ? Math.round((m.controlados / m.conToma) * 100) : null;
+                return (
+                  <tr key={m.medico} onClick={() => elegirMedico(medico === m.medico ? '' : m.medico)} className={cn('cursor-pointer hover:bg-fondo', medico === m.medico && 'bg-marca-50')}>
+                    <td className="px-5 py-2.5 font-medium whitespace-nowrap">{m.medico}</td>
+                    <td className="tabular px-5 py-2.5 text-right">{miles(m.pacientes)}</td>
+                    <td className="tabular px-5 py-2.5 text-right">{miles(m.pastillas)}</td>
+                    <td className="tabular px-5 py-2.5 text-right whitespace-nowrap">
+                      {miles(m.controlados)}
+                      {pct !== null && <span className={cn('ml-1.5 text-xs', pct >= 60 ? 'text-green-700' : pct >= 40 ? 'text-amber-700' : 'text-red-600')}>{pct}%</span>}
+                    </td>
+                    <td className="tabular px-5 py-2.5 text-right text-tenue">{m.nuevos ? miles(m.nuevos) : '—'}</td>
+                  </tr>
+                );
+              })}
+              {medicos.length > 1 && (
+                <tr className="border-t border-borde font-semibold">
+                  <td className="px-5 py-2.5">Total</td>
+                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.pacientes, 0))}</td>
+                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.pastillas, 0))}</td>
+                  <td className="tabular px-5 py-2.5 text-right whitespace-nowrap">
+                    {miles(medicos.reduce((a, m) => a + m.controlados, 0))}
+                    {(() => {
+                      const conToma = medicos.reduce((a, m) => a + m.conToma, 0);
+                      return conToma ? <span className="ml-1.5 text-xs font-normal text-tenue">{Math.round((medicos.reduce((a, m) => a + m.controlados, 0) / conToma) * 100)}%</span> : null;
+                    })()}
+                  </td>
+                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.nuevos, 0)) || '—'}</td>
+                </tr>
+              )}
+            </Tabla>
+            <p className="border-t border-borde px-5 py-2.5 text-xs text-tenue">El % de controlados es sobre los pacientes a los que se les tomó la presión ese día: por debajo de 140/90 (Normal o Elevada).</p>
+          </Tarjeta>
+        )}
         {j.estado === 'CERRADA' && (
           <Tarjeta titulo={`No vinieron (${j.resumen?.faltantes?.length ?? 0})`}>
             {!j.resumen?.faltantes?.length ? (
@@ -561,7 +639,7 @@ function Detalle({ d }: { d: DetalleJornada }) {
 
       {j.estado !== 'CANCELADA' && (
         <Tarjeta
-          titulo="Pacientes"
+          titulo={<span id="pacientes-jornada" className="scroll-mt-4">Pacientes</span>}
           accion={
             <div className="flex gap-1">
               {(
@@ -582,10 +660,58 @@ function Detalle({ d }: { d: DetalleJornada }) {
             </div>
           }
         >
+          <div className="flex flex-wrap items-center gap-2 border-b border-borde px-5 py-3">
+            <div className="relative min-w-48 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
+              <Entrada placeholder="Buscar nombre, código o casa" aria-label="Buscar paciente" className="pl-8" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+            </div>
+            {medicos.length > 0 && (
+              <Selector
+                className="w-52"
+                aria-label="Lo atendió"
+                vacio="Cualquier médico"
+                value={medico}
+                onChange={(e) => elegirMedico(e.target.value)}
+                opciones={medicos.map((m) => ({ value: m.medico, label: `${m.medico} (${m.pacientes})` }))}
+              />
+            )}
+            <Selector
+              className="w-52"
+              aria-label="Presión"
+              vacio="Cualquier presión"
+              value={presion}
+              onChange={(e) => setPresion(e.target.value)}
+              opciones={[
+                { value: 'controlados', label: 'Controlados (< 140/90)' },
+                { value: 'noControlados', label: 'No controlados (≥ 140/90)' },
+                ...(['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE_2', 'CRISIS'] as const).map((c) => ({ value: c, label: CATEGORIAS[c] })),
+                { value: 'sinToma', label: 'Sin toma' },
+              ]}
+            />
+            {d.pacientes.some((p) => p.nuevo) && (
+              <button
+                type="button"
+                onClick={() => setSoloNuevos((v) => !v)}
+                className={cn('h-10 rounded-lg border px-3 text-sm', soloNuevos ? 'border-tinta bg-marca-500 font-medium' : 'border-borde text-tenue hover:text-tinta')}
+              >
+                Solo nuevos
+              </button>
+            )}
+            {hayFiltros && (
+              <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
+                Limpiar
+              </Boton>
+            )}
+            {hayFiltros && (
+              <span className="w-full text-xs text-tenue">
+                {pacientes.length} de {enVista.length}
+              </span>
+            )}
+          </div>
           {!pacientes.length ? (
-            <Vacio icono={<MapPin className="size-8" />} titulo="Nadie en esta lista" />
+            <Vacio icono={<MapPin className="size-8" />} titulo={hayFiltros ? 'Nadie coincide con los filtros' : 'Nadie en esta lista'} />
           ) : (
-            <Tabla columnas={['Paciente', 'Edad', 'Casa', 'Última visita', 'PA', 'Atendió', 'Estado']}>
+            <Tabla columnas={['Paciente', 'Edad', 'Casa', 'Última visita', 'PA', 'Atendió', { texto: 'Pastillas', className: 'text-right' }, 'Estado']}>
               {pacientes.map((p) => (
                 <tr
                   key={p.id}
@@ -603,10 +729,21 @@ function Detalle({ d }: { d: DetalleJornada }) {
                     <span className="tabular mr-2 font-mono">{p.presion ?? '—'}</span>
                     {p.categoria && <InsigniaCategoria config={p.categoria} />}
                   </td>
-                  <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{p.atendio ?? '—'}</td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    {p.atendidoHoy ? (
+                      p.atendio ?? '—'
+                    ) : p.atendio ? (
+                      <span className="text-xs text-tenue" title="Quién lo vio la última vez">
+                        La última vez: {p.atendio}
+                      </span>
+                    ) : (
+                      <span className="text-tenue">—</span>
+                    )}
+                  </td>
+                  <td className="tabular px-5 py-2.5 text-right">{p.pastillasHoy ? miles(p.pastillasHoy) : <span className="text-tenue">—</span>}</td>
                   <td className="px-5 py-2.5">
                     {p.atendidoHoy ? (
-                      <Insignia color="#15803d">Atendido</Insignia>
+                      <Insignia color="#15803d">{p.nuevo ? 'Atendido · nuevo' : 'Atendido'}</Insignia>
                     ) : p.noVino ? (
                       <Insignia color="#6b665e">
                         No vino · {MOTIVOS_INASISTENCIA[p.noVino].toLowerCase()}

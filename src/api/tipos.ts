@@ -178,8 +178,13 @@ export type DetalleJornada = {
     ultimaVisita: string | null;
     presion: string | null;
     categoria: ConfigPA | null;
+    /** Si atendidoHoy, quién lo atendió ese día; si no, quién lo vio la última vez. */
     atendio: string | null;
+    pastillasHoy?: number;
+    nuevo?: boolean;
   }[];
+  /** Por médico, ese día: a cuántos vio, pastillas entregadas y cuántos quedaron controlados. */
+  porMedico?: { medico: string; pacientes: number; pastillas: number; conToma: number; controlados: number; nuevos: number }[];
 };
 
 export type SugerenciaJornada = {
