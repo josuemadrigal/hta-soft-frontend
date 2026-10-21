@@ -576,10 +576,11 @@ function Detalle({ d }: { d: DetalleJornada }) {
             <Tabla
               columnas={[
                 'Médico',
-                { texto: 'Pacientes', className: 'text-right' },
+                { texto: 'Ya venían', className: 'text-right' },
+                { texto: 'Nuevos', className: 'text-right' },
+                { texto: 'Total', className: 'text-right' },
                 { texto: 'Pastillas', className: 'text-right' },
                 { texto: 'Controlados', className: 'text-right' },
-                { texto: 'Nuevos', className: 'text-right' },
               ]}
             >
               {medicos.map((m) => {
@@ -587,19 +588,22 @@ function Detalle({ d }: { d: DetalleJornada }) {
                 return (
                   <tr key={m.medico} onClick={() => elegirMedico(medico === m.medico ? '' : m.medico)} className={cn('cursor-pointer hover:bg-fondo', medico === m.medico && 'bg-marca-50')}>
                     <td className="px-5 py-2.5 font-medium whitespace-nowrap">{m.medico}</td>
-                    <td className="tabular px-5 py-2.5 text-right">{miles(m.pacientes)}</td>
+                    <td className="tabular px-5 py-2.5 text-right text-tenue">{miles(m.pacientes - m.nuevos)}</td>
+                    <td className="tabular px-5 py-2.5 text-right text-tenue">{miles(m.nuevos)}</td>
+                    <td className="tabular px-5 py-2.5 text-right font-medium">{miles(m.pacientes)}</td>
                     <td className="tabular px-5 py-2.5 text-right">{miles(m.pastillas)}</td>
                     <td className="tabular px-5 py-2.5 text-right whitespace-nowrap">
                       {miles(m.controlados)}
                       {pct !== null && <span className={cn('ml-1.5 text-xs', pct >= 60 ? 'text-green-700' : pct >= 40 ? 'text-amber-700' : 'text-red-600')}>{pct}%</span>}
                     </td>
-                    <td className="tabular px-5 py-2.5 text-right text-tenue">{m.nuevos ? miles(m.nuevos) : '—'}</td>
                   </tr>
                 );
               })}
               {medicos.length > 1 && (
                 <tr className="border-t border-borde font-semibold">
                   <td className="px-5 py-2.5">Total</td>
+                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.pacientes - m.nuevos, 0))}</td>
+                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.nuevos, 0))}</td>
                   <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.pacientes, 0))}</td>
                   <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.pastillas, 0))}</td>
                   <td className="tabular px-5 py-2.5 text-right whitespace-nowrap">
@@ -609,11 +613,10 @@ function Detalle({ d }: { d: DetalleJornada }) {
                       return conToma ? <span className="ml-1.5 text-xs font-normal text-tenue">{Math.round((medicos.reduce((a, m) => a + m.controlados, 0) / conToma) * 100)}%</span> : null;
                     })()}
                   </td>
-                  <td className="tabular px-5 py-2.5 text-right">{miles(medicos.reduce((a, m) => a + m.nuevos, 0)) || '—'}</td>
                 </tr>
               )}
             </Tabla>
-            <p className="border-t border-borde px-5 py-2.5 text-xs text-tenue">El % de controlados es sobre los pacientes a los que se les tomó la presión ese día: por debajo de 140/90 (Normal o Elevada).</p>
+            <p className="border-t border-borde px-5 py-2.5 text-xs text-tenue">Total = los que ya venían más los nuevos. El % de controlados es sobre los pacientes a los que se les tomó la presión ese día: por debajo de 140/90 (Normal o Elevada).</p>
           </Tarjeta>
         )}
         {j.estado === 'CERRADA' && (
