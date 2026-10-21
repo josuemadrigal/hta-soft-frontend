@@ -5,7 +5,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { descargar } from '../api/client';
-import { useComunidades, useResumenReporte, useRonda } from '../api/consultas';
+import { useComunidades, usePlanilla, useResumenReporte, useRonda } from '../api/consultas';
+import { TablaPlanilla } from '../components/TablaPlanilla';
 import { RondaPorBatey } from '../components/RondaPorBatey';
 import type { CategoriaPA, FiltroReporte, Genero, ResumenReporte } from '../api/tipos';
 import { Barras, EJE, REJILLA, SERIES, TOOLTIP, LEYENDA } from '../components/graficas';
@@ -458,6 +459,8 @@ export function Reportes() {
         </div>
       )}
 
+      <PlanillaReporte desde={desde} hasta={hasta} batey={filtro.communityId} />
+
       {ronda.data && (
         <div className="mt-4">
           <RondaPorBatey ronda={ronda.data} />
@@ -472,6 +475,37 @@ export function Reportes() {
         </div>
       </Tarjeta>
     </>
+  );
+}
+
+/** La planilla de papel dentro de Reportes, con el mismo periodo y batey de los filtros de arriba. */
+function PlanillaReporte({ desde, hasta, batey }: { desde: string; hasta: string; batey?: number }) {
+  const hastaReal = hasta || ymd(new Date());
+  const consulta = usePlanilla({ from: `${desde || '2017-01-01'}T00:00:00-04:00`, to: `${hastaReal}T23:59:59-04:00` });
+  const navegar = useNavigate();
+  const filas = (consulta.data?.filas ?? []).filter((f) => (batey ? f.communityId === batey : true));
+  const total = batey ? undefined : consulta.data?.total;
+  return (
+    <Tarjeta
+      className="mt-4"
+      titulo={<span className="flex items-center gap-2"><ClipboardList className="size-4" /> Planilla de la jornada</span>}
+      ayuda={AYUDA.planilla}
+      accion={
+        <Boton variante="secundario" className="h-8 text-xs" onClick={() => navegar(`/reportes/planilla?desde=${desde || '2017-01-01'}&hasta=${hastaReal}`)}>
+          Imprimir o enviar
+        </Boton>
+      }
+    >
+      {consulta.isPending ? (
+        <Cargando forma="lista" texto="Llenando la planilla…" />
+      ) : consulta.isError ? (
+        <ErrorCarga error={consulta.error} />
+      ) : (
+        <div className={cn('overflow-x-auto transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
+          <TablaPlanilla filas={filas} total={total} vacio="No hubo visitas en este periodo." />
+        </div>
+      )}
+    </Tarjeta>
   );
 }
 

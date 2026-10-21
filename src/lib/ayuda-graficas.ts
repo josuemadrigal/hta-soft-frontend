@@ -58,6 +58,10 @@ export const AYUDA = {
     lee: 'Cada fila es un hábito o antecedente. La barra es el % de los pacientes atendidos que lo tienen; entre paréntesis, cuántos son.',
     significa: 'Son factores que suben la presión. Indican qué temas conviene hablar en las charlas: sal, alcohol, tabaco y antecedentes en la familia.',
   },
+  planilla: {
+    lee: 'Es la planilla de papel que se llenaba a mano, con las mismas columnas y en el mismo orden: una fila por batey y abajo el total. Usa el periodo y el batey de los filtros de arriba.',
+    significa: 'Se cuenta por paciente, no por visita, y para saber si está controlado vale su última toma del periodo. Existentes son los regulares del batey; nuevos, los que vinieron por primera vez en el periodo. Los bateyes sin visitas quedan en blanco.',
+  },
   rondaPorBatey: {
     lee: 'Cada fila es un batey, primero los que más faltan. Esperados es la media alta de sus últimas jornadas (el promedio de las que tuvieron más pacientes, para prepararse para un buen día; cuántas, se ajusta en Configuración); la barra es cuántos ya se vieron en esta ronda contra esos esperados, y se pone verde al llegar. Faltan es lo que queda para llegar. Regulares son todos los que todavía vienen, y Dejaron de venir los regulares que llevan más de 6 meses sin venir.',
     significa: 'Una ronda es el trimestre en que se debe ver a cada paciente una vez. Nunca vienen todos los regulares: por eso se mide contra lo que viene en un buen día. Los que se perdieron más visitas de las que se fijan en Configuración ya no cuentan. Los bateyes de arriba son donde más falta la próxima jornada.',
