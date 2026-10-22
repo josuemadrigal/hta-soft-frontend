@@ -15,9 +15,9 @@ import { descargarJornada, jornadasDescargadas, useEnLinea } from '../offline/da
 import { Avatar, Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tarjeta, Vacio } from '../components/ui';
 import { asistencia } from '../lib/asistencia';
 import { mensajeEntrega } from '../lib/entregas';
-import { cn, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
+import { cn, edad, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
 import { ymd } from '../components/SelectorFecha';
-import { corteRegulares, esRegular, tiempoSinVenir, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
+import { corteRegulares, esRegular, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
 
 type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
 
@@ -35,11 +35,31 @@ const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> 
 
 const FILTROS = [
   { valor: 'pendientes', texto: 'Por ver' },
-  { valor: 'hoy', texto: 'Vistos hoy' },
+  { valor: 'hoy', texto: 'Vistos' },
   { valor: 'novino', texto: 'No vinieron' },
-  { valor: 'yanovienen', texto: 'Ya no vienen' },
   { valor: 'todos', texto: 'Todos' },
 ] as const;
+
+/** Vistos: hoy, o en una ronda (trimestre) de este año. */
+type Cuando = 'hoy' | 1 | 2 | 3 | 4;
+const trimestreDe = (ymd: string) => Math.floor((Number(ymd.slice(5, 7)) - 1) / 3) + 1;
+
+const PRESIONES = [
+  { value: 'controlados', label: 'Controlados (< 140/90)' },
+  { value: 'noControlados', label: 'No controlados (≥ 140/90)' },
+  { value: 'NORMAL', label: 'Normal' },
+  { value: 'ELEVATED', label: 'Elevada' },
+  { value: 'GRADE_1', label: 'HTA grado 1' },
+  { value: 'GRADE_2', label: 'HTA grado 2' },
+  { value: 'CRISIS', label: 'Crisis hipertensiva' },
+  { value: 'sinToma', label: 'Sin toma' },
+];
+const EDADES = [
+  { value: '0-39', label: 'Menos de 40' },
+  { value: '40-59', label: '40 a 59' },
+  { value: '60-74', label: '60 a 74' },
+  { value: '75-200', label: '75 o más' },
+];
 
 function inicioRonda() {
   const h = new Date();
@@ -95,6 +115,10 @@ export function Jornada() {
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<(typeof FILTROS)[number]['valor']>('pendientes');
   const [medico, setMedico] = useState<number | ''>('');
+  const [cuando, setCuando] = useState<Cuando>('hoy');
+  const [presion, setPresion] = useState('');
+  const [sexo, setSexo] = useState('');
+  const [rangoEdad, setRangoEdad] = useState('');
   const navegar = useNavigate();
 
   const comunidades = useComunidades();
@@ -225,12 +249,8 @@ export function Jornada() {
     const corte = corteRegulares(visitasSinVenir);
     return (lista.data ?? [])
       .map((p) => ({ p, estado: estadoDe(p, ronda, hoy, locales, corte) }))
-      // Dentro de cada estado, la visita más reciente primero (los que faltan desde hace poco se recuperan más fácil).
-      .sort(
-        (a, b) =>
-          ESTADOS[a.estado].orden - ESTADOS[b.estado].orden ||
-          new Date(b.p.clinicalVisits[0]?.visitDate ?? 0).getTime() - new Date(a.p.clinicalVisits[0]?.visitDate ?? 0).getTime(),
-      );
+      // Por nombre: así se busca a la persona que llega a la mesa.
+      .sort((a, b) => nombreCompleto(a.p).localeCompare(nombreCompleto(b.p), 'es', { sensitivity: 'base' }));
   }, [lista.data, locales, visitasSinVenir]);
 
   // Médicos que figuran como último en atender a alguien de este batey. Solo los usuarios activos van por
@@ -249,20 +269,49 @@ export function Jornada() {
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
   const noVinieron = filas.filter((f) => f.estado === 'noVino').length;
   const yaNoVienen = filas.filter((f) => f.estado === 'yaNoViene').length;
+  // Vistos en una ronda de este año (los de hoy sin enviar cuentan en la ronda actual).
+  const trimestreHoy = trimestreDe(hoyYmd());
+  const vinoEn = (p: PacienteJornada, estado: Estado, t: Cuando) =>
+    t === 'hoy' ? estado === 'hoy' : (t === trimestreHoy && estado === 'hoy') || (p.visitasAnio ?? []).some((d) => trimestreDe(d) === t);
+  const vistosEn = (t: Cuando) => filas.filter(({ p, estado }) => vinoEn(p, estado, t)).length;
   // Los regulares: la ronda se mide contra ellos, no contra todos los registrados desde 2017.
   const regulares = filas.length - yaNoVienen;
   const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino' && f.estado !== 'yaNoViene').length;
   const q = busqueda.trim().toLowerCase();
+  const masFiltros = !!(presion || sexo || rangoEdad || medico !== '');
   const visibles = filas.filter(({ p, estado }) => {
     if (medico === 0 && !(p.lastDoctorId && esOtro(p.lastDoctorId))) return false;
     if (medico && p.lastDoctorId !== medico) return false;
+    if (sexo && p.gender !== sexo) return false;
+    if (rangoEdad) {
+      const [de, a] = rangoEdad.split('-').map(Number);
+      const e = edad(p.birthDate);
+      if (e < de || e > a) return false;
+    }
+    if (presion) {
+      const c = p.clinicalVisits[0]?.bpClassification?.categoryName;
+      const fuera =
+        presion === 'controlados'
+          ? !(c === 'NORMAL' || c === 'ELEVATED')
+          : presion === 'noControlados'
+            ? !(c === 'GRADE_1' || c === 'GRADE_2' || c === 'CRISIS')
+            : presion === 'sinToma'
+              ? !!c
+              : c !== presion;
+      if (fuera) return false;
+    }
     if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
     if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino' && estado !== 'yaNoViene';
-    if (filtro === 'hoy') return estado === 'hoy';
+    if (filtro === 'hoy') return vinoEn(p, estado, cuando);
     if (filtro === 'novino') return estado === 'noVino';
-    if (filtro === 'yanovienen') return estado === 'yaNoViene';
     return true;
   });
+  const limpiarFiltros = () => {
+    setMedico('');
+    setPresion('');
+    setSexo('');
+    setRangoEdad('');
+  };
 
   return (
     <>
@@ -397,7 +446,7 @@ export function Jornada() {
             {/* Lo primero es en qué grupo se está: cada pestaña dice cuántos hay */}
             <div className="grid w-full grid-cols-2 gap-0.5 rounded-lg bg-black/5 p-0.5 text-sm sm:flex lg:w-auto" role="tablist" aria-label="Qué pacientes ver">
               {FILTROS.map((f) => {
-                const n = f.valor === 'pendientes' ? porVer : f.valor === 'hoy' ? vistosHoy : f.valor === 'novino' ? noVinieron : f.valor === 'yanovienen' ? yaNoVienen : filas.length;
+                const n = f.valor === 'pendientes' ? porVer : f.valor === 'hoy' ? vistosEn(cuando) : f.valor === 'novino' ? noVinieron : filas.length;
                 const activo = filtro === f.valor && !q;
                 return (
                   <button
@@ -425,6 +474,48 @@ export function Jornada() {
               opciones={medicosDelBatey.map((m) => ({ value: m.id, label: `${m.nombre} (${m.n})` }))}
               aria-label="Último que lo atendió"
             />
+            {/* Vistos: hoy o en una ronda de este año */}
+            {filtro === 'hoy' && !q && (
+              <div className="flex w-full flex-wrap items-center gap-1.5 text-sm">
+                <span className="mr-1 text-tenue">Vistos:</span>
+                {(['hoy', 1, 2, 3, 4] as const)
+                  .filter((t) => t === 'hoy' || t <= trimestreHoy)
+                  .map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setCuando(t)}
+                      className={cn('rounded-full border px-3 py-1', cuando === t ? 'border-tinta bg-marca-500 font-medium' : 'border-borde text-tenue hover:text-tinta')}
+                    >
+                      {t === 'hoy' ? 'Hoy' : `T${t}${t === trimestreHoy ? ' · esta ronda' : ''}`} <span className="tabular text-xs">{vistosEn(t)}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
+            <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+              <Selector className="col-span-2 h-10 w-full sm:w-56" vacio="Presión: cualquiera" value={presion} onChange={(e) => setPresion(e.target.value)} opciones={PRESIONES} aria-label="Presión en la última visita" />
+              <Selector
+                className="h-10 w-full min-w-0 sm:w-44"
+                vacio="Sexo: cualquiera"
+                value={sexo}
+                onChange={(e) => setSexo(e.target.value)}
+                opciones={[
+                  { value: 'FEMALE', label: 'Mujeres' },
+                  { value: 'MALE', label: 'Hombres' },
+                ]}
+                aria-label="Sexo"
+              />
+              <Selector className="h-10 w-full min-w-0 sm:w-44" vacio="Edad: cualquiera" value={rangoEdad} onChange={(e) => setRangoEdad(e.target.value)} opciones={EDADES} aria-label="Edad" />
+              {masFiltros && (
+                <Boton variante="fantasma" className="h-10" onClick={limpiarFiltros}>
+                  Quitar filtros
+                </Boton>
+              )}
+              {(masFiltros || q) && (
+                <span className="text-xs text-tenue">
+                  {visibles.length} {visibles.length === 1 ? 'paciente' : 'pacientes'}
+                </span>
+              )}
+            </div>
           </div>
 
           {lista.isPending ? (
@@ -432,17 +523,11 @@ export function Jornada() {
           ) : lista.isError ? (
             <ErrorCarga error={lista.error} />
           ) : visibles.length === 0 ? (
-            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : filtro === 'yanovienen' ? 'Todos siguen viniendo' : 'Nadie todavía'}>
+            <Vacio icono={<CheckCircle2 className="size-8" />} titulo={q ? 'Sin coincidencias' : filtro === 'pendientes' ? 'No falta nadie por ver' : 'Nadie todavía'}>
               {q ? 'Revisa cómo está escrito o busca por el código o la casa.' : filtro === 'pendientes' ? 'Todos los pacientes de este batey ya se vieron en la ronda.' : undefined}
             </Vacio>
           ) : (
             <ul className="divide-y divide-borde">
-              {filtro === 'yanovienen' && !q && (
-                <li className="bg-fondo px-5 py-3 text-sm text-tenue">
-                  Se perdieron más de {visitasSinVenir} {visitasSinVenir === 1 ? 'visita' : 'visitas'} (más de {tiempoSinVenir(visitasSinVenir)} sin venir), así que no cuentan como "por ver". Si alguno vuelve, al registrarle la visita
-                  vuelve a contar. El número se cambia en Configuración.
-                </li>
-              )}
               {visibles.map(({ p, estado }) => {
                 const u = p.clinicalVisits[0];
                 const e = ESTADOS[estado];
@@ -461,16 +546,19 @@ export function Jornada() {
                   <li
                     key={p.id}
                     onClick={() => navegar(`/pacientes/${p.id}?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`)}
-                    className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fondo sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 md:grid-cols-[auto_minmax(0,1fr)_13rem_auto]"
+                    className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fondo sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 md:grid-cols-[auto_5.5rem_minmax(0,1fr)_13rem_15rem]"
                   >
                     <Avatar persona={p} foto={p.photoUrl} tamano="size-10" />
+                    {/* El código en su columna (en pantallas anchas); en el teléfono va debajo del nombre */}
+                    <span className="tabular hidden font-mono text-sm text-tinta/80 md:block">{p.patientCode}</span>
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="truncate font-medium">{nombreCompleto(p)}</span>
                         {aviso && <Insignia color={aviso.color}>{aviso.texto}</Insignia>}
                       </p>
                       <p className="truncate text-xs text-tenue">
-                        <span className="font-mono text-tinta/70">{p.patientCode}</span> · {edadTexto(p)}
+                        <span className="font-mono text-tinta/70 md:hidden">{p.patientCode} · </span>
+                        {edadTexto(p)}
                         {p.address && ` · Casa ${p.address}`}
                       </p>
                     </div>
