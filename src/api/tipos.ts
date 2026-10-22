@@ -581,6 +581,8 @@ export type ReporteDonantes = {
   casos: { iniciales: string; sexo: string; edad: number; batey: string; antes: string; fechaAntes: string; ahora: string; fechaAhora: string; visitas: number }[];
   bajas: Partial<Record<MotivoBaja, number>>;
   analisis?: AnalisisDonantes;
+  /** Qué hacer el próximo periodo, según los números de este (como mucho cinco, la más urgente primero). */
+  estrategias?: { titulo: string; porque: string; acciones: string[] }[];
   planilla?: { filas: FilaPlanilla[]; total: FilaPlanilla };
   texto: string;
 };

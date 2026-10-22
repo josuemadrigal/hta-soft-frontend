@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Pencil } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Lightbulb, Pencil } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -199,6 +199,31 @@ function Informe({ r }: { r: ReporteDonantes }) {
       </div>
 
       {r.analisis && <Analisis an={r.analisis} periodo={periodo} previo={p.etiqueta} />}
+
+      {r.estrategias && r.estrategias.length > 0 && (
+        <section className="sin-cortar">
+          <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+            <Lightbulb className="size-4" /> Estrategias para mejorar
+          </h3>
+          <p className="mb-3 text-xs text-tenue">Lo que proponemos para el próximo {periodo}, según los resultados de este.</p>
+          <ol className="grid gap-3 md:grid-cols-2">
+            {r.estrategias.map((e, i) => (
+              <li key={e.titulo} className="flex gap-3 rounded-xl border border-borde bg-superficie p-4 text-sm">
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-marca-500 text-sm font-semibold">{i + 1}</span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-balance">{e.titulo}</p>
+                  <p className="mt-1 text-tenue">{e.porque}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 marker:text-tenue">
+                    {e.acciones.map((a) => (
+                      <li key={a}>{a}</li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {r.casos.length > 0 && (
         <section className="sin-cortar">
