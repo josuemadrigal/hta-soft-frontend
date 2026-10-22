@@ -6,8 +6,9 @@ import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, T
 import { toast } from 'sonner';
 import { useReporteDonantes } from '../api/consultas';
 import { descargarPdfDonantes, guardarTextoDonantes } from '../api/recursos';
-import type { ClaveIndicador, MotivoBaja, ReporteDonantes } from '../api/tipos';
+import type { AnalisisDonantes, ClaveIndicador, GrupoControl, MotivoBaja, ReporteDonantes } from '../api/tipos';
 import { trimestreActual } from '../components/Periodo';
+import { TablaPlanilla } from '../components/TablaPlanilla';
 import { Barras, COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { AreaTexto, Boton, Cargando, ErrorCarga, Selector, Tarjeta } from '../components/ui';
 import { CATEGORIAS, colorCategoria, MOTIVOS_BAJA } from '../lib/etiquetas';
@@ -197,6 +198,8 @@ function Informe({ r }: { r: ReporteDonantes }) {
         </Tarjeta>
       </div>
 
+      {r.analisis && <Analisis an={r.analisis} periodo={periodo} previo={p.etiqueta} />}
+
       {r.casos.length > 0 && (
         <section className="sin-cortar">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -217,6 +220,18 @@ function Informe({ r }: { r: ReporteDonantes }) {
           </div>
           <p className="mt-1.5 text-xs text-tenue">Para proteger su privacidad solo se muestran las iniciales.</p>
         </section>
+      )}
+
+      {r.planilla && r.planilla.filas.length > 0 && (
+        <Tarjeta
+          titulo="Planilla de la jornada"
+          className="sin-cortar"
+          accion={<span className="text-xs text-tenue">Por paciente: cada uno cuenta una vez y vale su última toma</span>}
+        >
+          <div className="overflow-x-auto">
+            <TablaPlanilla filas={r.planilla.filas} total={r.planilla.total} vacio="No hubo visitas en este periodo." />
+          </div>
+        </Tarjeta>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -300,6 +315,88 @@ function Informe({ r }: { r: ReporteDonantes }) {
         Light a Candle · Dominican Republic — informe generado el {fecha(new Date().toISOString())}. Controlado = última toma por debajo de 140/90 mmHg.
       </footer>
     </article>
+  );
+}
+
+const colorPct = (v: number | null) => (v === null ? COLOR.gris : v >= 60 ? '#15803d' : v >= 40 ? '#c9a400' : '#dc2626');
+/** Los grupos de menos de 5 pacientes no se muestran: el porcentaje engaña (igual que en el PDF). */
+const MINIMO_GRUPO = 5;
+const filasControl = (gs: GrupoControl[]) =>
+  gs.filter((g) => g.pacientes >= MINIMO_GRUPO).map((g) => ({ etiqueta: g.grupo, valor: g.controladosPct ?? 0, color: colorPct(g.controladosPct), detalle: `${miles(g.pacientes)} pac.` }));
+
+/** Lo que dicen los números más allá de los totales: si mejoran los que siguen, si vuelven, a quién le va mejor. */
+function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: string; previo: string }) {
+  const s = an.seguimiento;
+  const parte = (n: number) => (s.pacientes ? `${(n / s.pacientes) * 100}%` : '0%');
+  const tiempo = an.tiempoEnPrograma.filter((g) => g.pacientes >= 10);
+  // La frase solo si de verdad les va mejor a los que llevan más tiempo.
+  const primero = tiempo[0];
+  const ultimo = tiempo.at(-1);
+  const mejora = tiempo.length > 1 && primero.controladosPct !== null && ultimo!.controladosPct !== null && ultimo!.controladosPct > primero.controladosPct;
+  return (
+    <section className="space-y-4">
+      <h3 className="text-sm font-semibold">Análisis del {periodo}</h3>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Cifra titulo="Volvieron a su consulta" valor={formatoIndicador('pct', an.retencion.pct)}>
+          <span className="text-tenue">
+            {miles(an.retencion.volvieron)} de los {miles(an.retencion.anteriores)} pacientes de {previo}
+          </span>
+        </Cifra>
+        <Cifra titulo="Presión promedio del grupo" valor={an.presionPromedio.sistolica ? `${an.presionPromedio.sistolica}/${an.presionPromedio.diastolica}` : '—'}>
+          <span className="text-tenue">mmHg · última toma de {miles(an.presionPromedio.pacientes)} pacientes</span>
+        </Cifra>
+        <Cifra
+          titulo="Cambio en la sistólica de los que siguen"
+          valor={s.cambioSistolica === null ? '—' : `${s.cambioSistolica > 0 ? '−' : '+'}${Math.abs(s.cambioSistolica)}`}
+        >
+          <span className={cn(s.cambioSistolica !== null && s.cambioSistolica > 0 ? 'text-green-700' : 'text-tenue')}>
+            mmHg en promedio frente a su toma del año anterior
+          </span>
+        </Cifra>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Tarjeta titulo="Los que siguen en el programa" className="sin-cortar">
+          <div className="space-y-4 p-5 text-sm leading-relaxed">
+            <p>
+              De los <strong>{miles(s.pacientes)}</strong> pacientes que también se vieron en los 12 meses anteriores, <strong className="text-green-700">{miles(s.mejoraron)} mejoraron</strong> su
+              clasificación, {miles(s.igual)} siguieron igual y {miles(s.empeoraron)} empeoraron. Controlados entre ellos: de{' '}
+              <strong>{formatoIndicador('pct', s.controladosAntesPct)}</strong> a <strong>{formatoIndicador('pct', s.controladosAhoraPct)}</strong>.
+            </p>
+            <div className="flex h-3 overflow-hidden rounded-full bg-black/[0.05]" role="img" aria-label={`${s.mejoraron} mejoraron, ${s.igual} igual, ${s.empeoraron} empeoraron`}>
+              <span style={{ width: parte(s.mejoraron) }} className="bg-green-600" />
+              <span style={{ width: parte(s.igual) }} className="bg-[#d6d3cd]" />
+              <span style={{ width: parte(s.empeoraron) }} className="bg-red-500" />
+            </div>
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-tenue">
+              <span><span className="mr-1 inline-block size-2 rounded-full bg-green-600" />Mejoraron</span>
+              <span><span className="mr-1 inline-block size-2 rounded-full bg-[#d6d3cd]" />Igual</span>
+              <span><span className="mr-1 inline-block size-2 rounded-full bg-red-500" />Empeoraron</span>
+            </p>
+          </div>
+        </Tarjeta>
+        <Tarjeta titulo="Control según el tiempo en el programa" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
+          <div className="space-y-3 p-5">
+            <Barras filas={filasControl(an.tiempoEnPrograma)} max={100} formato={(v) => `${Math.round(v)}%`} />
+            {mejora && (
+              <p className="text-xs text-tenue">
+                {primero.grupo}: {Math.round(primero.controladosPct!)}% controlados; {ultimo!.grupo.toLowerCase()} en el programa: {Math.round(ultimo!.controladosPct!)}%.
+              </p>
+            )}
+          </div>
+        </Tarjeta>
+        <Tarjeta titulo="Control por edad" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
+          <div className="p-5">
+            <Barras filas={filasControl(an.porEdad)} max={100} formato={(v) => `${Math.round(v)}%`} />
+          </div>
+        </Tarjeta>
+        <Tarjeta titulo="Control por sexo" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
+          <div className="p-5">
+            <Barras filas={filasControl(an.porSexo)} max={100} formato={(v) => `${Math.round(v)}%`} />
+          </div>
+        </Tarjeta>
+      </div>
+    </section>
   );
 }
 

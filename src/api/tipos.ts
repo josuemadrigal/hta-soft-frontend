@@ -580,7 +580,20 @@ export type ReporteDonantes = {
   metas: { clave: ClaveIndicador; nombre: string; tipo: 'pct' | 'conteo'; mayorEsMejor: boolean; meta: number; valor: number | null }[];
   casos: { iniciales: string; sexo: string; edad: number; batey: string; antes: string; fechaAntes: string; ahora: string; fechaAhora: string; visitas: number }[];
   bajas: Partial<Record<MotivoBaja, number>>;
+  analisis?: AnalisisDonantes;
+  planilla?: { filas: FilaPlanilla[]; total: FilaPlanilla };
   texto: string;
+};
+
+/** Grupos de pacientes con su % controlado (última toma del periodo). */
+export type GrupoControl = { grupo: string; pacientes: number; controladosPct: number | null };
+export type AnalisisDonantes = {
+  tiempoEnPrograma: GrupoControl[];
+  seguimiento: { pacientes: number; mejoraron: number; igual: number; empeoraron: number; controladosAntesPct: number | null; controladosAhoraPct: number | null; cambioSistolica: number | null };
+  porEdad: GrupoControl[];
+  porSexo: GrupoControl[];
+  retencion: { anteriores: number; volvieron: number; pct: number | null };
+  presionPromedio: { sistolica: number | null; diastolica: number | null; pacientes: number };
 };
 
 export type IndicadorBatey = {
