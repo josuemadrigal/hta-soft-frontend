@@ -60,7 +60,7 @@ export const AYUDA = {
   },
   planilla: {
     lee: 'Es la planilla de papel que se llenaba a mano, con las mismas columnas y en el mismo orden: una fila por batey y abajo el total. Usa el periodo y el batey de los filtros de arriba. Toca un número para ver los pacientes que lo forman.',
-    significa: 'Se cuenta por paciente, no por visita, y para saber si está controlado vale su última toma del periodo. Existentes son los regulares del batey; nuevos, los que vinieron por primera vez en el periodo. Los bateyes sin visitas quedan en blanco.',
+    significa: 'Se cuenta por paciente, no por visita, y para saber si está controlado vale su última toma del periodo. Existentes (en el programa) son los regulares del batey. Medicamentos, controlados, no controlados y datos dudosos cuentan a todos los evaluados, nuevos incluidos; las dos últimas columnas dicen cuántos son nuevos. Los bateyes sin visitas quedan en blanco.',
   },
   rondaPorBatey: {
     lee: 'Cada fila es un batey, primero los que más faltan. Esperados es la media alta de sus últimas jornadas (el promedio de las que tuvieron más pacientes, para prepararse para un buen día; cuántas, se ajusta en Configuración); la barra es cuántos ya se vieron en esta ronda contra esos esperados, y se pone verde al llegar. Faltan es lo que queda para llegar. Regulares son todos los que todavía vienen, y Dejaron de venir los regulares que llevan más de 6 meses sin venir. Toca un número para ver los pacientes (o, en Esperados, las jornadas que se promediaron).',

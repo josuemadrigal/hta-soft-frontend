@@ -78,7 +78,7 @@ export function Planilla() {
           <li><strong className="text-tinta">Evaluados:</strong> pacientes con al menos una visita en el periodo.</li>
           <li><strong className="text-tinta">En el programa:</strong> pacientes activos registrados en el batey (hayan venido o no).</li>
           <li><strong className="text-tinta">Con toma de presión:</strong> evaluados a los que se les tomó la presión.</li>
-          <li><strong className="text-tinta">Nuevos:</strong> su primera visita de siempre fue en este periodo. Los demás evaluados son los que ya venían.</li>
+          <li><strong className="text-tinta">Nuevos:</strong> su primera visita de siempre fue en este periodo. Cuentan en todas las columnas; las dos últimas solo dicen cuántos son nuevos.</li>
           <li><strong className="text-tinta">Con medicamentos:</strong> recibieron receta en el periodo. De ellos, controlados (por debajo de 140/90) y no controlados.</li>
           <li><strong className="text-tinta">Datos ausentes o dudosos:</strong> su última visita no tiene toma, o los números no cuadran (la diastólica mayor que la sistólica, o valores imposibles).</li>
         </ul>

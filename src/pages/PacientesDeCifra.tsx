@@ -31,12 +31,12 @@ const EXPLICA_PLANILLA: Record<string, string> = {
   evaluados: 'Pacientes con al menos una visita en el periodo.',
   enPrograma: 'Pacientes regulares del batey, hayan venido o no (la misma regla que en la ronda).',
   conToma: 'Evaluados a los que se les tomó la presión.',
-  existentesConMedicamento: 'Pacientes que ya venían y recibieron receta en el periodo.',
-  controlados: 'De los que ya venían con receta, su última toma del periodo quedó por debajo de 140/90.',
-  noControlados: 'De los que ya venían con receta, su última toma del periodo quedó en 140/90 o más.',
-  datosDudosos: 'Pacientes que ya venían cuya última visita no tiene toma o tiene números que no cuadran.',
-  nuevos: 'Su primera visita de siempre fue en este periodo.',
-  nuevosConMedicamento: 'Pacientes nuevos que recibieron receta.',
+  existentesConMedicamento: 'Evaluados que recibieron receta en el periodo, nuevos incluidos.',
+  controlados: 'De los que recibieron receta (nuevos incluidos), su última toma del periodo quedó por debajo de 140/90.',
+  noControlados: 'De los que recibieron receta (nuevos incluidos), su última toma del periodo quedó en 140/90 o más.',
+  datosDudosos: 'Evaluados (nuevos incluidos) cuya última visita no tiene toma o tiene números que no cuadran.',
+  nuevos: 'Su primera visita de siempre fue en este periodo. También cuentan en las demás columnas.',
+  nuevosConMedicamento: 'Pacientes nuevos que recibieron receta. También cuentan en "con medicamentos".',
 };
 
 const CORTO = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short', year: 'numeric' });
