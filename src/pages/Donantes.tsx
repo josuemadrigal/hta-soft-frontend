@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Lightbulb, Pencil } from 'lucide-react';
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Lightbulb, Pencil } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -225,26 +225,32 @@ function Informe({ r }: { r: ReporteDonantes }) {
         </section>
       )}
 
-      {r.casos.length > 0 && (
-        <section className="sin-cortar">
-          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <HeartHandshake className="size-4" /> Historias del {periodo}
-          </h3>
-          <div className="grid gap-3 md:grid-cols-2">
-            {r.casos.map((c, i) => (
-              <div key={i} className="rounded-xl border border-borde bg-superficie p-4 text-sm leading-relaxed">
-                <p>
-                  <strong>
-                    {c.iniciales}, {c.sexo} de {c.edad} años
-                  </strong>{' '}
-                  de {c.batey}. En {mesAnio.format(new Date(c.fechaAntes))} llegó con la presión en <strong className="text-red-600">{c.antes}</strong>; con el tratamiento y el
-                  seguimiento de cada jornada, el {fecha(c.fechaAhora)} la tenía en <strong className="text-green-700">{c.ahora}</strong>.
-                </p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-tenue">Para proteger su privacidad solo se muestran las iniciales.</p>
-        </section>
+      {r.historias ? (
+        <>
+          <Historias titulo={`Historias del ${periodo}`} sub="Pacientes que mejoraron, que se mantienen controlados o que volvieron." historias={r.historias.filter((h) => h.buena)} />
+          <Historias titulo="Casos que nos preocupan" sub="También contamos lo que no salió bien: son los pacientes en los que más tenemos que trabajar." historias={r.historias.filter((h) => !h.buena)} />
+        </>
+      ) : (
+        r.casos.length > 0 && (
+          <section className="sin-cortar">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <HeartHandshake className="size-4" /> Historias del {periodo}
+            </h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {r.casos.map((c, i) => (
+                <div key={i} className="rounded-xl border border-borde bg-superficie p-4 text-sm leading-relaxed">
+                  <p>
+                    <strong>
+                      {c.iniciales}, {c.sexo} de {c.edad} años
+                    </strong>{' '}
+                    de {c.batey}. En {mesAnio.format(new Date(c.fechaAntes))} llegó con la presión en <strong className="text-red-600">{c.antes}</strong>; con el tratamiento y el
+                    seguimiento de cada jornada, el {fecha(c.fechaAhora)} la tenía en <strong className="text-green-700">{c.ahora}</strong>.
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
       )}
 
       {r.planilla && r.planilla.filas.length > 0 && (
@@ -296,6 +302,23 @@ function Informe({ r }: { r: ReporteDonantes }) {
                 </tr>
               ))}
             </tbody>
+            {/* Total de todos los bateyes: pacientes, quiénes son y las pastillas de cada medicamento */}
+            <tfoot className="tabular">
+              <tr className="border-t-2 border-tinta/20 bg-fondo font-semibold">
+                <td className="px-5 py-2">Total</td>
+                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.pacientes, 0))}</td>
+                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.hombres, 0))}</td>
+                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.mujeres, 0))}</td>
+                <td className="px-3 py-2 text-right">{r.demografia.edadPromedio ?? '—'}</td>
+                <td className="px-3 py-2 text-right">{formatoIndicador('pct', a.controlados_pct)}</td>
+                {r.medicamentosNombres.map((m) => (
+                  <td key={m} className="px-3 py-2 text-right">
+                    {miles(r.porBatey.reduce((x, b) => x + (b.pastillasPorMed[m] ?? 0), 0))}
+                  </td>
+                ))}
+                <td className="px-5 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.pastillas, 0))}</td>
+              </tr>
+            </tfoot>
           </table>
         </Tarjeta>
         <div className="space-y-4">
@@ -340,6 +363,41 @@ function Informe({ r }: { r: ReporteDonantes }) {
         Light a Candle · Dominican Republic — informe generado el {fecha(new Date().toISOString())}. Controlado = última toma por debajo de 140/90 mmHg.
       </footer>
     </article>
+  );
+}
+
+/** Historias de pacientes (buenas o malas) con su etiqueta; sin nombres, solo iniciales. */
+function Historias({ titulo, sub, historias }: { titulo: string; sub: string; historias: NonNullable<ReporteDonantes['historias']> }) {
+  if (!historias.length) return null;
+  const buenas = historias[0].buena;
+  return (
+    <section className="sin-cortar">
+      <h3 className="flex items-center gap-2 text-sm font-semibold">
+        {buenas ? <HeartHandshake className="size-4" /> : <AlertTriangle className="size-4" />} {titulo}
+      </h3>
+      <p className="mb-2 text-xs text-tenue">{sub}</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        {historias.map((h, i) => (
+          <div key={i} className="rounded-xl border border-borde bg-superficie p-4 text-sm leading-relaxed">
+            <span className={cn('mb-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase', h.buena ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>
+              {h.etiqueta}
+            </span>
+            <p>
+              {h.partes.map((p, j) =>
+                p.fuerte || p.color ? (
+                  <strong key={j} className={cn(p.color === 'verde' && 'text-green-700', p.color === 'rojo' && 'text-red-600')}>
+                    {p.t}
+                  </strong>
+                ) : (
+                  <span key={j}>{p.t}</span>
+                ),
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+      {buenas && <p className="mt-1.5 text-xs text-tenue">Para proteger su privacidad solo se muestran las iniciales.</p>}
+    </section>
   );
 }
 

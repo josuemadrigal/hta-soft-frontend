@@ -581,6 +581,8 @@ export type ReporteDonantes = {
   casos: { iniciales: string; sexo: string; edad: number; batey: string; antes: string; fechaAntes: string; ahora: string; fechaAhora: string; visitas: number }[];
   bajas: Partial<Record<MotivoBaja, number>>;
   analisis?: AnalisisDonantes;
+  /** Historias buenas y malas, sin nombres: el texto va en partes para resaltar las presiones. */
+  historias?: { tipo: 'mejoro' | 'constante' | 'volvio' | 'empeoro' | 'dejoDeVenir'; buena: boolean; etiqueta: string; partes: { t: string; color?: 'verde' | 'rojo'; fuerte?: boolean }[] }[];
   /** Qué hacer el próximo periodo, según los números de este (como mucho cinco, la más urgente primero). */
   estrategias?: { titulo: string; porque: string; acciones: string[] }[];
   planilla?: { filas: FilaPlanilla[]; total: FilaPlanilla };
