@@ -3,7 +3,7 @@ import { Check, Search, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAsistenciaJornadas, useComunidades } from '../api/consultas';
-import { pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import { pacientesDeDonantes, pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
 import { COLUMNAS_PLANILLA } from '../components/TablaPlanilla';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
@@ -47,11 +47,14 @@ const textoPeriodo = (desde: string, hasta: string) => {
 
 /**
  * /reportes/pacientes — los pacientes detrás de una cifra de la planilla o de la ronda.
- * ?fuente=planilla|ronda &columna= &batey= (sin batey, todos) &desde= &hasta= (solo planilla)
+ * ?fuente=planilla|ronda|donantes &columna= &batey= (sin batey, todos) &desde= &hasta= (solo planilla)
+ * &anio= &t= (solo donantes: trimestre 1–4 o "anual")
  */
 export function PacientesDeCifra() {
   const [params] = useSearchParams();
-  const fuente = params.get('fuente') === 'ronda' ? 'ronda' : 'planilla';
+  const fuente: Fuente = params.get('fuente') === 'ronda' ? 'ronda' : params.get('fuente') === 'donantes' ? 'donantes' : 'planilla';
+  const anio = Number(params.get('anio')) || new Date().getFullYear();
+  const t = params.get('t') === 'anual' ? undefined : Number(params.get('t')) || undefined;
   const columna = params.get('columna') ?? '';
   const batey = Number(params.get('batey')) || undefined;
   const desde = params.get('desde') ?? '';
@@ -62,6 +65,23 @@ export function PacientesDeCifra() {
   if (fuente === 'ronda' && columna === 'esperados') return <Esperados batey={batey} nombreBatey={nombreBatey} />;
 
   const col = fuente === 'planilla' ? COLUMNAS_PLANILLA.find((c) => c.clave === columna) : null;
+  if (fuente === 'donantes') {
+    const [grupo, valor] = columna.includes(':') ? columna.split(':') : [columna, ''];
+    const d = DONANTES[grupo];
+    const etiqueta = t ? `T${t} ${anio}` : `Año ${anio}`;
+    return (
+      <>
+        <EncabezadoPagina
+          titulo={valor ? `${d?.titulo ?? ''}: ${valor}` : (d?.titulo ?? 'Informe para donantes')}
+          descripcion={`Informe para donantes · ${etiqueta}`}
+          volver={{ a: `/reportes/donantes?anio=${anio}&t=${t ?? 'anual'}`, texto: 'Informe para donantes' }}
+        />
+        {d?.explica && <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">{d.explica}</p>}
+        <Listado fuente={fuente} columna={columna} desde="" hasta="" anio={anio} t={t} />
+      </>
+    );
+  }
+
   const titulo = fuente === 'planilla' ? (col ? col.es.replace(/^# de /, '').replace(/^pacientes /, '').replace(/^./, (l) => l.toUpperCase()) : 'Planilla') : (RONDA[columna]?.titulo ?? 'Ronda');
   const explica = fuente === 'planilla' ? EXPLICA_PLANILLA[columna] : RONDA[columna]?.explica;
   const contexto = fuente === 'planilla' ? `Planilla de la jornada · ${textoPeriodo(desde, hasta)}` : 'Ronda de este trimestre';
@@ -75,13 +95,31 @@ export function PacientesDeCifra() {
   );
 }
 
-function Listado({ fuente, columna, batey, desde, hasta }: { fuente: 'planilla' | 'ronda'; columna: string; batey?: number; desde: string; hasta: string }) {
+type Fuente = 'planilla' | 'ronda' | 'donantes';
+
+/** Las cifras del análisis del informe para donantes: "grupo" o "grupo:valor" (tiempo:Primera vez). */
+const DONANTES: Record<string, { titulo: string; explica: string }> = {
+  conToma: { titulo: 'Pacientes con toma en el periodo', explica: 'Los que entran en la presión promedio del grupo: su última toma del periodo.' },
+  volvieron: { titulo: 'Volvieron a su consulta', explica: 'Se vieron en el periodo anterior y volvieron en este.' },
+  noVolvieron: { titulo: 'No volvieron', explica: 'Se vieron en el periodo anterior y no han vuelto en este. Se muestra su última visita.' },
+  siguen: { titulo: 'Los que siguen en el programa', explica: 'Tienen toma en el periodo y en los 12 meses anteriores: con ellos se mide si mejoran.' },
+  mejoraron: { titulo: 'Mejoraron su clasificación', explica: 'Su última toma del periodo es mejor que la última de los 12 meses anteriores.' },
+  igual: { titulo: 'Siguieron igual', explica: 'Su última toma del periodo tiene la misma clasificación que la última de los 12 meses anteriores.' },
+  empeoraron: { titulo: 'Empeoraron su clasificación', explica: 'Su última toma del periodo es peor que la última de los 12 meses anteriores.' },
+  tiempo: { titulo: 'Tiempo en el programa', explica: 'Desde su primera consulta hasta su última toma del periodo.' },
+  edad: { titulo: 'Edad', explica: 'Pacientes de ese grupo de edad con toma en el periodo.' },
+  sexo: { titulo: 'Sexo', explica: 'Pacientes con toma en el periodo.' },
+};
+
+function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fuente; columna: string; batey?: number; desde: string; hasta: string; anio?: number; t?: number }) {
   const consulta = useQuery({
-    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta],
+    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t],
     queryFn: () =>
       fuente === 'planilla'
         ? pacientesDePlanilla({ from: `${desde}T00:00:00-04:00`, to: `${hasta}T23:59:59-04:00`, columna, communityId: batey })
-        : pacientesDeRonda({ columna, communityId: batey }),
+        : fuente === 'donantes'
+          ? pacientesDeDonantes({ anio: anio!, trimestre: t, columna })
+          : pacientesDeRonda({ columna, communityId: batey }),
   });
   const [buscar, setBuscar] = useState('');
   const [medico, setMedico] = useState('');
@@ -120,7 +158,7 @@ function Listado({ fuente, columna, batey, desde, hasta }: { fuente: 'planilla' 
     setPresion('');
     setMedicamento('');
   };
-  const visitaTexto = fuente === 'planilla' && columna !== 'enPrograma' ? 'Visita contada' : 'Última visita';
+  const visitaTexto = (fuente === 'planilla' && columna !== 'enPrograma') || (fuente === 'donantes' && columna !== 'volvieron' && columna !== 'noVolvieron') ? 'Visita contada' : 'Última visita';
 
   return (
     <Tarjeta

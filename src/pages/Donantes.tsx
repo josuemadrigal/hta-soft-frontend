@@ -1,14 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Lightbulb, Pencil } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { useReporteDonantes } from '../api/consultas';
 import { descargarPdfDonantes, guardarTextoDonantes } from '../api/recursos';
 import type { AnalisisDonantes, ClaveIndicador, GrupoControl, MotivoBaja, ReporteDonantes } from '../api/tipos';
 import { trimestreActual } from '../components/Periodo';
-import { TablaPlanilla } from '../components/TablaPlanilla';
+import { enlaceCifra, TablaPlanilla } from '../components/TablaPlanilla';
 import { Barras, COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { AreaTexto, Boton, Cargando, ErrorCarga, Selector, Tarjeta } from '../components/ui';
 import { CATEGORIAS, colorCategoria, MOTIVOS_BAJA } from '../lib/etiquetas';
@@ -103,13 +103,21 @@ function Comparacion({ actual, antes, etiqueta, mayorEsMejor = true, pct }: { ac
   );
 }
 
-function Cifra({ titulo, valor, children }: { titulo: string; valor: ReactNode; children?: ReactNode }) {
-  return (
-    <div className="sin-cortar rounded-xl border border-borde bg-superficie p-4">
+function Cifra({ titulo, valor, children, enlace }: { titulo: string; valor: ReactNode; children?: ReactNode; enlace?: string }) {
+  const contenido = (
+    <>
       <p className="text-xs text-tenue">{titulo}</p>
       <p className="tabular mt-1 text-3xl font-semibold tracking-tight">{valor}</p>
       {children && <p className="mt-1 text-xs">{children}</p>}
-    </div>
+    </>
+  );
+  // Con enlace, la tarjeta abre la lista de pacientes de esa cifra.
+  return enlace ? (
+    <Link to={enlace} title="Ver los pacientes" className="sin-cortar block rounded-xl border border-borde bg-superficie p-4 transition-colors hover:border-tinta/30 hover:bg-fondo">
+      {contenido}
+    </Link>
+  ) : (
+    <div className="sin-cortar rounded-xl border border-borde bg-superficie p-4">{contenido}</div>
   );
 }
 
@@ -121,6 +129,8 @@ function Informe({ r }: { r: ReporteDonantes }) {
   const otrasBajas = (Object.entries(r.bajas) as [MotivoBaja, number][]).filter(([m]) => m !== 'FALLECIDO');
   const bateyes = r.porBatey.length;
   const periodo = r.periodo.anual ? 'año' : 'trimestre';
+  // La lista de pacientes detrás de una cifra del análisis.
+  const enlaceDonantes = (columna: string) => `/reportes/pacientes?fuente=donantes&anio=${r.periodo.anio}&t=${r.periodo.trimestre ?? 'anual'}&columna=${encodeURIComponent(columna)}`;
 
   return (
     <article className="space-y-5">
@@ -198,7 +208,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
         </Tarjeta>
       </div>
 
-      {r.analisis && <Analisis an={r.analisis} periodo={periodo} previo={p.etiqueta} />}
+      {r.analisis && <Analisis an={r.analisis} periodo={periodo} previo={p.etiqueta} enlace={enlaceDonantes} />}
 
       {r.estrategias && r.estrategias.length > 0 && (
         <section className="sin-cortar">
@@ -260,7 +270,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
           accion={<span className="text-xs text-tenue">Por paciente: cada uno cuenta una vez y vale su última toma</span>}
         >
           <div className="overflow-x-auto">
-            <TablaPlanilla filas={r.planilla.filas} total={r.planilla.total} vacio="No hubo visitas en este periodo." />
+            <TablaPlanilla filas={r.planilla.filas} total={r.planilla.total} vacio="No hubo visitas en este periodo." enlace={(columna, batey) => enlaceCifra(columna, batey, diaRD(r.periodo.desde), diaRD(r.periodo.hasta))} />
           </div>
         </Tarjeta>
       )}
@@ -378,7 +388,12 @@ function Historias({ titulo, sub, historias }: { titulo: string; sub: string; hi
       <p className="mb-2 text-xs text-tenue">{sub}</p>
       <div className="grid gap-3 md:grid-cols-2">
         {historias.map((h, i) => (
-          <div key={i} className="rounded-xl border border-borde bg-superficie p-4 text-sm leading-relaxed">
+          <Link
+            key={i}
+            to={`/pacientes/${h.pacienteId}`}
+            title="Abrir la ficha del paciente"
+            className="block rounded-xl border border-borde bg-superficie p-4 text-sm leading-relaxed transition-colors hover:border-tinta/30 hover:bg-fondo"
+          >
             <span className={cn('mb-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase', h.buena ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>
               {h.etiqueta}
             </span>
@@ -393,7 +408,7 @@ function Historias({ titulo, sub, historias }: { titulo: string; sub: string; hi
                 ),
               )}
             </p>
-          </div>
+          </Link>
         ))}
       </div>
       {buenas && <p className="mt-1.5 text-xs text-tenue">Para proteger su privacidad solo se muestran las iniciales.</p>}
@@ -404,11 +419,20 @@ function Historias({ titulo, sub, historias }: { titulo: string; sub: string; hi
 const colorPct = (v: number | null) => (v === null ? COLOR.gris : v >= 60 ? '#15803d' : v >= 40 ? '#c9a400' : '#dc2626');
 /** Los grupos de menos de 5 pacientes no se muestran: el porcentaje engaña (igual que en el PDF). */
 const MINIMO_GRUPO = 5;
-const filasControl = (gs: GrupoControl[]) =>
-  gs.filter((g) => g.pacientes >= MINIMO_GRUPO).map((g) => ({ etiqueta: g.grupo, valor: g.controladosPct ?? 0, color: colorPct(g.controladosPct), detalle: `${miles(g.pacientes)} pac.` }));
+const filasControl = (gs: GrupoControl[], enlace: (grupo: string) => string) =>
+  gs
+    .filter((g) => g.pacientes >= MINIMO_GRUPO)
+    .map((g) => ({ etiqueta: g.grupo, valor: g.controladosPct ?? 0, color: colorPct(g.controladosPct), detalle: `${miles(g.pacientes)} pac.`, enlace: enlace(g.grupo) }));
+/** El día en RD (YYYY-MM-DD) de una fecha del informe: el fin del periodo cae pasada la medianoche en UTC. */
+const diaRD = (iso: string) => new Date(new Date(iso).getTime() - 4 * 3_600_000).toISOString().slice(0, 10);
 
 /** Lo que dicen los números más allá de los totales: si mejoran los que siguen, si vuelven, a quién le va mejor. */
-function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: string; previo: string }) {
+function Analisis({ an, periodo, previo, enlace }: { an: AnalisisDonantes; periodo: string; previo: string; enlace: (columna: string) => string }) {
+  const Num = ({ columna, children, className }: { columna: string; children: ReactNode; className?: string }) => (
+    <Link to={enlace(columna)} title="Ver los pacientes" className={cn('font-semibold underline decoration-tinta/20 underline-offset-4 hover:decoration-tinta', className)}>
+      {children}
+    </Link>
+  );
   const s = an.seguimiento;
   const parte = (n: number) => (s.pacientes ? `${(n / s.pacientes) * 100}%` : '0%');
   const tiempo = an.tiempoEnPrograma.filter((g) => g.pacientes >= 10);
@@ -420,15 +444,16 @@ function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: stri
     <section className="space-y-4">
       <h3 className="text-sm font-semibold">Análisis del {periodo}</h3>
       <div className="grid gap-4 md:grid-cols-3">
-        <Cifra titulo="Volvieron a su consulta" valor={formatoIndicador('pct', an.retencion.pct)}>
+        <Cifra titulo="Volvieron a su consulta" valor={formatoIndicador('pct', an.retencion.pct)} enlace={enlace('volvieron')}>
           <span className="text-tenue">
             {miles(an.retencion.volvieron)} de los {miles(an.retencion.anteriores)} pacientes de {previo}
           </span>
         </Cifra>
-        <Cifra titulo="Presión promedio del grupo" valor={an.presionPromedio.sistolica ? `${an.presionPromedio.sistolica}/${an.presionPromedio.diastolica}` : '—'}>
+        <Cifra enlace={enlace('conToma')} titulo="Presión promedio del grupo" valor={an.presionPromedio.sistolica ? `${an.presionPromedio.sistolica}/${an.presionPromedio.diastolica}` : '—'}>
           <span className="text-tenue">mmHg · última toma de {miles(an.presionPromedio.pacientes)} pacientes</span>
         </Cifra>
         <Cifra
+          enlace={enlace('siguen')}
           titulo="Cambio en la sistólica de los que siguen"
           valor={s.cambioSistolica === null ? '—' : `${s.cambioSistolica > 0 ? '−' : '+'}${Math.abs(s.cambioSistolica)}`}
         >
@@ -442,8 +467,15 @@ function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: stri
         <Tarjeta titulo="Los que siguen en el programa" className="sin-cortar">
           <div className="space-y-4 p-5 text-sm leading-relaxed">
             <p>
-              De los <strong>{miles(s.pacientes)}</strong> pacientes que también se vieron en los 12 meses anteriores, <strong className="text-green-700">{miles(s.mejoraron)} mejoraron</strong> su
-              clasificación, {miles(s.igual)} siguieron igual y {miles(s.empeoraron)} empeoraron. Controlados entre ellos: de{' '}
+              De los <strong>{miles(s.pacientes)}</strong> pacientes que también se vieron en los 12 meses anteriores,{' '}
+              <Num columna="mejoraron" className="text-green-700">
+                {miles(s.mejoraron)} mejoraron
+              </Num>{' '}
+              su clasificación, <Num columna="igual">{miles(s.igual)} siguieron igual</Num> y{' '}
+              <Num columna="empeoraron" className="text-red-600">
+                {miles(s.empeoraron)} empeoraron
+              </Num>
+              . Controlados entre ellos: de{' '}
               <strong>{formatoIndicador('pct', s.controladosAntesPct)}</strong> a <strong>{formatoIndicador('pct', s.controladosAhoraPct)}</strong>.
             </p>
             <div className="flex h-3 overflow-hidden rounded-full bg-black/[0.05]" role="img" aria-label={`${s.mejoraron} mejoraron, ${s.igual} igual, ${s.empeoraron} empeoraron`}>
@@ -460,7 +492,7 @@ function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: stri
         </Tarjeta>
         <Tarjeta titulo="Control según el tiempo en el programa" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
           <div className="space-y-3 p-5">
-            <Barras filas={filasControl(an.tiempoEnPrograma)} max={100} formato={(v) => `${Math.round(v)}%`} />
+            <Barras filas={filasControl(an.tiempoEnPrograma, (g) => enlace(`tiempo:${g}`))} max={100} formato={(v) => `${Math.round(v)}%`} />
             {mejora && (
               <p className="text-xs text-tenue">
                 {primero.grupo}: {Math.round(primero.controladosPct!)}% controlados; {ultimo!.grupo.toLowerCase()} en el programa: {Math.round(ultimo!.controladosPct!)}%.
@@ -470,12 +502,12 @@ function Analisis({ an, periodo, previo }: { an: AnalisisDonantes; periodo: stri
         </Tarjeta>
         <Tarjeta titulo="Control por edad" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
           <div className="p-5">
-            <Barras filas={filasControl(an.porEdad)} max={100} formato={(v) => `${Math.round(v)}%`} />
+            <Barras filas={filasControl(an.porEdad, (g) => enlace(`edad:${g}`))} max={100} formato={(v) => `${Math.round(v)}%`} />
           </div>
         </Tarjeta>
         <Tarjeta titulo="Control por sexo" className="sin-cortar" accion={<span className="text-xs text-tenue">% controlados</span>}>
           <div className="p-5">
-            <Barras filas={filasControl(an.porSexo)} max={100} formato={(v) => `${Math.round(v)}%`} />
+            <Barras filas={filasControl(an.porSexo, (g) => enlace(`sexo:${g}`))} max={100} formato={(v) => `${Math.round(v)}%`} />
           </div>
         </Tarjeta>
       </div>

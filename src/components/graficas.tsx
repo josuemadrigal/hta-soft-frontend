@@ -1,4 +1,5 @@
 /** Estilo común de las gráficas (recharts) y barras horizontales simples en HTML. */
+import { Link } from 'react-router';
 
 export const EJE = { tickLine: false, axisLine: false, fontSize: 12, stroke: '#6b665e' } as const;
 export const REJILLA = { vertical: false, stroke: '#e5e2dc' } as const;
@@ -24,7 +25,8 @@ export function Barras({
   formato = (v) => String(v),
   max,
 }: {
-  filas: { etiqueta: string; valor: number; color?: string; detalle?: string }[];
+  /** enlace: la fila abre esa página (p. ej. la lista de pacientes de esa barra). */
+  filas: { etiqueta: string; valor: number; color?: string; detalle?: string; enlace?: string }[];
   formato?: (v: number) => string;
   /** Escala fija (p. ej. 100 para porcentajes); por defecto, el mayor valor. */
   max?: number;
@@ -32,20 +34,34 @@ export function Barras({
   const tope = max ?? Math.max(1, ...filas.map((f) => f.valor));
   return (
     <ul className="space-y-3">
-      {filas.map((f) => (
-        <li key={f.etiqueta} className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 text-sm">
-          <span className="truncate text-tinta/80" title={f.etiqueta}>
-            {f.etiqueta}
-          </span>
-          <span className="h-2 overflow-hidden rounded-full bg-black/[0.05]">
-            <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (f.valor / tope) * 100)}%`, backgroundColor: f.color ?? 'var(--color-marca-500)' }} />
-          </span>
-          <span className="tabular min-w-10 text-right font-medium">
-            {formato(f.valor)}
-            {f.detalle && <span className="ml-1 text-xs font-normal text-tenue">{f.detalle}</span>}
-          </span>
-        </li>
-      ))}
+      {filas.map((f) => {
+        const contenido = (
+          <>
+            <span className="truncate text-tinta/80" title={f.etiqueta}>
+              {f.etiqueta}
+            </span>
+            <span className="h-2 overflow-hidden rounded-full bg-black/[0.05]">
+              <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (f.valor / tope) * 100)}%`, backgroundColor: f.color ?? 'var(--color-marca-500)' }} />
+            </span>
+            <span className="tabular min-w-10 text-right font-medium">
+              {formato(f.valor)}
+              {f.detalle && <span className="ml-1 text-xs font-normal text-tenue">{f.detalle}</span>}
+            </span>
+          </>
+        );
+        const fila = 'grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-3 text-sm';
+        return (
+          <li key={f.etiqueta}>
+            {f.enlace ? (
+              <Link to={f.enlace} className={`${fila} -mx-2 rounded-md px-2 py-0.5 hover:bg-fondo`} title="Ver los pacientes">
+                {contenido}
+              </Link>
+            ) : (
+              <div className={fila}>{contenido}</div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -309,6 +309,7 @@ export type PacienteDeCifra = {
   estado?: 'visto' | 'le-toca' | 'sin-venir' | 'sin-visitas' | 'ya-no-viene';
 };
 export const pacientesDePlanilla = (f: { from: string; to: string; columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/planilla/pacientes${query(f)}`);
+export const pacientesDeDonantes = (f: { anio: number; trimestre?: number; columna: string }) => api<PacienteDeCifra[]>(`/reports/donantes/pacientes${query(f)}`);
 export const pacientesDeRonda = (f: { columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/ronda/pacientes${query(f)}`);
 export type DestinatariosPlanilla = { correoConfigurado: boolean; usuarios: { id: number; nombre: string; email: string; rol: string; confirmado: boolean }[]; otrosCorreos: string[] };
 export const destinatariosPlanilla = () => api<DestinatariosPlanilla>('/reports/planilla/destinatarios');
