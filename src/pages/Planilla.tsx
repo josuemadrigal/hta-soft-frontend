@@ -76,7 +76,7 @@ export function Planilla() {
             Se cuenta <strong className="text-tinta">por paciente</strong>, no por visita: si vino dos veces en el periodo cuenta una vez, y para saber si está controlado vale su <strong className="text-tinta">última toma</strong> del periodo.
           </li>
           <li><strong className="text-tinta">Evaluados:</strong> pacientes con al menos una visita en el periodo.</li>
-          <li><strong className="text-tinta">En el programa:</strong> pacientes activos registrados en el batey (hayan venido o no).</li>
+          <li><strong className="text-tinta">Existentes (en el programa):</strong> los que se esperan en una jornada del batey: la media alta de sus últimas jornadas hasta el cierre del periodo, la misma regla que los "Esperados" de la ronda. Si el batey todavía no tiene jornadas, sus regulares.</li>
           <li><strong className="text-tinta">Con toma de presión:</strong> evaluados a los que se les tomó la presión.</li>
           <li><strong className="text-tinta">Nuevos:</strong> su primera visita de siempre fue en este periodo. Cuentan en todas las columnas; las dos últimas solo dicen cuántos son nuevos.</li>
           <li><strong className="text-tinta">Con medicamentos:</strong> recibieron receta en el periodo. De ellos, controlados (por debajo de 140/90) y no controlados.</li>

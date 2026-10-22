@@ -29,7 +29,7 @@ const ORDEN_ESTADO = ['le-toca', 'sin-visitas', 'sin-venir', 'visto', 'ya-no-vie
 
 const EXPLICA_PLANILLA: Record<string, string> = {
   evaluados: 'Pacientes con al menos una visita en el periodo.',
-  enPrograma: 'Pacientes regulares del batey, hayan venido o no (la misma regla que en la ronda).',
+  enPrograma: 'Los regulares del batey, de donde salen los existentes: la planilla usa la media alta de sus jornadas.',
   conToma: 'Evaluados a los que se les tomó la presión.',
   existentesConMedicamento: 'Evaluados que recibieron receta en el periodo, nuevos incluidos.',
   controlados: 'De los que recibieron receta (nuevos incluidos), su última toma del periodo quedó por debajo de 140/90.',

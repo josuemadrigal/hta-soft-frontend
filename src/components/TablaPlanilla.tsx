@@ -19,7 +19,10 @@ export const COLUMNAS_PLANILLA: { clave: ClavePlanilla; en: string; es: string; 
 
 /** La página con los pacientes de una cifra de la planilla. */
 export const enlaceCifra = (columna: ClavePlanilla, batey: number | null, desde: string, hasta: string) =>
-  `/reportes/pacientes?fuente=planilla&columna=${columna}${batey ? `&batey=${batey}` : ''}&desde=${desde}&hasta=${hasta}`;
+  // Existentes no son pacientes contados: es la media alta de sus jornadas; se abren esas jornadas.
+  columna === 'enPrograma'
+    ? `/reportes/pacientes?fuente=ronda&columna=esperados${batey ? `&batey=${batey}` : ''}`
+    : `/reportes/pacientes?fuente=planilla&columna=${columna}${batey ? `&batey=${batey}` : ''}&desde=${desde}&hasta=${hasta}`;
 
 const CORTA = new Intl.DateTimeFormat('es-DO', { day: 'numeric', month: 'short' });
 const fechaDe = (s: string) => {
