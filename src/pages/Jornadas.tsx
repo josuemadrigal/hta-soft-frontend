@@ -13,6 +13,7 @@ import { useConfirmar } from '../components/confirmar';
 import { AreaTexto, Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { cn, edadTexto, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
+import { coincide } from '../lib/busqueda';
 
 /* Las jornadas son fechas "puras" (medianoche UTC): se muestran sin correr de día. */
 const fmtDia = new Intl.DateTimeFormat('es-DO', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -408,7 +409,7 @@ function Detalle({ d }: { d: DetalleJornada }) {
   const q = buscar.trim().toLowerCase();
   const enVista = d.pacientes.filter((p) => (vista === 'faltan' ? p.esperado && !p.atendidoHoy : vista === 'atendidos' ? p.atendidoHoy : true));
   const pacientes = enVista.filter((p) => {
-    if (q && !`${nombreCompleto(p)} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q)) return false;
+    if (q && !coincide(q, p)) return false;
     if (medico && !(p.atendidoHoy && p.atendio === medico)) return false;
     if (soloNuevos && !p.nuevo) return false;
     const c = p.categoria?.categoryName;

@@ -12,6 +12,7 @@ import { cantidadSugerida, mensajeEntrega } from '../lib/entregas';
 import { RECIBIO_ENTREGA } from '../lib/etiquetas';
 import { cn, fecha, nombreCompleto } from '../lib/formato';
 import { agregarPendiente, esFaltaDeConexion, nuevoId, usePendientes } from '../offline/cola';
+import { coincide as coincideBusqueda, type Buscable } from '../lib/busqueda';
 
 type CuerpoEntrega = Parameters<typeof entregarPendientes>[0];
 type Pendientes = Awaited<ReturnType<typeof pendientesDeEntrega>>;
@@ -69,9 +70,9 @@ export function Entregas() {
 
   // Sigue a la vista quien ya se entregó sin internet: así se nota que quedó "sin enviar".
   const porEntregar = filas.filter((pc) => pc.recetas.length || locales.pacientes.has(pc.paciente.id));
-  const q = busqueda.trim().toLowerCase();
-  const coincide = (p: { firstName: string; lastName: string; patientCode: string; address?: string | null }) =>
-    !q || `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
+  // Por palabras, sin acentos y tolerante a errores (lib/busqueda.ts), también sin internet.
+  const q = busqueda.trim();
+  const coincide = (p: Buscable) => coincideBusqueda(busqueda, p);
   const visibles = porEntregar.filter((pc) => coincide(pc.paciente));
   const deHoy = (hoy.data ?? []).filter((e) => !e.patient || coincide(e.patient));
   const volver = encodeURIComponent(`/entregas${comunidadId ? `?batey=${comunidadId}` : ''}`);

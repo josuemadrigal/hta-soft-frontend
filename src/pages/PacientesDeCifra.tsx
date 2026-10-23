@@ -8,6 +8,7 @@ import { COLUMNAS_PLANILLA } from '../components/TablaPlanilla';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, edadTexto, fecha, fechaDia, nombreCompleto } from '../lib/formato';
+import { coincide } from '../lib/busqueda';
 
 /** Qué es cada cifra de la ronda y cómo se cuenta (la misma regla que la tabla). */
 const RONDA: Record<string, { titulo: string; explica: string }> = {
@@ -136,7 +137,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
   const q = buscar.trim().toLowerCase();
   const filas = todos
     .filter((p) => {
-      if (q && !`${nombreCompleto(p)} ${p.patientCode}`.toLowerCase().includes(q)) return false;
+      if (q && !coincide(q, p)) return false;
       if (medico && p.atendio !== medico) return false;
       if (medicamento === 'sin' ? p.tratamiento.length > 0 : medicamento && !p.tratamiento.some((t) => t.medicamento === medicamento)) return false;
       const c = p.categoria;

@@ -18,6 +18,7 @@ import { mensajeEntrega } from '../lib/entregas';
 import { cn, edad, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } from '../lib/formato';
 import { ymd } from '../components/SelectorFecha';
 import { corteRegulares, esRegular, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
+import { coincide, grupoDe, puntaje } from '../lib/busqueda';
 
 type Estado = 'hoy' | 'ronda' | 'tratamiento' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
 
@@ -306,12 +307,14 @@ export function Jornada() {
               : c !== presion;
       if (fuera) return false;
     }
-    if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
+    if (q) return coincide(q, p);
     if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'tratamiento' && estado !== 'noVino' && estado !== 'yaNoViene';
     if (filtro === 'hoy') return vinoEn(p, estado, cuando);
     if (filtro === 'novino') return estado === 'noVino';
     return true;
   });
+  // Buscando: primero lo que coincide exacto o por el inicio, luego lo aproximado (cada grupo por nombre).
+  if (q) visibles.sort((a, b) => grupoDe(puntaje(q, b.p) ?? 0) - grupoDe(puntaje(q, a.p) ?? 0));
   const limpiarFiltros = () => {
     setMedico('');
     setPresion('');
