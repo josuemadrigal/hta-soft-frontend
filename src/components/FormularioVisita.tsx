@@ -153,11 +153,11 @@ function Contador({ campo, valor, min, register, setValue }: { campo: `recetas.$
   const cambiar = (d: number) => setValue(campo, Math.max(min, (Number.isFinite(valor) ? (valor as number) : min) + d), { shouldDirty: true, shouldValidate: true });
   const boton = 'grid size-10 shrink-0 place-items-center rounded-lg border border-borde bg-superficie text-tenue hover:text-tinta disabled:opacity-40';
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1">
       <button type="button" className={boton} onClick={() => cambiar(-1)} disabled={(valor ?? min) <= min} aria-label="Menos">
         <Minus className="size-4" />
       </button>
-      <Entrada enterKeyHint="next" className="h-10 text-center text-base font-medium" {...digitos(register, campo, 2)} />
+      <Entrada enterKeyHint="next" className="h-10 w-12 px-1 text-center text-base font-medium" {...digitos(register, campo, 2)} />
       <button type="button" className={boton} onClick={() => cambiar(1)} aria-label="Más">
         <Plus className="size-4" />
       </button>
@@ -200,38 +200,67 @@ function FilaReceta({
   const diferencia = correccion ? (receta.entregadas ?? 0) - entregadasAntes : 0;
   const noAlcanza = !!correccion && !correccion.importada && diferencia > 0 && hay !== undefined && diferencia > hay;
 
-  return (
-    <li className="space-y-3 px-5 py-4">
-      <div className="flex items-start gap-2">
-        <Campo etiqueta="Medicamento" error={errores?.medicationId?.message} className="min-w-0 flex-1">
-          <Selector
-            vacio="Elegir…"
-            className="h-10"
-            {...register(`recetas.${indice}.medicationId`)}
-            opciones={medicamentos.map((m) => ({ value: m.id, label: `${m.name} ${m.concentration}` }))}
-          />
-        </Campo>
-        <button type="button" onClick={alQuitar} className="mt-7 grid size-10 shrink-0 place-items-center rounded-lg text-tenue hover:bg-red-50 hover:text-red-600" aria-label="Quitar medicamento" title="Quitar medicamento">
-          <X className="size-4" />
-        </button>
-      </div>
-      {/* Para contar y comparar: lo que se le dio la vez pasada */}
-      {anterior && (
-        <p className="text-xs text-tenue">
-          La vez pasada ({fechaCorta(anterior.fecha)}): {anterior.receta.dailyDose} al día · se le entregaron {anterior.receta.quantityDispensed}
-          {anterior.receta.patientSupplyRemaining > 0 && ` · le quedaban ${anterior.receta.patientSupplyRemaining}`}
-        </p>
+  // Lo que se entrega y lo que dice el inventario, en una línea debajo de los campos.
+  const entrega = correccion ? (
+    <>
+      <span>
+        Le corresponden <strong className="text-tinta">{entregar}</strong>
+      </span>
+      {!correccion.importada && diferencia !== 0 && (
+        <span className={cn('font-medium', diferencia > 0 ? (noAlcanza ? 'text-red-600' : 'text-amber-800') : 'text-green-700')}>
+          {diferencia > 0 ? `Salen ${diferencia} más del inventario` : `Vuelven ${-diferencia} al inventario`}
+        </span>
       )}
-      <div className={cn('grid grid-cols-2 gap-3', correccion ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
-        <Campo etiqueta="Pastillas al día" error={errores?.dailyDose?.message}>
+      {correccion.importada && <span>Visita del Excel: no mueve el inventario</span>}
+    </>
+  ) : !entregarAhora ? (
+    <span>
+      Le corresponden <strong className="text-tinta">{entregar}</strong> · se entregan en la mesa de farmacia
+    </span>
+  ) : hay !== undefined && hay < entregar ? (
+    // No alcanza: se entrega lo que hay y el resto queda pendiente (la visita se guarda igual).
+    <span className="text-amber-800">
+      Le corresponden <strong>{entregar}</strong> · hay {hay}: se entregan {hay} y quedan <strong>{entregar - hay} pendientes</strong>
+    </span>
+  ) : (
+    <span>
+      Se entregan <strong className="text-sm text-tinta">{entregar}</strong>
+      {hay !== undefined && ` · quedan ${(hay - entregar).toLocaleString('es-DO')} en inventario`}
+    </span>
+  );
+
+  return (
+    <li className="px-5 py-3.5">
+      <div
+        className={cn(
+          'grid grid-cols-2 items-start gap-x-3 gap-y-3',
+          correccion ? 'md:grid-cols-[minmax(11rem,1fr)_auto_auto_5.5rem_5.5rem_auto]' : 'md:grid-cols-[minmax(11rem,1fr)_auto_auto_6rem_auto]',
+        )}
+      >
+        <div className="col-span-2 flex items-start gap-2 md:col-span-1">
+          <Campo etiqueta="Medicamento" error={errores?.medicationId?.message} className="min-w-0 flex-1">
+            <Selector
+              vacio="Elegir…"
+              className="h-10"
+              {...register(`recetas.${indice}.medicationId`)}
+              opciones={medicamentos.map((m) => ({ value: m.id, label: `${m.name} ${m.concentration}` }))}
+            />
+          </Campo>
+          {/* En el teléfono, quitar va junto al medicamento */}
+          <button type="button" onClick={alQuitar} className="mt-6 grid size-10 shrink-0 place-items-center rounded-lg text-tenue hover:bg-red-50 hover:text-red-600 md:hidden" aria-label="Quitar medicamento">
+            <X className="size-4" />
+          </button>
+        </div>
+        <Campo etiqueta="Al día" error={errores?.dailyDose?.message}>
           <Contador campo={`recetas.${indice}.dailyDose`} valor={receta.dailyDose} min={1} register={register} setValue={setValue} />
         </Campo>
-        <Campo etiqueta="Días de margen" error={errores?.bufferDays?.message}>
+        <Campo etiqueta="Margen (días)" error={errores?.bufferDays?.message}>
           <Contador campo={`recetas.${indice}.bufferDays`} valor={receta.bufferDays} min={0} register={register} setValue={setValue} />
         </Campo>
-        <Campo etiqueta="¿Cuántas le quedan?" error={errores?.patientSupplyRemaining?.message} ayuda="Vacío si no trajo ninguna" className="col-span-2 sm:col-span-1">
+        <Campo etiqueta="Le quedan" error={errores?.patientSupplyRemaining?.message}>
           <Entrada
             placeholder="0"
+            title="Vacío si no trajo ninguna"
             enterKeyHint="next"
             className="h-10 text-center text-base font-medium"
             {...digitos(register, `recetas.${indice}.patientSupplyRemaining`, 4)}
@@ -239,48 +268,38 @@ function FilaReceta({
           />
         </Campo>
         {correccion && (
-          <Campo etiqueta="Entregadas" error={errores?.entregadas?.message ?? (noAlcanza ? `Hay ${hay} en inventario` : undefined)} className="col-span-2 sm:col-span-1">
+          <Campo etiqueta="Entregadas" error={errores?.entregadas?.message ?? (noAlcanza ? `Hay ${hay} en inventario` : undefined)}>
             <Entrada enterKeyHint="next" className="h-10 text-center text-base font-semibold" {...digitos(register, `recetas.${indice}.entregadas`, 4)} aria-invalid={noAlcanza || !!errores?.entregadas} />
           </Campo>
         )}
+        <button
+          type="button"
+          onClick={alQuitar}
+          className="mt-6 hidden size-10 shrink-0 place-items-center rounded-lg text-tenue hover:bg-red-50 hover:text-red-600 md:grid"
+          aria-label="Quitar medicamento"
+          title="Quitar medicamento"
+        >
+          <X className="size-4" />
+        </button>
       </div>
-      <div className="tabular flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-fondo px-3 py-2.5 text-[13px] text-tenue">
-        {correccion ? (
-          <>
-            <span>
-              Le corresponden <strong className="text-base text-tinta">{entregar}</strong>
-            </span>
-            {!correccion.importada && diferencia !== 0 && (
-              <span className={cn('font-medium', diferencia > 0 ? (noAlcanza ? 'text-red-600' : 'text-amber-800') : 'text-green-700')}>
-                {diferencia > 0 ? `Salen ${diferencia} más del inventario` : `Vuelven ${-diferencia} al inventario`}
-              </span>
-            )}
-            {correccion.importada && <span>Visita del Excel: no mueve el inventario</span>}
-          </>
-        ) : !entregarAhora ? (
-          <span>
-            Le corresponden <strong className="text-base text-tinta">{entregar}</strong> · se entregan en la mesa de farmacia
-          </span>
-        ) : hay !== undefined && hay < entregar ? (
-          // No alcanza: se entrega lo que hay y el resto queda pendiente (la visita se guarda igual).
-          <span className="text-amber-800">
-            Le corresponden <strong className="text-base">{entregar}</strong> · hay {hay}: se entregan {hay} y quedan <strong>{entregar - hay} pendientes</strong>
-          </span>
-        ) : (
-          <span>
-            Se entregan <strong className="text-base text-tinta">{entregar}</strong>
-            {hay !== undefined && ` · quedan ${(hay - entregar).toLocaleString('es-DO')} en inventario`}
-          </span>
-        )}
-        <span className="ml-auto">
-          Cumplimiento:{' '}
+      {/* Lo que se entrega, el cumplimiento y lo de la vez pasada (para contar y comparar) */}
+      <p className="tabular mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-tenue">
+        {entrega}
+        <span>
+          Cumplimiento{' '}
           {cumplimiento === null ? (
             <span>{!anterior ? 'primera vez con este medicamento' : 'la receta anterior es de este mismo día'}</span>
           ) : (
             <strong className={colorCumplimiento(cumplimiento)}>{cumplimiento.toFixed(0)}%</strong>
           )}
         </span>
-      </div>
+        {anterior && (
+          <span className="text-tenue/90">
+            La vez pasada ({fechaCorta(anterior.fecha)}): {anterior.receta.dailyDose} al día, {anterior.receta.quantityDispensed} entregadas
+            {anterior.receta.patientSupplyRemaining > 0 && `, le quedaban ${anterior.receta.patientSupplyRemaining}`}
+          </span>
+        )}
+      </p>
     </li>
   );
 }
@@ -558,14 +577,14 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   );
   // La toma: números grandes, fáciles de leer y tocar en la tablet.
   const cifra = (nombre: 'systolicManual' | 'diastolicManual' | 'systolicAuto' | 'diastolicAuto', etiqueta: string, grande = true) => (
-    <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-tinta/80">{etiqueta}</span>
+    <label className="flex flex-col gap-1">
+      <span className="text-xs text-tenue">{etiqueta}</span>
       <Entrada
         placeholder="—"
         enterKeyHint="next"
         autoFocus={!edicion && nombre === 'systolicManual'}
         onFocus={(ev) => ev.currentTarget.select()}
-        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-16 text-3xl' : 'h-12 text-2xl')}
+        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-14 w-24 text-3xl sm:w-28' : 'h-11 w-20 text-xl sm:w-24')}
         {...digitos(register, nombre, 3)}
         aria-invalid={!!e[nombre]}
       />
@@ -640,41 +659,39 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   return (
     <form onSubmit={enviar} onKeyDown={siguienteCampo} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'xl:grid-cols-[minmax(0,1fr)_300px]')}>
       <div className="min-w-0 space-y-4">
-        <Tarjeta titulo="Presión arterial" accion={<span className="hidden text-xs text-tenue sm:inline">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
-          <div className="flex flex-wrap items-stretch gap-x-6 gap-y-4 p-5">
-            <div className="min-w-0 flex-[3_1_22rem] space-y-4">
-              <div>
-                <p className="mb-2 text-xs font-semibold tracking-wide text-tenue uppercase">Manual</p>
-                <div className="flex items-end gap-3">
-                  {cifra('systolicManual', 'Sistólica')}
-                  <span className="pb-3 text-3xl text-tenue/50" aria-hidden>
-                    /
-                  </span>
-                  {cifra('diastolicManual', 'Diastólica')}
-                </div>
+        <Tarjeta titulo={edicion ? 'Signos de la visita' : 'Signos de hoy'} accion={<span className="hidden text-xs text-tenue sm:inline">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
+          <div className="flex flex-wrap items-stretch gap-x-10 gap-y-4 p-5">
+            <fieldset className="min-w-0">
+              <legend className="mb-1.5 text-[13px] font-medium text-tinta/80">Presión manual</legend>
+              <div className="flex items-end gap-2">
+                {cifra('systolicManual', 'Sistólica')}
+                <span className="pb-2.5 text-3xl text-tenue/40" aria-hidden>
+                  /
+                </span>
+                {cifra('diastolicManual', 'Diastólica')}
               </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold tracking-wide text-tenue uppercase">
-                  Automática <span className="font-normal tracking-normal normal-case">· tensiómetro digital, opcional</span>
-                </p>
-                <div className="flex items-end gap-3">
-                  {cifra('systolicAuto', 'Sistólica', false)}
-                  <span className="pb-2 text-2xl text-tenue/50" aria-hidden>
-                    /
-                  </span>
-                  {cifra('diastolicAuto', 'Diastólica', false)}
-                </div>
+            </fieldset>
+            <fieldset className="min-w-0">
+              <legend className="mb-1.5 text-[13px] font-medium text-tinta/80">
+                Automática <span className="font-normal text-tenue">· opcional</span>
+              </legend>
+              <div className="flex items-end gap-2">
+                {cifra('systolicAuto', 'Sistólica', false)}
+                <span className="pb-2 text-2xl text-tenue/40" aria-hidden>
+                  /
+                </span>
+                {cifra('diastolicAuto', 'Diastólica', false)}
               </div>
-            </div>
+            </fieldset>
             {/* Lo que dice la toma, en cuanto se escribe. En escritorio ya lo muestra el Resumen. */}
-            <div className={cn('flex min-w-44 flex-1 flex-col items-start justify-center gap-1.5 rounded-lg bg-fondo px-4 py-3', !enModal && 'xl:hidden')}>
+            <div className={cn('flex min-w-44 flex-1 flex-col items-start justify-center gap-1 rounded-lg bg-fondo px-4 py-2.5', !enModal && 'xl:hidden')}>
               <span className="text-xs text-tenue">{sm && dm ? 'Toma manual' : sa && da ? 'Toma automática' : 'Clasificación'}</span>
               {tomaInvertida ? (
                 // Casi siempre es un error al teclear (se invirtieron los números).
                 <span className="text-sm font-medium text-red-700">La diastólica debe ser menor que la sistólica. Revisa la toma.</span>
               ) : s && d ? (
                 <>
-                  <span className="tabular font-mono text-3xl font-semibold">
+                  <span className="tabular font-mono text-2xl font-semibold">
                     {s}/{d}
                   </span>
                   <InsigniaCategoria config={categoria} />
@@ -687,31 +704,25 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             {/* En escritorio, el aviso de la toma invertida va bajo los campos */}
             {tomaInvertida && !enModal && <p className="hidden w-full text-sm font-medium text-red-700 xl:block">La diastólica debe ser menor que la sistólica. Revisa la toma.</p>}
           </div>
-        </Tarjeta>
-
-        {/* En tablet, las alertas justo debajo de la toma (en escritorio van en el resumen) */}
-        {!enModal && alertas.length > 0 && <ListaAlertas alertas={alertas} className="xl:hidden" />}
-
-        <Tarjeta titulo="Peso y estatura">
-          <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)]">
             <Campo etiqueta="Peso (kg)" error={e.weightKg?.message}>
               <Entrada
                 type="number"
                 inputMode="decimal"
                 step="0.1"
                 enterKeyHint="next"
-                placeholder={pesoAnterior ? `${edicion ? 'Anterior' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}
-                className="h-11 text-base"
+                placeholder={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)}` : undefined}
+                className="h-10 text-base"
                 {...register('weightKg', comoNumero)}
                 aria-invalid={!!e.weightKg}
               />
             </Campo>
             <Campo etiqueta="Estatura (m)" error={e.heightM?.message} ayuda={!edicion && historial.some((v) => v.heightM) ? 'De la última visita' : 'En metros, p. ej. 1.62'}>
-              <Entrada type="number" inputMode="decimal" step="0.01" enterKeyHint="next" className="h-11 text-base" {...register('heightM', comoNumero)} aria-invalid={!!e.heightM} />
+              <Entrada type="number" inputMode="decimal" step="0.01" enterKeyHint="next" className="h-10 text-base" {...register('heightM', comoNumero)} aria-invalid={!!e.heightM} />
             </Campo>
             <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
               <span className="text-[13px] font-medium text-tinta/80">IMC</span>
-              <span className="tabular flex h-11 items-center font-mono text-lg">
+              <span className="tabular flex h-10 items-center font-mono text-lg">
                 {imc && Number.isFinite(imc) ? (
                   <>
                     {imc.toFixed(1)}
@@ -724,6 +735,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             </div>
           </div>
         </Tarjeta>
+
+        {/* En tablet, las alertas justo debajo de la toma (en escritorio van en el resumen) */}
+        {!enModal && alertas.length > 0 && <ListaAlertas alertas={alertas} className="xl:hidden" />}
 
         <Tarjeta
           titulo={edicion ? 'Medicamentos entregados' : 'Medicamentos'}
@@ -775,8 +789,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
           })()}
         </Tarjeta>
 
-        <Tarjeta titulo="Fecha y próxima visita">
-          <div className="grid gap-4 p-5 sm:grid-cols-2">
+        <Tarjeta titulo="Fecha, próxima visita y comentario">
+          <div className="grid gap-x-4 gap-y-3 p-5 sm:grid-cols-2">
             <Campo etiqueta="Fecha de la visita" error={e.visitDate?.message}>
               <Controller
                 control={control}
@@ -830,11 +844,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
               </Campo>
             )}
           </div>
-        </Tarjeta>
-
-        <Tarjeta titulo="Comentario">
-          <div className="space-y-4 p-5">
-            <AreaTexto {...register('notes')} placeholder="Adherencia, síntomas, observaciones para la próxima clínica…" />
+          <div className="space-y-3 border-t border-borde px-5 py-4">
+            <AreaTexto rows={2} aria-label="Comentario" {...register('notes')} placeholder="Comentario: adherencia, síntomas, observaciones para la próxima clínica…" />
             <details className="group" open={edicion && !!(editada!.reason || editada!.prescriptionText || editada!.heartRate || editada!.oxygenSaturation || editada!.temperature)}>
               <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-medium text-tenue hover:text-tinta">
                 <ChevronDown className="size-4 transition-transform group-open:rotate-180" /> Más datos (motivo, signos vitales, indicaciones)
