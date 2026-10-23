@@ -170,7 +170,9 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
   const enSeguimiento = t.seen + t.pending;
   // La ronda se mide contra lo esperado: la media alta de las últimas jornadas de cada batey (ver Configuración).
   const esperados = t.expected ?? enSeguimiento;
-  const pctRonda = esperados ? Math.min(100, Math.round((t.seen / esperados) * 100)) : 0;
+  // Atendidos: los que vinieron a consulta y a los que solo se les dejó el tratamiento.
+  const atendidosRonda = t.seen + (t.treatmentLeft ?? 0);
+  const pctRonda = esperados ? Math.min(100, Math.round((atendidosRonda / esperados) * 100)) : 0;
   const faltan = (c: { missing?: number; pending: number }) => c.missing ?? c.pending;
 
   // Tendencia del control
@@ -297,7 +299,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
           titulo={`Ronda ${r.round.label}`}
           valor={`${pctRonda}%`}
           progreso={pctRonda}
-          detalle={`${miles(t.seen)} de ~${miles(esperados)} esperados · cierra en ${diasParaCerrar} días`}
+          detalle={`${miles(atendidosRonda)} de ~${miles(esperados)} esperados${t.treatmentLeft ? ` (${miles(t.treatmentLeft)} con tratamiento dejado)` : ''} · cierra en ${diasParaCerrar} días`}
           icono={<CalendarCheck className="size-4" />}
           a="/jornadas"
         />

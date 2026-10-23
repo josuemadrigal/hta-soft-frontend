@@ -306,7 +306,7 @@ export type PacienteDeCifra = {
   tratamiento: { medicamento: string; dosis: number; pastillas: number }[];
   presion: string | null;
   categoria: CategoriaPA | null;
-  estado?: 'visto' | 'le-toca' | 'sin-venir' | 'sin-visitas' | 'ya-no-viene';
+  estado?: 'visto' | 'tratamiento' | 'le-toca' | 'sin-venir' | 'sin-visitas' | 'ya-no-viene';
 };
 export const pacientesDePlanilla = (f: { from: string; to: string; columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/planilla/pacientes${query(f)}`);
 export const pacientesDeDonantes = (f: { anio: number; trimestre?: number; columna: string }) => api<PacienteDeCifra[]>(`/reports/donantes/pacientes${query(f)}`);

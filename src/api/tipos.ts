@@ -374,8 +374,8 @@ export type EstadisticasRonda = {
    * asisten hace más de 6 meses (absentYear: más de un año); retired = ya no vienen (no son regulares);
    * expected = esperados en la ronda (media alta de las últimas jornadas; ver Configuración); missing = faltan para llegar a los esperados.
    */
-  totals: { active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number };
-  byCommunity: { communityId: number; name: string; active: number; seen: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number; lastVisit: string | null }[];
+  totals: { active: number; seen: number; treatmentLeft?: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number };
+  byCommunity: { communityId: number; name: string; active: number; seen: number; treatmentLeft?: number; pending: number; absent: number; absentYear: number; neverSeen: number; retired?: number; expected?: number; missing?: number; lastVisit: string | null }[];
   visitasSinVenirRegular?: number;
   /** Pendientes de la ronda cuya última toma fue grado 2 o crisis */
   priority: { total: number; lista: { id: number; patientCode: string; firstName: string; lastName: string; address: string | null; communityId: number; presion: string; categoria: CategoriaPA; lastVisitDate: string }[] };
@@ -392,8 +392,8 @@ export type EstadisticasRonda = {
 };
 
 /** Paciente de la lista de jornada: trae solo su última visita. */
-/** visitasAnio: días (YYYY-MM-DD) en que vino este año, para filtrar los vistos por ronda. */
-export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[]; inasistencias: Inasistencia[]; visitasAnio?: string[] };
+/** visitasAnio: días (YYYY-MM-DD) en que vino este año, para filtrar los vistos por ronda. tratamientoRonda: día en que se le dejó el tratamiento sin consulta en esta ronda. */
+export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[]; inasistencias: Inasistencia[]; visitasAnio?: string[]; tratamientoRonda?: string | null };
 
 export type MotivoInasistencia = 'NO_ESTABA' | 'TRABAJANDO' | 'VIAJE' | 'ENFERMO' | 'NO_QUISO' | 'SE_MUDO' | 'OTRO';
 /** "No vino" a la jornada de ese día */

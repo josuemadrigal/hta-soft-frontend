@@ -12,7 +12,8 @@ import { cn, edadTexto, fecha, fechaDia, nombreCompleto } from '../lib/formato';
 /** Qué es cada cifra de la ronda y cómo se cuenta (la misma regla que la tabla). */
 const RONDA: Record<string, { titulo: string; explica: string }> = {
   regulares: { titulo: 'Regulares', explica: 'Pacientes activos que se han perdido como mucho las visitas que se fijan en Configuración. Los que nunca han venido cuentan si se registraron en ese tiempo.' },
-  vistos: { titulo: 'Vistos en la ronda', explica: 'Regulares que ya vinieron en este trimestre.' },
+  vistos: { titulo: 'Vistos en la ronda', explica: 'Regulares que ya vinieron a consulta en este trimestre.' },
+  tratamiento: { titulo: 'Con tratamiento dejado', explica: 'No vinieron a consulta en este trimestre, pero se les dejó el tratamiento (reposición sin consulta). Cuentan como atendidos en la ronda; no tienen toma de presión.' },
   faltan: { titulo: 'Todavía no vienen en esta ronda', explica: 'Regulares que no han venido este trimestre. "Faltan" en la tabla es cuántos de ellos hacen falta para llegar a lo esperado; aquí están todos, primero a los que les toca.' },
   dejaron: { titulo: 'Dejaron de venir', explica: 'Regulares que llevan más de 6 meses sin venir: todavía se pueden recuperar.' },
   yaNoVienen: { titulo: 'Ya no vienen', explica: 'Se perdieron más visitas de las que se fijan en Configuración: no cuentan en la ronda.' },
@@ -20,12 +21,13 @@ const RONDA: Record<string, { titulo: string; explica: string }> = {
 
 const ESTADOS: Record<NonNullable<PacienteDeCifra['estado']>, { texto: string; color?: string }> = {
   visto: { texto: 'Vino en la ronda', color: '#15803d' },
+  tratamiento: { texto: 'Tratamiento dejado', color: '#7a5c00' },
   'le-toca': { texto: 'Le toca' },
   'sin-venir': { texto: 'Más de 6 meses sin venir', color: '#b45309' },
   'sin-visitas': { texto: 'Nunca ha venido', color: '#b45309' },
   'ya-no-viene': { texto: 'Ya no viene', color: '#b91c1c' },
 };
-const ORDEN_ESTADO = ['le-toca', 'sin-visitas', 'sin-venir', 'visto', 'ya-no-viene'];
+const ORDEN_ESTADO = ['le-toca', 'sin-visitas', 'sin-venir', 'tratamiento', 'visto', 'ya-no-viene'];
 
 const EXPLICA_PLANILLA: Record<string, string> = {
   evaluados: 'Pacientes con al menos una visita en el periodo.',

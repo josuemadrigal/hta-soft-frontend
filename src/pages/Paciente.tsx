@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { useJornadas, usePaciente } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
-import type { Paciente as TPaciente, Visita } from '../api/tipos';
+import type { Entrega, Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
 import { Avatar, Boton, Cargando, EnlaceVolver, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
 import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
@@ -313,6 +313,26 @@ function FilaVisita({ visita }: { visita: Visita }) {
   );
 }
 
+/** Una reposición en la lista de visitas: no hubo consulta, solo se le dejó el tratamiento. */
+function FilaTratamiento({ entrega: e }: { entrega: Entrega }) {
+  const quien = e.recibio !== 'PACIENTE' ? `recibió ${e.recibioNombre ? conQuien(e.recibioNombre, e.recibioParentesco) : RECIBIO_ENTREGA[e.recibio].toLowerCase()}` : null;
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-fondo/50 px-5 py-3.5 sm:flex-nowrap">
+      <div className="w-44 shrink-0">
+        <p className="text-sm font-medium">{fecha(e.fecha)}</p>
+        <p className="truncate text-xs text-tenue">{[e.motivo ? MOTIVOS_REPOSICION[e.motivo] : 'Sin consulta', e.entregadoPorNombre].filter(Boolean).join(' · ')}</p>
+      </div>
+      <Insignia color="#7a5c00">
+        <Pill className="size-3" /> Solo se le dejó tratamiento
+      </Insignia>
+      <span className="min-w-0 flex-1 truncate text-sm text-tenue">
+        {e.items.map((i) => `${i.medication?.name ?? ''} ${i.medication?.concentration ?? ''}: ${i.cantidad}`).join(' · ')}
+        {quien && ` · ${quien}`}
+      </span>
+    </li>
+  );
+}
+
 export function Paciente() {
   const id = Number(useParams().id);
   // Desde la jornada se vuelve a la jornada (solo rutas internas).
@@ -320,6 +340,8 @@ export function Paciente() {
   const volver = pedido?.startsWith('/') && !pedido.startsWith('//') ? pedido : '/pacientes';
   const navegar = useNavigate();
   const consulta = usePaciente(id);
+  // Las reposiciones (tratamiento dejado sin consulta) salen también en la lista de visitas.
+  const entregas = useQuery({ queryKey: ['entregas', 'paciente', id], queryFn: () => entregasDelPaciente(id) });
   const { tiene } = useSesion();
   const puedeRevisar = tiene('datos.revisar');
   const confirmar = useConfirmar();
@@ -378,6 +400,14 @@ export function Paciente() {
   // Se registró en un batey y luego se cambió: el código sigue con el prefijo del anterior.
   const codigoDeOtroBatey = !!p.community?.abbreviation && !new RegExp(`^${p.community.abbreviation}\\d+$`).test(p.patientCode);
   const ultima = p.clinicalVisits?.[0];
+  // Visitas y reposiciones en una sola línea de tiempo, la más reciente primero.
+  const reposiciones = (entregas.data?.entregas ?? []).filter((e) => e.tipo === 'REPOSICION');
+  const historial = [
+    ...(p.clinicalVisits ?? []).map((v) => ({ tipo: 'visita' as const, fecha: v.visitDate, visita: v })),
+    ...reposiciones.map((e) => ({ tipo: 'tratamiento' as const, fecha: e.fecha, entrega: e })),
+  ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  // Se le dejó tratamiento después de su última visita: así no parece que lleva meses sin atención.
+  const tratamientoReciente = reposiciones.find((e) => !ultima || new Date(e.fecha) > new Date(ultima.visitDate));
   const alertas = ultima ? alertasClinicas(tomaDe(ultima), p.clinicalVisits!.slice(1), umbrales) : [];
   // Visitas viejas no tienen nextVisitDate: se asume la ronda trimestral.
   const proxima = ultima ? new Date(ultima.nextVisitDate ?? new Date(ultima.visitDate).getTime() + 90 * DIA_MS) : null;
@@ -631,12 +661,10 @@ export function Paciente() {
             <GraficoTension visitas={p.clinicalVisits ?? []} />
           </Tarjeta>
 
-          <Tarjeta titulo={`Visitas (${p.clinicalVisits?.length ?? 0})`}>
-            {p.clinicalVisits?.length ? (
+          <Tarjeta titulo={`Visitas (${p.clinicalVisits?.length ?? 0}${reposiciones.length ? ` · ${reposiciones.length} solo con tratamiento` : ''})`}>
+            {p.clinicalVisits?.length || reposiciones.length ? (
               <ul className="divide-y divide-borde">
-                {p.clinicalVisits.map((v) => (
-                  <FilaVisita key={v.id} visita={v} />
-                ))}
+                {historial.map((h) => (h.tipo === 'visita' ? <FilaVisita key={`v${h.visita.id}`} visita={h.visita} /> : <FilaTratamiento key={`r${h.entrega.id}`} entrega={h.entrega} />))}
               </ul>
             ) : (
               <Vacio icono={<Stethoscope className="size-8" />} titulo="Sin visitas">
@@ -694,8 +722,14 @@ export function Paciente() {
               <div className="grid grid-cols-2 gap-4">
                 <Dato etiqueta="Sexo">{GENEROS[p.gender]}</Dato>
                 <Dato etiqueta="Edad">{edadTexto(p)}</Dato>
-                <Dato etiqueta="Visitas">{p.clinicalVisits?.length ?? 0}</Dato>
-                <Dato etiqueta="Última visita">{ultima ? fecha(ultima.visitDate) : '—'}</Dato>
+                <Dato etiqueta="Visitas">
+                  {p.clinicalVisits?.length ?? 0}
+                  {reposiciones.length > 0 && <span className="block text-xs text-tenue">+ {reposiciones.length} solo con tratamiento</span>}
+                </Dato>
+                <Dato etiqueta="Última visita">
+                  {ultima ? fecha(ultima.visitDate) : '—'}
+                  {tratamientoReciente && <span className="block text-xs text-tenue">Tratamiento dejado: {fecha(tratamientoReciente.fecha)}</span>}
+                </Dato>
               </div>
               <Dato etiqueta="Último médico">{ultima ? atendio(ultima) : '—'}</Dato>
               <Dato etiqueta="Nacimiento">{p.birthDateIsEstimated ? `Aprox. ${new Date(p.birthDate).getUTCFullYear()}` : fecha(p.birthDate)}</Dato>

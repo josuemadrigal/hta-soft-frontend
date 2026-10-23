@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardPlus, CloudDownload, MapPin, Search, UserPlus, UserX } from 'lucide-react';
+import { CheckCircle2, ClipboardPlus, CloudDownload, MapPin, Pill, Search, UserPlus, UserX } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ import { cn, edad, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } fro
 import { ymd } from '../components/SelectorFecha';
 import { corteRegulares, esRegular, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
 
-type Estado = 'hoy' | 'ronda' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
+type Estado = 'hoy' | 'ronda' | 'tratamiento' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
 
 /** Asistencia (lib/asistencia.ts): "Pendiente" aún no viene en esta ronda; "No asiste desde…" lleva más de 6 meses sin venir. */
 const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> = {
@@ -28,6 +28,8 @@ const ESTADOS: Record<Estado, { texto: string; color?: string; orden: number }> 
   nuevo: { texto: 'Sin visitas', color: '#6b665e', orden: 2 },
   hoy: { texto: 'Visto hoy', color: '#15803d', orden: 3 },
   ronda: { texto: 'Visto en la ronda', color: '#7a5c00', orden: 4 },
+  // No vino a consulta, pero se le dejó el tratamiento en esta ronda: cuenta como atendido.
+  tratamiento: { texto: 'Tratamiento dejado', color: '#7a5c00', orden: 4 },
   noVino: { texto: 'No vino', color: '#6b665e', orden: 5 },
   // Se perdió más visitas de las que se aceptan (Configuración): no cuenta como "por ver".
   yaNoViene: { texto: 'Ya no viene', color: '#6b665e', orden: 6 },
@@ -83,10 +85,11 @@ function estadoDe(p: PacienteJornada, ronda: Date, hoy: Date, locales: Locales, 
   const u = p.clinicalVisits[0];
   if (!(u && new Date(u.visitDate) >= hoy) && (locales.noVino.has(p.id) || p.inasistencias?.some((i) => i.fecha.slice(0, 10) === hoyYmd()))) return 'noVino';
   if (!esRegular(u?.visitDate, p.registrationDate, corte)) return 'yaNoViene';
-  if (!u) return 'nuevo';
+  if (!u) return p.tratamientoRonda ? 'tratamiento' : 'nuevo';
   const visita = new Date(u.visitDate);
   if (visita >= hoy) return 'hoy';
   if (visita >= ronda) return 'ronda';
+  if (p.tratamientoRonda) return 'tratamiento';
   return asistencia(u.visitDate).clave === 'sin-venir' ? 'sinVenir' : 'pendiente';
 }
 
@@ -266,17 +269,20 @@ export function Jornada() {
   const medicosDelBatey = [...porMedico.values()].sort((a, b) => Number(a.id === 0) - Number(b.id === 0) || a.nombre.localeCompare(b.nombre));
 
   const vistos = filas.filter((f) => f.estado === 'hoy' || f.estado === 'ronda').length;
+  const conTratamiento = filas.filter((f) => f.estado === 'tratamiento').length;
+  // Atendidos en la ronda: los que vinieron a consulta y a los que solo se les dejó el tratamiento.
+  const atendidos = vistos + conTratamiento;
   const vistosHoy = filas.filter((f) => f.estado === 'hoy').length;
   const noVinieron = filas.filter((f) => f.estado === 'noVino').length;
   const yaNoVienen = filas.filter((f) => f.estado === 'yaNoViene').length;
   // Vistos en una ronda de este año (los de hoy sin enviar cuentan en la ronda actual).
   const trimestreHoy = trimestreDe(hoyYmd());
   const vinoEn = (p: PacienteJornada, estado: Estado, t: Cuando) =>
-    t === 'hoy' ? estado === 'hoy' : (t === trimestreHoy && estado === 'hoy') || (p.visitasAnio ?? []).some((d) => trimestreDe(d) === t);
+    t === 'hoy' ? estado === 'hoy' : (t === trimestreHoy && (estado === 'hoy' || estado === 'tratamiento')) || (p.visitasAnio ?? []).some((d) => trimestreDe(d) === t);
   const vistosEn = (t: Cuando) => filas.filter(({ p, estado }) => vinoEn(p, estado, t)).length;
   // Los regulares: la ronda se mide contra ellos, no contra todos los registrados desde 2017.
   const regulares = filas.length - yaNoVienen;
-  const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'noVino' && f.estado !== 'yaNoViene').length;
+  const porVer = filas.filter((f) => f.estado !== 'hoy' && f.estado !== 'ronda' && f.estado !== 'tratamiento' && f.estado !== 'noVino' && f.estado !== 'yaNoViene').length;
   const q = busqueda.trim().toLowerCase();
   const masFiltros = !!(presion || sexo || rangoEdad || medico !== '');
   const visibles = filas.filter(({ p, estado }) => {
@@ -301,7 +307,7 @@ export function Jornada() {
       if (fuera) return false;
     }
     if (q) return `${p.firstName} ${p.lastName} ${p.patientCode} ${p.address ?? ''}`.toLowerCase().includes(q);
-    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'noVino' && estado !== 'yaNoViene';
+    if (filtro === 'pendientes') return estado !== 'hoy' && estado !== 'ronda' && estado !== 'tratamiento' && estado !== 'noVino' && estado !== 'yaNoViene';
     if (filtro === 'hoy') return vinoEn(p, estado, cuando);
     if (filtro === 'novino') return estado === 'noVino';
     return true;
@@ -378,11 +384,11 @@ export function Jornada() {
             const a = asistenciaJ.data?.find((x) => x.communityId === comunidadId);
             const esperados = a?.promedio ?? regulares;
             const detalle = a ? `Media alta de las últimas ${a.jornadas.length} (las ${a.mejores ?? 3} con más pacientes)${a.media !== undefined ? `; promedio simple ~${a.media}` : ''}: ${a.jornadas.map((j) => `${fechaCorta(j.fecha)}: ${j.pacientes}`).join(' · ')}` : undefined;
-            const superado = vistos >= esperados && esperados > 0;
+            const superado = atendidos >= esperados && esperados > 0;
             return (
               <div className="min-w-56 flex-1">
                 <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="tabular text-2xl font-semibold tracking-tight">{vistos}</span>
+                  <span className="tabular text-2xl font-semibold tracking-tight">{atendidos}</span>
                   <span className="text-sm text-tenue" title={detalle}>
                     de {a ? '~' : ''}
                     {esperados} esperados en la ronda
@@ -402,12 +408,12 @@ export function Jornada() {
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={esperados}
-                  aria-valuenow={Math.min(vistos, esperados)}
+                  aria-valuenow={Math.min(atendidos, esperados)}
                   aria-label="Vistos de los esperados en la ronda"
                 >
                   <div
                     className={cn('h-full rounded-full transition-[width] duration-300 ease-out', superado ? 'bg-green-600' : 'bg-marca-500')}
-                    style={{ width: `${esperados ? Math.min(100, (vistos / esperados) * 100) : 0}%` }}
+                    style={{ width: `${esperados ? Math.min(100, (atendidos / esperados) * 100) : 0}%` }}
                   />
                 </div>
                 <p className="mt-1.5 text-xs text-tenue" title={`Regulares: los que se han perdido como mucho ${visitasSinVenir} visitas. Se cambia en Configuración.`}>
@@ -417,6 +423,7 @@ export function Jornada() {
                     </>
                   ) : null}
                   {regulares} pacientes regulares
+                  {conTratamiento > 0 && ` · ${conTratamiento} con tratamiento dejado (sin consulta)`}
                   {superado && <span className="font-medium text-green-700"> · ya se superó lo esperado</span>}
                 </p>
               </div>
@@ -546,24 +553,24 @@ export function Jornada() {
                   <li
                     key={p.id}
                     onClick={() => navegar(`/pacientes/${p.id}?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`)}
-                    className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fondo sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 md:grid-cols-[auto_5.5rem_minmax(0,1fr)_13rem_15rem]"
+                    className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-fondo sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-5 xl:grid-cols-[auto_5.5rem_minmax(0,1fr)_13rem_17.5rem]"
                   >
                     <Avatar persona={p} foto={p.photoUrl} tamano="size-10" />
                     {/* El código en su columna (en pantallas anchas); en el teléfono va debajo del nombre */}
-                    <span className="tabular hidden font-mono text-sm text-tinta/80 md:block">{p.patientCode}</span>
+                    <span className="tabular hidden font-mono text-sm text-tinta/80 xl:block">{p.patientCode}</span>
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="truncate font-medium">{nombreCompleto(p)}</span>
                         {aviso && <Insignia color={aviso.color}>{aviso.texto}</Insignia>}
                       </p>
                       <p className="truncate text-xs text-tenue">
-                        <span className="font-mono text-tinta/70 md:hidden">{p.patientCode} · </span>
+                        <span className="font-mono text-tinta/70 xl:hidden">{p.patientCode} · </span>
                         {edadTexto(p)}
                         {p.address && ` · Casa ${p.address}`}
                       </p>
                     </div>
                     {/* La última toma: lo que el médico quiere ver antes de registrar la de hoy */}
-                    <div className="col-span-2 col-start-1 row-start-2 pl-14 text-xs text-tenue sm:col-span-3 md:col-span-1 md:col-start-auto md:row-start-auto md:pl-0">
+                    <div className="col-span-2 col-start-1 row-start-2 pl-14 text-xs text-tenue sm:col-span-3 xl:col-span-1 xl:col-start-auto xl:row-start-auto xl:pl-0">
                       {u ? (
                         <>
                           <p className="flex items-center gap-2">
@@ -586,10 +593,10 @@ export function Jornada() {
                         </Boton>
                       ) : (
                         // Con permiso de entregar, al elegir el motivo se pregunta si se le deja el tratamiento con alguien.
-                        estado !== 'hoy' && estado !== 'ronda' && <MenuNoVino alElegir={(m) => (tiene('entregas.registrar') ? setDejar({ p, motivo: m }) : void marcarNoVinoEn(p, m))} />
+                        estado !== 'hoy' && estado !== 'ronda' && estado !== 'tratamiento' && <MenuNoVino dejar={tiene('entregas.registrar')} alElegir={(m) => (tiene('entregas.registrar') ? setDejar({ p, motivo: m }) : void marcarNoVinoEn(p, m))} />
                       )}
                       <Boton
-                        variante={estado === 'hoy' || estado === 'ronda' ? 'secundario' : 'primario'}
+                        variante={estado === 'hoy' || estado === 'ronda' || estado === 'tratamiento' ? 'secundario' : 'primario'}
                         className="h-10 px-4"
                         icono={<ClipboardPlus className="size-4" />}
                         onClick={() => navegar(`/pacientes/${p.id}/visita?volver=${encodeURIComponent(`/jornada?batey=${comunidadId}`)}`)}
@@ -609,7 +616,11 @@ export function Jornada() {
 }
 
 /** Botón "No vino" con el motivo (menú pequeño, no un formulario: es un toque en la jornada). */
-function MenuNoVino({ alElegir }: { alElegir: (m: MotivoInasistencia) => void }) {
+/**
+ * Con permiso de entregar, el botón dice "Dejar TX" (dejar tratamiento: lo que casi siempre se hace cuando no
+ * vino); sin permiso, "No vino". En los dos casos primero se elige por qué no vino.
+ */
+function MenuNoVino({ alElegir, dejar }: { alElegir: (m: MotivoInasistencia) => void; dejar: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -620,8 +631,18 @@ function MenuNoVino({ alElegir }: { alElegir: (m: MotivoInasistencia) => void })
   }, [abierto]);
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
-      <Boton variante="secundario" className="h-10 px-3 text-sm whitespace-nowrap" icono={<UserX className="size-3.5" />} onClick={() => setAbierto((a) => !a)} aria-expanded={abierto}>
-        No vino
+      <Boton
+        variante="secundario"
+        // El mismo tono que la etiqueta "Tratamiento dejado": se distingue de Registrar sin competir con él.
+        className={cn('h-10 px-3 text-sm whitespace-nowrap', dejar && 'border-[#e6d3a8] bg-[#f6ecd6] text-[#6b4f00] hover:bg-[#efe0bd]')}
+        icono={dejar ? <Pill className="size-3.5" /> : <UserX className="size-3.5" />}
+        onClick={() => setAbierto((a) => !a)}
+        aria-expanded={abierto}
+        title={dejar ? 'Dejar tratamiento' : undefined}
+        aria-label={dejar ? 'Dejar tratamiento' : undefined}
+      >
+        {/* "TX": así lo escriben en la fundación (tratamiento); el título completo queda al pasar el cursor */}
+        {dejar ? 'Dejar TX' : 'No vino'}
       </Boton>
       {abierto && (
         <ul className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-borde bg-superficie py-1 text-sm shadow-lg">

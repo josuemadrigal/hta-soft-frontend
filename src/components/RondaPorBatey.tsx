@@ -67,7 +67,9 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
             {filas.map((c) => {
               // Contra lo esperado (media alta de las últimas jornadas); se puede pasar del 100 %.
               const esperados = c.expected ?? c.active;
-              const pct = esperados ? Math.round((c.seen / esperados) * 100) : 0;
+              // Atendidos: los que vinieron a consulta y a los que solo se les dejó el tratamiento.
+              const tratamiento = c.treatmentLeft ?? 0;
+              const pct = esperados ? Math.round(((c.seen + tratamiento) / esperados) * 100) : 0;
               const proxima = indicadores.data?.find((b) => b.id === c.communityId)?.proximaJornada ?? null;
               return (
                 <tr key={c.communityId} onClick={() => navegar(`/jornada?batey=${c.communityId}`)} className="cursor-pointer hover:bg-fondo">
@@ -87,13 +89,23 @@ export function RondaPorBatey({ ronda }: { ronda: EstadisticasRonda }) {
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
                         <div className={pct >= 100 ? 'h-full rounded-full bg-green-600' : 'h-full rounded-full bg-tinta'} style={{ width: `${Math.min(100, pct)}%` }} />
                       </div>
-                      <span className="w-20 text-right text-xs text-tenue tabular-nums">
+                      <span className="w-28 text-right text-xs text-tenue tabular-nums">
                         {c.seen ? (
                           <Cifra columna="vistos" batey={c.communityId}>
                             {miles(c.seen)}
                           </Cifra>
                         ) : (
                           0
+                        )}
+                        {tratamiento > 0 && (
+                          <>
+                            {' + '}
+                            <span title="Solo se les dejó el tratamiento (sin consulta)">
+                              <Cifra columna="tratamiento" batey={c.communityId}>
+                                {miles(tratamiento)}
+                              </Cifra>
+                            </span>
+                          </>
                         )}{' '}
                         · {pct}%
                       </span>
