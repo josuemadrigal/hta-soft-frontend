@@ -230,7 +230,7 @@ function FilaReceta({
   );
 
   return (
-    <li className="px-5 py-3.5">
+    <li className="px-5 py-3.5 even:bg-fondo/60">
       <div
         className={cn(
           'grid grid-cols-2 items-start gap-x-3 gap-y-3',
@@ -247,7 +247,7 @@ function FilaReceta({
             />
           </Campo>
           {/* En el teléfono, quitar va junto al medicamento */}
-          <button type="button" onClick={alQuitar} className="mt-6 grid size-10 shrink-0 place-items-center rounded-lg text-tenue hover:bg-red-50 hover:text-red-600 md:hidden" aria-label="Quitar medicamento">
+          <button type="button" onClick={alQuitar} className="mt-6 grid size-10 shrink-0 place-items-center rounded-lg bg-red-50/70 text-red-600/80 transition-colors hover:bg-red-100 hover:text-red-700 md:hidden" aria-label="Quitar medicamento">
             <X className="size-4" />
           </button>
         </div>
@@ -275,7 +275,7 @@ function FilaReceta({
         <button
           type="button"
           onClick={alQuitar}
-          className="mt-6 hidden size-10 shrink-0 place-items-center rounded-lg text-tenue hover:bg-red-50 hover:text-red-600 md:grid"
+          className="mt-6 hidden size-10 shrink-0 place-items-center rounded-lg bg-red-50/70 text-red-600/80 transition-colors hover:bg-red-100 hover:text-red-700 md:grid"
           aria-label="Quitar medicamento"
           title="Quitar medicamento"
         >
@@ -584,7 +584,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
         enterKeyHint="next"
         autoFocus={!edicion && nombre === 'systolicManual'}
         onFocus={(ev) => ev.currentTarget.select()}
-        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-14 w-24 text-3xl sm:w-28' : 'h-11 w-20 text-xl sm:w-24')}
+        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-14 w-24 text-3xl sm:w-28 xl:w-24' : 'h-11 w-20 text-xl sm:w-24 xl:w-20')}
         {...digitos(register, nombre, 3)}
         aria-invalid={!!e[nombre]}
       />
@@ -660,7 +660,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
     <form onSubmit={enviar} onKeyDown={siguienteCampo} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'xl:grid-cols-[minmax(0,1fr)_300px]')}>
       <div className="min-w-0 space-y-4">
         <Tarjeta titulo={edicion ? 'Signos de la visita' : 'Signos de hoy'} accion={<span className="hidden text-xs text-tenue sm:inline">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
-          <div className="flex flex-wrap items-stretch gap-x-10 gap-y-4 p-5">
+          {/* En pantallas anchas, la presión a la izquierda y el peso a la derecha: no queda medio renglón vacío */}
+          <div className="grid xl:grid-cols-[auto_minmax(0,1fr)]">
+          <div className="flex flex-wrap items-stretch gap-x-8 gap-y-4 p-5 xl:gap-x-6">
             <fieldset className="min-w-0">
               <legend className="mb-1.5 text-[13px] font-medium text-tinta/80">Presión manual</legend>
               <div className="flex items-end gap-2">
@@ -704,14 +706,13 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             {/* En escritorio, el aviso de la toma invertida va bajo los campos */}
             {tomaInvertida && !enModal && <p className="hidden w-full text-sm font-medium text-red-700 xl:block">La diastólica debe ser menor que la sistólica. Revisa la toma.</p>}
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)]">
-            <Campo etiqueta="Peso (kg)" error={e.weightKg?.message}>
+          <div className="grid grid-cols-2 content-start gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)] xl:grid-cols-2 xl:border-t-0 xl:border-l xl:py-5">
+            <Campo etiqueta="Peso (kg)" error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
               <Entrada
                 type="number"
                 inputMode="decimal"
                 step="0.1"
                 enterKeyHint="next"
-                placeholder={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)}` : undefined}
                 className="h-10 text-base"
                 {...register('weightKg', comoNumero)}
                 aria-invalid={!!e.weightKg}
@@ -720,9 +721,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             <Campo etiqueta="Estatura (m)" error={e.heightM?.message} ayuda={!edicion && historial.some((v) => v.heightM) ? 'De la última visita' : 'En metros, p. ej. 1.62'}>
               <Entrada type="number" inputMode="decimal" step="0.01" enterKeyHint="next" className="h-10 text-base" {...register('heightM', comoNumero)} aria-invalid={!!e.heightM} />
             </Campo>
-            <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
+            <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1 xl:col-span-2 xl:flex-row xl:items-baseline xl:gap-3">
               <span className="text-[13px] font-medium text-tinta/80">IMC</span>
-              <span className="tabular flex h-10 items-center font-mono text-lg">
+              <span className="tabular flex h-10 items-center font-mono text-lg xl:h-auto">
                 {imc && Number.isFinite(imc) ? (
                   <>
                     {imc.toFixed(1)}
@@ -734,6 +735,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
               </span>
             </div>
           </div>
+          </div>
         </Tarjeta>
 
         {/* En tablet, las alertas justo debajo de la toma (en escritorio van en el resumen) */}
@@ -744,7 +746,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
           accion={
             <div className="flex items-center gap-3">
               {edicion && <span className="hidden text-xs text-tenue sm:inline">{editada!.importada ? 'Visita del Excel: no mueve el inventario' : 'Al guardar se ajusta el inventario'}</span>}
-              <Boton variante="fantasma" className="h-8" icono={<Plus className="size-4" />} onClick={agregarMedicamento}>
+              <Boton variante="fantasma" className="h-8 bg-marca-50 text-marca-700 hover:bg-marca-100 hover:text-marca-700" icono={<Plus className="size-4" />} onClick={agregarMedicamento}>
                 Agregar
               </Boton>
             </div>
