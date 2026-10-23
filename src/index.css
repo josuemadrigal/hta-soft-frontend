@@ -22,6 +22,16 @@
 }
 
 @layer base {
+  /* Tailwind 4 dejó los botones con el cursor de flecha: todo lo que se puede tocar lleva la manito. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'],
+  summary,
+  label:has(input[type='checkbox']),
+  select {
+    cursor: pointer;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
   }

@@ -622,7 +622,18 @@ export function Jornada() {
  */
 function MenuNoVino({ alElegir, dejar }: { alElegir: (m: MotivoInasistencia) => void; dejar: boolean }) {
   const [abierto, setAbierto] = useState(false);
+  // Si abajo no cabe (filas al final de la pantalla), el menú se abre hacia arriba.
+  const [haciaArriba, setHaciaArriba] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const alternar = () => {
+    if (!abierto && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      const alto = 48 + Object.keys(MOTIVOS_INASISTENCIA).length * 36;
+      const abajo = window.innerHeight - r.bottom;
+      setHaciaArriba(abajo < alto + 8 && r.top > abajo);
+    }
+    setAbierto((a) => !a);
+  };
   useEffect(() => {
     if (!abierto) return;
     const cerrar = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setAbierto(false);
@@ -634,9 +645,9 @@ function MenuNoVino({ alElegir, dejar }: { alElegir: (m: MotivoInasistencia) => 
       <Boton
         variante="secundario"
         // El mismo tono que la etiqueta "Tratamiento dejado": se distingue de Registrar sin competir con él.
-        className={cn('h-10 px-3 text-sm whitespace-nowrap', dejar && 'border-[#e6d3a8] bg-[#f6ecd6] text-[#6b4f00] hover:bg-[#efe0bd]')}
+        className={cn('h-10 px-3 text-sm whitespace-nowrap', dejar && 'border-[#e6d3a8] bg-[#f6ecd6] text-[#6b4f00] hover:border-[#d6b978] hover:bg-[#ecd9ab]')}
         icono={dejar ? <Pill className="size-3.5" /> : <UserX className="size-3.5" />}
-        onClick={() => setAbierto((a) => !a)}
+        onClick={alternar}
         aria-expanded={abierto}
         title={dejar ? 'Dejar tratamiento' : undefined}
         aria-label={dejar ? 'Dejar tratamiento' : undefined}
@@ -645,7 +656,7 @@ function MenuNoVino({ alElegir, dejar }: { alElegir: (m: MotivoInasistencia) => 
         {dejar ? 'Dejar TX' : 'No vino'}
       </Boton>
       {abierto && (
-        <ul className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-lg border border-borde bg-superficie py-1 text-sm shadow-lg">
+        <ul className={cn('absolute right-0 z-20 w-56 overflow-hidden rounded-lg border border-borde bg-superficie py-1 text-sm shadow-lg', haciaArriba ? 'bottom-full mb-1' : 'top-full mt-1')}>
           <li className="px-3 py-1.5 text-xs text-tenue">¿Por qué no vino?</li>
           {(Object.keys(MOTIVOS_INASISTENCIA) as MotivoInasistencia[]).map((m) => (
             <li key={m}>
