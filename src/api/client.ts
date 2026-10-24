@@ -95,6 +95,16 @@ export const enviar = <T>(ruta: string, metodo: 'POST' | 'PUT' | 'PATCH' | 'DELE
     body: cuerpo instanceof FormData ? cuerpo : cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
   });
 
+/** Un archivo que se arma con datos (p. ej. las etiquetas): POST con el cuerpo y se descarga lo que vuelve. */
+export async function descargarConDatos(ruta: string, cuerpo: unknown, nombre: string) {
+  const res = await pedir(ruta, { method: 'POST', body: JSON.stringify(cuerpo) });
+  if (!res.ok) throw new ErrorApi(await mensajeDeError(res), res.status);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: nombre });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Los reportes CSV necesitan el token, así que no sirve un <a href> directo. */
 export async function descargar(ruta: string, nombre: string) {
   const res = await pedir(ruta);

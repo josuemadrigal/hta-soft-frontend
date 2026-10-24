@@ -1,4 +1,4 @@
-import { api, descargar, enviar, type Sesion } from './client';
+import { api, descargar, descargarConDatos, enviar, type Sesion } from './client';
 import type {
   AnaliticaPaciente,
   Comunidad,
@@ -360,6 +360,12 @@ export const guardarMetas = (anio: number, valores: Partial<Record<ClaveIndicado
   enviar<MetasAnio>(`/metas/${anio}${batey ? `?batey=${batey}` : ''}`, 'PUT', { valores });
 /** trimestre null = año completo */
 export const reporteDonantes = (anio: number, trimestre: number | null) => api<ReporteDonantes>(`/reports/donantes?anio=${anio}${trimestre ? `&trimestre=${trimestre}` : ''}`);
+/** Etiquetas Avery 5160 (30 por hoja): cada lote son hasta 3 líneas repetidas `cantidad` veces. */
+export type LineaEtiqueta = { texto: string; negrita?: boolean; rojo?: boolean; numerosEnRojo?: boolean };
+export type LoteEtiquetas = { lineas: LineaEtiqueta[]; cantidad: number };
+export const descargarEtiquetas = (d: { lotes: LoteEtiquetas[]; inicio: number; ajuste: { x: number; y: number } }) => descargarConDatos('/etiquetas/pdf', d, 'etiquetas.pdf');
+export const indicacionesEtiquetas = () => api<Record<string, string>>('/etiquetas/indicaciones');
+export const guardarIndicacionEtiqueta = (medicationId: number, texto: string) => enviar<Record<string, string>>('/etiquetas/indicaciones', 'PUT', { medicationId, texto });
 export const descargarPdfDonantes = (anio: number, trimestre: number | null) =>
   descargar(`/reports/donantes/pdf?anio=${anio}${trimestre ? `&trimestre=${trimestre}` : ''}`, `informe-light-a-candle_${trimestre ? `${anio}-T${trimestre}` : anio}.pdf`);
 export const guardarTextoDonantes = (anio: number, trimestre: number | null, texto: string) =>
