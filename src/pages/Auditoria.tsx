@@ -21,6 +21,7 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   RESTORE: { texto: 'Restauró', color: '#2563eb' },
   MERGE: { texto: 'Unió', color: '#7c3aed' },
   SPLIT: { texto: 'Separó', color: '#7c3aed' },
+  MOVE_VISITS: { texto: 'Movió visitas', color: '#7c3aed' },
   CLOSE: { texto: 'Cerró', color: '#15803d' },
   BAJA: { texto: 'Dio de baja', color: '#6b665e' },
   VIEW: { texto: 'Abrió la ficha', color: '#6b665e' },
@@ -216,6 +217,12 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
     const e = d.eliminado as { patientCode: string; firstName: string; lastName: string };
     return `Unió ${e.patientCode} (${e.firstName} ${e.lastName}) dentro de ${c.codigo} (${c.nombre}) · ${(d.visitas as number[]).length} visitas movidas; ${e.patientCode} se eliminó`;
   }
+  if (r.entity === 'Patient' && r.action === 'MOVE_VISITS') {
+    // "original/destino" desde Revisión de datos; "desde/hacia" en un movimiento hecho con un script.
+    const o = (d.original ?? d.desde) as { codigo: string; nombre: string };
+    const n = (d.destino ?? d.hacia) as { codigo: string; nombre: string };
+    return `Pasó ${(d.visitas as number[]).length} visitas de ${o.codigo} (${o.nombre}) a ${n.codigo} (${n.nombre})${d.motivo ? ` · ${d.motivo}` : ''}`;
+  }
   if (r.entity === 'Patient' && r.action === 'SPLIT') {
     const o = d.original as { codigo: string; nombre: string };
     const n = d.nuevo as { codigo: string; nombre: string };
@@ -306,6 +313,16 @@ export function Auditoria() {
 
   const pedir = async (r: RegistroAuditoria) => {
     const eliminacion = r.action === 'DELETE';
+    if (r.action === 'MOVE_VISITS') {
+      const ok = await confirmar({
+        titulo: '¿Deshacer el movimiento de visitas?',
+        mensaje: 'Las visitas vuelven a la ficha de donde salieron, con sus medicamentos y entregas.',
+        confirmar: 'Deshacer',
+        peligro: false,
+      });
+      if (ok) restaurar.mutate(r.id);
+      return;
+    }
     if (r.action === 'MERGE' || r.action === 'SPLIT') {
       const union = r.action === 'MERGE';
       const ok = await confirmar({
@@ -402,7 +419,7 @@ export function Auditoria() {
                   /* detalle en texto plano */
                 }
                 const paciente = pacienteDe(r, d);
-                const restaurable = (r.entity === 'ClinicalVisit' && ['DELETE', 'UPDATE'].includes(r.action)) || (r.entity === 'Patient' && ['MERGE', 'SPLIT'].includes(r.action));
+                const restaurable = (r.entity === 'ClinicalVisit' && ['DELETE', 'UPDATE'].includes(r.action)) || (r.entity === 'Patient' && ['MERGE', 'SPLIT', 'MOVE_VISITS'].includes(r.action));
                 return (
                   <tr key={r.id} className="align-top">
                     <td className="px-5 py-3 whitespace-nowrap">{fechaYHora(r.timestamp)}</td>

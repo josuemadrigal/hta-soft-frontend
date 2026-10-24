@@ -393,7 +393,7 @@ export type EstadisticasRonda = {
 
 /** Paciente de la lista de jornada: trae solo su última visita. */
 /** visitasAnio: días (YYYY-MM-DD) en que vino este año, para filtrar los vistos por ronda. tratamientoRonda: día en que se le dejó el tratamiento sin consulta en esta ronda. */
-export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[]; inasistencias: Inasistencia[]; visitasAnio?: string[]; tratamientoRonda?: string | null };
+export type PacienteJornada = Paciente & { clinicalVisits: (Visita & { bpClassification: ConfigPA })[]; inasistencias: Inasistencia[]; visitasAnio?: string[]; tratamientoRonda?: string | null; cumplimientos?: number[] };
 
 export type MotivoInasistencia = 'NO_ESTABA' | 'TRABAJANDO' | 'VIAJE' | 'ENFERMO' | 'NO_QUISO' | 'SE_MUDO' | 'OTRO';
 /** "No vino" a la jornada de ese día */

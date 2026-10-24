@@ -407,7 +407,11 @@ function Detalle({ d }: { d: DetalleJornada }) {
     document.getElementById('pacientes-jornada')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const q = buscar.trim().toLowerCase();
-  const enVista = d.pacientes.filter((p) => (vista === 'faltan' ? p.esperado && !p.atendidoHoy : vista === 'atendidos' ? p.atendidoHoy : true));
+  // Cerrada: "No vinieron" es la lista que se guardó al cerrar (la misma de la tarjeta), no la de hoy:
+  // si después cambian las reglas o los pacientes, la jornada cerrada no cambia.
+  const guardados = j.estado === 'CERRADA' && j.resumen?.faltantes ? new Set(j.resumen.faltantes.map((f) => f.id)) : null;
+  const faltaron = (p: (typeof d.pacientes)[number]) => (guardados ? guardados.has(p.id) : p.esperado && !p.atendidoHoy);
+  const enVista = d.pacientes.filter((p) => (vista === 'faltan' ? faltaron(p) : vista === 'atendidos' ? p.atendidoHoy : true));
   const pacientes = enVista.filter((p) => {
     if (q && !coincide(q, p)) return false;
     if (medico && !(p.atendidoHoy && p.atendio === medico)) return false;
@@ -648,7 +652,7 @@ function Detalle({ d }: { d: DetalleJornada }) {
             <div className="flex gap-1">
               {(
                 [
-                  ['faltan', planificada ? 'Faltan' : 'No vinieron', d.totales.faltan],
+                  ['faltan', planificada ? 'Faltan' : 'No vinieron', guardados ? guardados.size : d.totales.faltan],
                   ['atendidos', 'Atendidos', d.totales.atendidos],
                   ['todos', 'Todos', d.pacientes.length],
                 ] as const

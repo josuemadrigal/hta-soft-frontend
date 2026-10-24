@@ -339,6 +339,9 @@ export type DatosSeparar = {
   address?: string;
 };
 export const separarPaciente = (id: number, d: DatosSeparar) => enviar<{ nuevo: { id: number; codigo: string; nombre: string } }>(`/revision/pacientes/${id}/separar`, 'POST', d);
+/** Pasa visitas a una ficha que ya existe (código compartido: la otra persona ya tiene su ficha). */
+export const moverVisitas = (id: number, d: { visitIds: number[]; destinoId: number }) =>
+  enviar<{ original: { id: number; codigo: string; nombre: string }; destino: { id: number; codigo: string; nombre: string }; visitas: number[] }>(`/revision/pacientes/${id}/mover`, 'POST', d);
 export type DatosCorregir = { clave: string; firstName?: string; lastName?: string; gender?: Genero; birthDate?: string; birthDateIsEstimated?: boolean };
 export const corregirPaciente = (id: number, d: DatosCorregir) => enviar<Paciente>(`/revision/pacientes/${id}/corregir`, 'POST', d);
 export const decidirCaso = (d: { clave: string; estado: 'RESUELTO' | 'DESCARTADO'; nota?: string }) => enviar<unknown>('/revision/decisiones', 'POST', d);

@@ -19,6 +19,8 @@ import { cn, edad, edadTexto, fecha, fechaYHora, nombreCompleto, tensionDe } fro
 import { ymd } from '../components/SelectorFecha';
 import { corteRegulares, esRegular, VISITAS_SIN_VENIR_REGULAR } from '../lib/regulares';
 import { coincide, grupoDe, puntaje } from '../lib/busqueda';
+import { cumplimientoBajo } from '../lib/alertas';
+import { useUmbrales } from '../components/Alertas';
 
 type Estado = 'hoy' | 'ronda' | 'tratamiento' | 'pendiente' | 'sinVenir' | 'nuevo' | 'noVino' | 'yaNoViene';
 
@@ -123,6 +125,7 @@ export function Jornada() {
   const [presion, setPresion] = useState('');
   const [sexo, setSexo] = useState('');
   const [rangoEdad, setRangoEdad] = useState('');
+  const umbrales = useUmbrales();
   const navegar = useNavigate();
 
   const comunidades = useComunidades();
@@ -565,6 +568,12 @@ export function Jornada() {
                       <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="truncate font-medium">{nombreCompleto(p)}</span>
                         {aviso && <Insignia color={aviso.color}>{aviso.texto}</Insignia>}
+                        {/* Antes de que se siente: no se está tomando las pastillas (la misma alerta de la ficha) */}
+                        {p.cumplimientos && cumplimientoBajo(p.cumplimientos, umbrales) && (
+                          <span title={`Cumplimiento ${p.cumplimientos.slice(0, umbrales.alertaVisitasCumplimiento).map((x) => `${x}%`).join(', ')} en sus últimas visitas: pregúntale por qué no toma las pastillas.`}>
+                            <Insignia color="#b45309">Cumplimiento bajo</Insignia>
+                          </span>
+                        )}
                       </p>
                       <p className="truncate text-xs text-tenue">
                         <span className="font-mono text-tinta/70 xl:hidden">{p.patientCode} · </span>

@@ -157,7 +157,7 @@ function Contador({ campo, valor, min, register, setValue }: { campo: `recetas.$
       <button type="button" className={boton} onClick={() => cambiar(-1)} disabled={(valor ?? min) <= min} aria-label="Menos">
         <Minus className="size-4" />
       </button>
-      <Entrada enterKeyHint="next" className="h-10 w-12 px-1 text-center text-base font-medium" {...digitos(register, campo, 2)} />
+      <Entrada enterKeyHint="next" className="h-10 w-12 px-1 text-center text-base font-medium xl:w-10 2xl:w-12" {...digitos(register, campo, 2)} />
       <button type="button" className={boton} onClick={() => cambiar(1)} aria-label="Más">
         <Plus className="size-4" />
       </button>
@@ -233,8 +233,9 @@ function FilaReceta({
     <li className="px-5 py-3.5 even:bg-fondo/60">
       <div
         className={cn(
-          'grid grid-cols-2 items-start gap-x-3 gap-y-3',
-          correccion ? 'md:grid-cols-[minmax(11rem,1fr)_auto_auto_5.5rem_5.5rem_auto]' : 'md:grid-cols-[minmax(11rem,1fr)_auto_auto_6rem_auto]',
+          // A 1280 px, con el resumen al lado, la fila tiene ~590 px: mínimos ajustados y menos separación.
+          'grid grid-cols-2 items-start gap-x-3 gap-y-3 xl:gap-x-2 2xl:gap-x-3',
+          correccion ? 'md:grid-cols-[minmax(8rem,1fr)_auto_auto_5rem_5rem_auto]' : 'md:grid-cols-[minmax(9rem,1fr)_auto_auto_5.5rem_auto] xl:grid-cols-[minmax(9rem,1fr)_auto_auto_4.5rem_auto] 2xl:grid-cols-[minmax(9rem,1fr)_auto_auto_5.5rem_auto]',
         )}
       >
         <div className="col-span-2 flex items-start gap-2 md:col-span-1">
@@ -584,7 +585,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
         enterKeyHint="next"
         autoFocus={!edicion && nombre === 'systolicManual'}
         onFocus={(ev) => ev.currentTarget.select()}
-        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-14 w-24 text-3xl sm:w-28 xl:w-24' : 'h-11 w-20 text-xl sm:w-24 xl:w-20')}
+        className={cn('text-center font-mono font-semibold tracking-tight placeholder:font-normal placeholder:text-tenue/40', grande ? 'h-14 w-24 text-3xl sm:w-28 2xl:w-24' : 'h-11 w-20 text-xl sm:w-24 2xl:w-20')}
         {...digitos(register, nombre, 3)}
         aria-invalid={!!e[nombre]}
       />
@@ -660,9 +661,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
     <form onSubmit={enviar} onKeyDown={siguienteCampo} noValidate className={cn('grid grid-cols-1 gap-4', !enModal && 'xl:grid-cols-[minmax(0,1fr)_300px]')}>
       <div className="min-w-0 space-y-4">
         <Tarjeta titulo={edicion ? 'Signos de la visita' : 'Signos de hoy'} accion={<span className="hidden text-xs text-tenue sm:inline">{edicion ? 'mmHg · deja vacío para borrar un valor mal anotado' : 'mmHg · la manual manda sobre la automática'}</span>}>
-          {/* En pantallas anchas, la presión a la izquierda y el peso a la derecha: no queda medio renglón vacío */}
-          <div className="grid xl:grid-cols-[auto_minmax(0,1fr)]">
-          <div className="flex flex-wrap items-stretch gap-x-8 gap-y-4 p-5 xl:gap-x-6">
+          {/* En pantallas muy anchas (≥1536 px), la presión a la izquierda y el peso a la derecha */}
+          <div className="grid 2xl:grid-cols-[auto_minmax(0,1fr)]">
+          <div className="flex flex-wrap items-stretch gap-x-8 gap-y-4 p-5 2xl:gap-x-6">
             <fieldset className="min-w-0">
               <legend className="mb-1.5 text-[13px] font-medium text-tinta/80">Presión manual</legend>
               <div className="flex items-end gap-2">
@@ -706,7 +707,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             {/* En escritorio, el aviso de la toma invertida va bajo los campos */}
             {tomaInvertida && !enModal && <p className="hidden w-full text-sm font-medium text-red-700 xl:block">La diastólica debe ser menor que la sistólica. Revisa la toma.</p>}
           </div>
-          <div className="grid grid-cols-2 content-start gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)] xl:grid-cols-2 xl:border-t-0 xl:border-l xl:py-5">
+          <div className="grid grid-cols-2 content-start gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)] 2xl:grid-cols-2 2xl:border-t-0 2xl:border-l 2xl:py-5">
             <Campo etiqueta="Peso (kg)" error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
               <Entrada
                 type="number"
@@ -721,9 +722,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             <Campo etiqueta="Estatura (m)" error={e.heightM?.message} ayuda={!edicion && historial.some((v) => v.heightM) ? 'De la última visita' : 'En metros, p. ej. 1.62'}>
               <Entrada type="number" inputMode="decimal" step="0.01" enterKeyHint="next" className="h-10 text-base" {...register('heightM', comoNumero)} aria-invalid={!!e.heightM} />
             </Campo>
-            <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1 xl:col-span-2 xl:flex-row xl:items-baseline xl:gap-3">
+            <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1 2xl:col-span-2 2xl:flex-row 2xl:items-baseline 2xl:gap-3">
               <span className="text-[13px] font-medium text-tinta/80">IMC</span>
-              <span className="tabular flex h-10 items-center font-mono text-lg xl:h-auto">
+              <span className="tabular flex h-10 items-center font-mono text-lg 2xl:h-auto">
                 {imc && Number.isFinite(imc) ? (
                   <>
                     {imc.toFixed(1)}
@@ -792,7 +793,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
         </Tarjeta>
 
         <Tarjeta titulo="Fecha, próxima visita y comentario">
-          <div className="grid gap-x-4 gap-y-3 p-5 sm:grid-cols-2">
+          {/* Dos columnas solo con espacio: a 1280 px, con el resumen al lado, "En 3 meses" no cabría */}
+          <div className="grid gap-x-4 gap-y-3 p-5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
             <Campo etiqueta="Fecha de la visita" error={e.visitDate?.message}>
               <Controller
                 control={control}

@@ -61,6 +61,13 @@ export function tomaDe(v: Visita): Toma {
 }
 
 /**
+ * ¿Cumplimiento bajo en las últimas visitas? `serie`: el más bajo de cada visita, la más reciente primero.
+ * La misma regla en la ficha, el formulario y la lista de la jornada (umbrales de Configuración).
+ */
+export const cumplimientoBajo = (serie: number[], u: Umbrales = UMBRALES_POR_DEFECTO) =>
+  serie.length >= u.alertaVisitasCumplimiento && serie.slice(0, u.alertaVisitasCumplimiento).every((x) => x < u.alertaCumplimientoMinimo);
+
+/**
  * @param hoy      la toma que se evalúa
  * @param anteriores visitas previas, de la más reciente a la más vieja (sin incluir la de hoy)
  */
@@ -115,7 +122,7 @@ export function alertasClinicas(hoy: Toma, anteriores: Visita[], u: Umbrales = U
     (x): x is number => x !== null,
   );
   const k = u.alertaVisitasCumplimiento;
-  if (serie.length >= k && serie.slice(0, k).every((x) => x < u.alertaCumplimientoMinimo)) {
+  if (cumplimientoBajo(serie, u)) {
     out.push({
       clave: 'cumplimiento',
       nivel: 'aviso',

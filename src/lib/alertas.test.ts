@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Visita } from '../api/tipos';
-import { alertasClinicas, tomaDe, UMBRALES_POR_DEFECTO, type Toma } from './alertas';
+import { alertasClinicas, cumplimientoBajo, tomaDe, UMBRALES_POR_DEFECTO, type Toma } from './alertas';
 
 let id = 0;
 /** Visita guardada mínima: solo lo que leen las alertas. */
@@ -157,5 +157,14 @@ describe('tomaDe', () => {
   it('convierte una visita guardada (Decimal en texto, manual sobre automática)', () => {
     const v = visita(null, null, { systolicAuto: 140, diastolicAuto: 90, diastolicManual: 85, weightKg: '72.5', heightM: '1.70', temperature: '36.8', heartRate: 70, cumplimiento: [80, null] });
     expect(tomaDe(v)).toMatchObject({ s: 140, d: 85, fc: 70, peso: 72.5, talla: 1.7, temperatura: 36.8, medicamentos: ['Amlodipino', 'Amlodipino'], cumplimientos: [80] });
+  });
+});
+
+describe('cumplimientoBajo (lista de la jornada)', () => {
+  it('avisa con las últimas visitas bajo el mínimo, con los umbrales de Configuración', () => {
+    expect(cumplimientoBajo([60, 70, 100])).toBe(true);
+    expect(cumplimientoBajo([60, 90])).toBe(false);
+    expect(cumplimientoBajo([60])).toBe(false);
+    expect(cumplimientoBajo([60], { ...UMBRALES_POR_DEFECTO, alertaVisitasCumplimiento: 1 })).toBe(true);
   });
 });

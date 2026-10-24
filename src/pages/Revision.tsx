@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useCasosRevision, useComunidades, usePaciente, usePacientes, useRevisionPaciente } from '../api/consultas';
-import { corregirPaciente, decidirCaso, reabrirCaso, separarPaciente, unirPacientes } from '../api/recursos';
+import { corregirPaciente, decidirCaso, moverVisitas, reabrirCaso, separarPaciente, unirPacientes } from '../api/recursos';
 import type { CasoRevision, Genero, Paciente, RevisionPaciente, TipoCaso, Visita } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { useEliminarVisita } from '../components/eliminarVisita';
-import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
+import { Boton, Campo, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, InsigniaCategoria, Segmentos, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { GENEROS, opciones } from '../lib/etiquetas';
 import { cn, edad, edadTexto, fecha, fechaDia, nombreCompleto, soloFecha } from '../lib/formato';
 import { SelectorFecha, ymd } from '../components/SelectorFecha';
@@ -307,6 +307,13 @@ function Separar({ datos }: { datos: RevisionPaciente }) {
   const [elegidas, setElegidas] = useState<Set<number>>(new Set());
   const [form, setForm] = useState({ firstName: '', lastName: '', gender: 'FEMALE' as Genero, communityId: String(p.communityId), address: '' });
   const [nacimiento, setNacimiento] = useState<Nacimiento>({ fecha: '', estimada: true });
+  // A dónde van: a una ficha nueva, o a la que esa persona ya tiene (se busca por nombre o código).
+  const [modo, setModo] = useState<'nueva' | 'existente'>('nueva');
+  const [busca, setBusca] = useState('');
+  const [destino, setDestino] = useState<Paciente | null>(null);
+  const buscando = busca.trim().length >= 2;
+  const resultados = usePacientes({ page: 1, search: buscando ? busca.trim() : undefined, limit: 6 });
+  const candidatos = buscando ? (resultados.data?.data ?? []).filter((x) => x.id !== p.id) : [];
 
   /** Elige las visitas de un grupo y llena la ficha nueva con lo que dicen sus filas. */
   const elegirGrupo = (i: number) => {
@@ -322,6 +329,28 @@ function Separar({ datos }: { datos: RevisionPaciente }) {
     }));
     if (g.nacimiento) setNacimiento({ fecha: `${Math.round((g.nacimiento[0] + g.nacimiento[1]) / 2)}-01-01`, estimada: true });
   };
+
+  /** Pasa las visitas del grupo a la ficha que esa persona ya tiene: se busca por su nombre. */
+  const aOtraFicha = (i: number) => {
+    setElegidas(new Set(grupos[i].ids));
+    setModo('existente');
+    setDestino(null);
+    setBusca(grupos[i].nombre);
+  };
+
+  const mover = useMutation({
+    mutationFn: () => moverVisitas(p.id, { visitIds: [...elegidas], destinoId: destino!.id }),
+    onSuccess: (r) => {
+      invalidar();
+      toast.success(`${r.visitas.length} visitas pasaron a ${r.destino.codigo} · ${r.destino.nombre}. Se puede deshacer en Auditoría.`, {
+        action: { label: 'Ver ficha', onClick: () => navegar(`/pacientes/${r.destino.id}`) },
+      });
+      setElegidas(new Set());
+      setDestino(null);
+      if (grupos.length <= 2) navegar('/revision?tipo=COMPARTIDO');
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const separar = useMutation({
     mutationFn: () =>
@@ -370,9 +399,14 @@ function Separar({ datos }: { datos: RevisionPaciente }) {
                   {esLaFicha ? (
                     <p className="mt-3 text-xs font-medium text-green-700">Es el nombre de esta ficha: se queda aquí</p>
                   ) : (
-                    <Boton variante="secundario" className="mt-3 h-8 text-xs" onClick={() => elegirGrupo(i)}>
-                      Pasar a ficha nueva
-                    </Boton>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Boton variante="secundario" className="h-8 text-xs" onClick={() => (setModo('nueva'), elegirGrupo(i))}>
+                        Pasar a ficha nueva
+                      </Boton>
+                      <Boton variante="secundario" className="h-8 text-xs" onClick={() => aOtraFicha(i)}>
+                        Ya tiene su ficha
+                      </Boton>
+                    </div>
                   )}
                 </div>
               );
@@ -414,7 +448,63 @@ function Separar({ datos }: { datos: RevisionPaciente }) {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Tarjeta titulo="Ficha nueva">
+          <Tarjeta titulo="Pasar las visitas a">
+            <div className="border-b border-borde px-5 pt-4 pb-3">
+              <Segmentos
+                etiqueta="A dónde pasan las visitas"
+                valor={modo}
+                alCambiar={setModo}
+                opciones={[
+                  { value: 'nueva', label: 'Ficha nueva' },
+                  { value: 'existente', label: 'Ficha que ya existe' },
+                ]}
+              />
+            </div>
+            {modo === 'existente' ? (
+              <div className="space-y-3 p-5">
+                <Campo etiqueta="Buscar la ficha de esa persona" ayuda="Por nombre o código, como en Pacientes.">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
+                    <Entrada
+                      className="pl-8"
+                      value={busca}
+                      onChange={(e) => {
+                        setBusca(e.target.value);
+                        setDestino(null);
+                      }}
+                      placeholder="Nadesh Fontilien, VD1295…"
+                    />
+                  </div>
+                </Campo>
+                {destino ? (
+                  <div className="rounded-lg border border-marca-500 bg-marca-50 px-3 py-2.5 text-sm">
+                    <p className="font-medium">{nombreCompleto(destino)}</p>
+                    <p className="text-xs text-tenue">
+                      <span className="font-mono">{destino.patientCode}</span> · {edadTexto(destino)} · {destino.community?.name}
+                    </p>
+                    <button type="button" className="mt-1 text-xs text-tenue underline hover:text-tinta" onClick={() => setDestino(null)}>
+                      Elegir otra
+                    </button>
+                  </div>
+                ) : (
+                  buscando && (
+                    <ul className="divide-y divide-borde overflow-hidden rounded-lg border border-borde text-sm">
+                      {candidatos.map((x) => (
+                        <li key={x.id}>
+                          <button type="button" className="w-full px-3 py-2 text-left hover:bg-fondo" onClick={() => setDestino(x)}>
+                            <span className="block font-medium">{nombreCompleto(x)}</span>
+                            <span className="block text-xs text-tenue">
+                              <span className="font-mono">{x.patientCode}</span> · {edadTexto(x)} · {x.community?.name}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                      {!resultados.isFetching && candidatos.length === 0 && <li className="px-3 py-2 text-tenue">Ninguna ficha coincide. Si no tiene, usa "Ficha nueva".</li>}
+                    </ul>
+                  )
+                )}
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-4 p-5">
               <Campo etiqueta="Nombre">
                 <Entrada value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
@@ -437,10 +527,24 @@ function Separar({ datos }: { datos: RevisionPaciente }) {
                 />
               </Campo>
             </div>
+            )}
             <div className="space-y-2 border-t border-borde p-5">
-              <Boton className="w-full" icono={<Split className="size-4" />} disabled={!listo} cargando={separar.isPending} onClick={() => separar.mutate()}>
-                Separar {elegidas.size || ''} {elegidas.size === 1 ? 'visita' : 'visitas'}
-              </Boton>
+              {modo === 'existente' ? (
+                <Boton
+                  className="w-full"
+                  icono={<ArrowRight className="size-4" />}
+                  disabled={!destino || elegidas.size === 0 || elegidas.size >= visitas.length}
+                  cargando={mover.isPending}
+                  onClick={() => mover.mutate()}
+                >
+                  Pasar {elegidas.size || ''} {elegidas.size === 1 ? 'visita' : 'visitas'}
+                  {destino ? ` a ${destino.patientCode}` : ''}
+                </Boton>
+              ) : (
+                <Boton className="w-full" icono={<Split className="size-4" />} disabled={!listo} cargando={separar.isPending} onClick={() => separar.mutate()}>
+                  Separar {elegidas.size || ''} {elegidas.size === 1 ? 'visita' : 'visitas'}
+                </Boton>
+              )}
               {elegidas.size === visitas.length && <p className="text-xs text-red-600">Deja al menos una visita en {p.patientCode}.</p>}
               {caso && (
                 <Boton

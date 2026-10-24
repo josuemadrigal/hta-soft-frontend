@@ -4,15 +4,19 @@ import { cn } from '../lib/formato';
 
 export type ClavePlanilla = keyof Omit<FilaPlanilla, 'communityId' | 'batey' | 'fechas'>;
 
-/** Las columnas de la planilla de papel, en su orden y con su texto en inglés y en español (va a los donantes). */
+/**
+ * Las columnas de la planilla de papel, en su orden y con su texto en inglés y en español (va a los donantes).
+ * El papel decía "existing patients" en las columnas de medicamentos y presión; ahora cuentan a todos los
+ * evaluados (nuevos incluidos), así que el título ya no dice "existing".
+ */
 export const COLUMNAS_PLANILLA: { clave: ClavePlanilla; en: string; es: string; grupo?: 'existentes' | 'nuevos' }[] = [
   { clave: 'evaluados', en: '# of evaluated patients', es: '# de pacientes evaluados' },
-  { clave: 'enPrograma', en: '# of existing patients', es: '# de pacientes existentes (en el programa)' },
+  { clave: 'enPrograma', en: '# of existing patients (expected per visit)', es: '# de pacientes existentes (en el programa)' },
   { clave: 'conToma', en: '# of BP checks', es: '# de pacientes consultados' },
-  { clave: 'existentesConMedicamento', en: '# of existing patients on HTN meds', es: '# de pacientes con medicamentos para HTN', grupo: 'existentes' },
-  { clave: 'controlados', en: '# of existing patients on meds showing controlled BP <140/90', es: '# de pacientes con presión controlada <140/90', grupo: 'existentes' },
-  { clave: 'noControlados', en: '# of existing patients on meds showing uncontrolled BP >140/90', es: '# de pacientes con presión no controlada >140/90', grupo: 'existentes' },
-  { clave: 'datosDudosos', en: '# existing patients with absent or questionable data', es: '# de pacientes con datos ausentes o cuestionables', grupo: 'existentes' },
+  { clave: 'existentesConMedicamento', en: '# of patients on HTN meds', es: '# de pacientes con medicamentos para HTN', grupo: 'existentes' },
+  { clave: 'controlados', en: '# of patients on meds showing controlled BP <140/90', es: '# de pacientes con presión controlada <140/90', grupo: 'existentes' },
+  { clave: 'noControlados', en: '# of patients on meds showing uncontrolled BP ≥140/90', es: '# de pacientes con presión no controlada ≥140/90', grupo: 'existentes' },
+  { clave: 'datosDudosos', en: '# of patients with absent or questionable data', es: '# de pacientes con datos ausentes o cuestionables', grupo: 'existentes' },
   { clave: 'nuevos', en: '# of new patients', es: '# de pacientes nuevos', grupo: 'nuevos' },
   { clave: 'nuevosConMedicamento', en: '# of new patients placed on HTN meds', es: '# de pacientes nuevos que recibieron medicamentos para HTN', grupo: 'nuevos' },
 ];
