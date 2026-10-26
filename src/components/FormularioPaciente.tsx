@@ -10,7 +10,7 @@ import { useComunidades } from '../api/consultas';
 import { crearPaciente, editarPaciente, pacientesParecidos, quitarFotoPaciente, subirFotoPaciente, type DatosPaciente, type PacienteParecido } from '../api/recursos';
 import type { Paciente } from '../api/tipos';
 import { ALCOHOL, ESTADOS, GENEROS, SAL, TABACO } from '../lib/etiquetas';
-import { cn, edad, fecha, soloFecha } from '../lib/formato';
+import { cn, decimal, edad, fecha, soloFecha, ultimasMedidas } from '../lib/formato';
 import { Avatar, Boton, Campo, Entrada, Segmentos, Selector, Tarjeta } from './ui';
 import { SelectorFecha, ymd } from './SelectorFecha';
 
@@ -184,6 +184,30 @@ export function FormularioPaciente({
           </p>
           {!paciente && <p className="text-xs text-tenue">{batey ? 'El número se asigna al guardar' : 'El código sale del batey'}</p>}
         </div>
+        {/* De referencia: el peso y la estatura se registran en cada visita, no aquí */}
+        {paciente && (() => {
+          const m = ultimasMedidas(paciente.clinicalVisits);
+          if (!m.peso && !m.talla) return null;
+          return (
+            <dl className="grid w-full grid-cols-3 gap-2 text-left">
+              <div className="rounded-lg bg-fondo px-2.5 py-2">
+                <dt className="text-xs text-tenue">Peso</dt>
+                <dd className="tabular text-sm font-semibold whitespace-nowrap">{m.peso ? `${decimal(m.peso)} kg` : '—'}</dd>
+              </div>
+              <div className="rounded-lg bg-fondo px-2.5 py-2">
+                <dt className="text-xs text-tenue">Estatura</dt>
+                <dd className="tabular text-sm font-semibold whitespace-nowrap">{m.talla ? `${decimal(m.talla, 2)} m` : '—'}</dd>
+              </div>
+              <div className="rounded-lg bg-fondo px-2.5 py-2">
+                <dt className="text-xs text-tenue">IMC</dt>
+                <dd className="tabular text-sm font-semibold whitespace-nowrap">{m.imc ? m.imc.toFixed(1) : '—'}</dd>
+              </div>
+              <p className="col-span-3 text-xs text-tenue">
+                De la última visita{m.fecha ? ` (${fecha(m.fecha)})` : ''}. Se cambian al registrar una visita.
+              </p>
+            </dl>
+          );
+        })()}
       </div>
       <p className={cn('mx-5 mb-4 flex gap-2 rounded-lg px-3 py-2 text-sm', listo ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-900')}>
         {listo ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertCircle className="mt-0.5 size-4 shrink-0" />}

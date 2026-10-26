@@ -18,7 +18,7 @@ import type { Entrega, Paciente as TPaciente, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
 import { Avatar, Boton, Cargando, EnlaceVolver, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
 import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
-import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe } from '../lib/formato';
+import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe, ultimasMedidas } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
 import { AYUDA } from '../lib/ayuda-graficas';
 
@@ -731,6 +731,26 @@ export function Paciente() {
                   {tratamientoReciente && <span className="block text-xs text-tenue">Tratamiento dejado: {fecha(tratamientoReciente.fecha)}</span>}
                 </Dato>
               </div>
+              {/* Peso y estatura de la última visita que los tiene (se registran en cada visita) */}
+              {(() => {
+                const m = ultimasMedidas(p.clinicalVisits);
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    <Dato etiqueta="Peso">
+                      {m.peso ? `${decimal(m.peso)} kg` : '—'}
+                      {m.fecha && <span className="block text-xs text-tenue">{fecha(m.fecha)}</span>}
+                    </Dato>
+                    <Dato etiqueta="Estatura">
+                      {m.talla ? `${decimal(m.talla, 2)} m` : '—'}
+                      {m.imc && (
+                        <span className="block text-xs text-tenue">
+                          IMC {m.imc.toFixed(1)} · {m.imcTexto}
+                        </span>
+                      )}
+                    </Dato>
+                  </div>
+                );
+              })()}
               <Dato etiqueta="Último médico">{ultima ? atendio(ultima) : '—'}</Dato>
               <Dato etiqueta="Nacimiento">{p.birthDateIsEstimated ? `Aprox. ${new Date(p.birthDate).getUTCFullYear()}` : fecha(p.birthDate)}</Dato>
               <Dato etiqueta="Teléfono">{p.phoneNumber || '—'}</Dato>

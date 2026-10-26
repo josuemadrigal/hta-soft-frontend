@@ -77,3 +77,22 @@ export const colorCumplimiento = (p: number) => (p >= 90 ? 'text-green-700' : p 
 export const atendio = (v: { doctorNombre?: string | null; doctor?: { firstName: string; lastName: string } | null }) =>
   v.doctorNombre ?? (v.doctor ? nombreCompleto(v.doctor) : '—');
 
+
+/**
+ * El último peso y la última estatura registrados (cada uno de la visita más reciente que lo tenga)
+ * y el IMC con ellos. Se registran en cada visita; en la ficha y al editar el paciente van de referencia.
+ */
+export function ultimasMedidas(visitas: Pick<Visita, 'visitDate' | 'weightKg' | 'heightM'>[] = []) {
+  const conPeso = visitas.find((v) => num(v.weightKg));
+  const conTalla = visitas.find((v) => num(v.heightM));
+  const peso = conPeso ? num(conPeso.weightKg) : null;
+  const talla = conTalla ? num(conTalla.heightM) : null;
+  const imc = peso && talla ? peso / (talla * talla) : null;
+  return {
+    peso,
+    talla,
+    fecha: conPeso?.visitDate ?? conTalla?.visitDate ?? null,
+    imc,
+    imcTexto: imc === null ? null : imc < 18.5 ? 'bajo peso' : imc < 25 ? 'normal' : imc < 30 ? 'sobrepeso' : 'obesidad',
+  };
+}
