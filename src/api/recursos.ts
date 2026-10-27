@@ -147,8 +147,9 @@ export type DatosVisita = {
   visitDate: string;
   visitType: Visita['visitType'];
   isHomeVisit?: boolean;
-  weightKg: number;
-  heightM: number;
+  /** Opcionales en la visita a domicilio. */
+  weightKg?: number;
+  heightM?: number;
   systolicManual?: number;
   diastolicManual?: number;
   systolicAuto?: number;

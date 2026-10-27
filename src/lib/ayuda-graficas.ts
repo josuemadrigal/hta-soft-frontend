@@ -119,6 +119,10 @@ export const AYUDA = {
     lee: 'Cada punto es una toma de presión de este paciente. La línea negra es la sistólica (el número de arriba) y la amarilla la diastólica (el de abajo). Las líneas rojas punteadas marcan 140 y 90.',
     significa: 'Si los puntos quedan por debajo de las líneas rojas, la presión está controlada. Con los botones de arriba se cambia el rango de fechas.',
   },
+  evolucionPeso: {
+    lee: 'Cada punto es el peso de una visita, en kilos. Al tocar un punto se ve el peso y el IMC de ese día (con la estatura de esa visita o la última conocida).',
+    significa: 'Bajar de peso ayuda a bajar la presión. Una bajada grande sin buscarla merece preguntar por la comida y por síntomas de otra enfermedad. Las visitas a domicilio a veces no tienen peso.',
+  },
   meta: {
     lee: 'El número grande es cómo va el indicador este año y al lado, la meta. La barra muestra cuánto falta para llegar; abajo, el valor del año pasado y la flecha dice si mejoró.',
     significa: 'Las metas se fijan al comienzo del año. "A esta altura" es lo que se debería llevar hoy si el avance fuera parejo durante el año.',

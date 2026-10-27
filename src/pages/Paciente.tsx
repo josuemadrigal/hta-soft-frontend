@@ -209,6 +209,42 @@ function GraficoTension({ visitas }: { visitas: Visita[] }) {
   );
 }
 
+/** Evolución del peso: cada visita con peso; el IMC en el detalle (con la estatura de esa visita o la última conocida). */
+function GraficoPeso({ visitas }: { visitas: Visita[] }) {
+  const puntos = useMemo(() => {
+    const orden = [...visitas].sort((x, y) => new Date(x.visitDate).getTime() - new Date(y.visitDate).getTime());
+    let talla: number | null = null;
+    return orden.flatMap((v) => {
+      talla = num(v.heightM) ?? talla;
+      const peso = num(v.weightKg);
+      return peso ? [{ fecha: ejeFecha.format(new Date(v.visitDate)), dia: v.visitDate, peso, imc: talla ? Math.round((peso / (talla * talla)) * 10) / 10 : null }] : [];
+    });
+  }, [visitas]);
+  if (puntos.length === 0) return <Vacio titulo="Sin peso registrado" />;
+  if (puntos.length === 1)
+    return (
+      <p className="px-5 py-6 text-sm text-tenue">
+        Con un solo peso todavía no hay evolución: <span className="font-mono font-medium text-tinta">{decimal(puntos[0].peso)} kg</span> el {fecha(puntos[0].dia)}. La gráfica aparece desde la segunda visita con peso.
+      </p>
+    );
+  return (
+    <div className="h-56 px-2 pt-3 pb-2">
+      <ResponsiveContainer>
+        <LineChart data={puntos} margin={{ left: -16, right: 16 }}>
+          <CartesianGrid vertical={false} stroke="#e5e2dc" />
+          <XAxis dataKey="fecha" tickLine={false} axisLine={false} fontSize={12} stroke="#6b665e" minTickGap={24} />
+          <YAxis domain={[(m: number) => Math.floor(m - 5), (m: number) => Math.ceil(m + 5)]} tickLine={false} axisLine={false} fontSize={12} stroke="#6b665e" unit=" kg" width={64} />
+          <Tooltip
+            contentStyle={{ borderRadius: 8, borderColor: '#e5e2dc', fontSize: 13 }}
+            formatter={(v, _n, item) => [`${decimal(Number(v))} kg${(item.payload as { imc: number | null }).imc ? ` · IMC ${(item.payload as { imc: number }).imc}` : ''}`, 'Peso']}
+          />
+          <Line type="monotone" dataKey="peso" name="Peso" stroke="#1d1b18" strokeWidth={2} dot={{ r: 3 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function FilaVisita({ visita }: { visita: Visita }) {
   const [abierta, setAbierta] = useState(false);
   const permisos = usePermisosVisita();
@@ -660,6 +696,35 @@ export function Paciente() {
           >
             <GraficoTension visitas={p.clinicalVisits ?? []} />
           </Tarjeta>
+
+          {(() => {
+            // Cuánto cambió desde el primer peso registrado: lo que se quiere ver de un vistazo.
+            const pesos = [...(p.clinicalVisits ?? [])].filter((v) => num(v.weightKg)).sort((x, y) => new Date(x.visitDate).getTime() - new Date(y.visitDate).getTime());
+            if (!pesos.length) return null;
+            const primero = num(pesos[0].weightKg)!;
+            const ultimo = num(pesos[pesos.length - 1].weightKg)!;
+            const cambio = Math.round((ultimo - primero) * 10) / 10;
+            return (
+              <Tarjeta
+                titulo="Evolución del peso"
+                copiable
+                ayuda={AYUDA.evolucionPeso}
+                accion={
+                  <span className="tabular hidden text-xs text-tenue sm:inline">
+                    Último <strong className="font-mono text-tinta">{decimal(ultimo)} kg</strong>
+                    {pesos.length > 1 && (
+                      <>
+                        {' '}
+                        · {cambio === 0 ? 'igual' : `${cambio > 0 ? '+' : ''}${decimal(cambio)} kg`} desde {fecha(pesos[0].visitDate)}
+                      </>
+                    )}
+                  </span>
+                }
+              >
+                <GraficoPeso visitas={p.clinicalVisits ?? []} />
+              </Tarjeta>
+            );
+          })()}
 
           <Tarjeta titulo={`Visitas (${p.clinicalVisits?.length ?? 0}${reposiciones.length ? ` · ${reposiciones.length} solo con tratamiento` : ''})`}>
             {p.clinicalVisits?.length || reposiciones.length ? (

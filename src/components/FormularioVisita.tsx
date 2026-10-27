@@ -67,8 +67,9 @@ const crearEsquema = (edicion: boolean) =>
     message: 'Registra al menos una toma completa (sistólica y diastólica), manual o automática.',
     path: ['systolicManual'],
   })
-  .refine((d) => edicion || d.weightKg !== undefined, { message: 'Requerido', path: ['weightKg'] })
-  .refine((d) => edicion || d.heightM !== undefined, { message: 'Requerida', path: ['heightM'] })
+  // En la casa del paciente a veces no hay báscula ni cinta: ahí el peso y la estatura son opcionales.
+  .refine((d) => edicion || d.isHomeVisit || d.weightKg !== undefined, { message: 'Requerido', path: ['weightKg'] })
+  .refine((d) => edicion || d.isHomeVisit || d.heightM !== undefined, { message: 'Requerida', path: ['heightM'] })
   // Casi siempre es un error al teclear: la diastólica es la de abajo.
   .refine((d) => !(d.systolicManual && d.diastolicManual && d.diastolicManual >= d.systolicManual), { message: 'La diastólica debe ser menor que la sistólica', path: ['diastolicManual'] })
   .refine((d) => !(d.systolicAuto && d.diastolicAuto && d.diastolicAuto >= d.systolicAuto), { message: 'La diastólica debe ser menor que la sistólica', path: ['diastolicAuto'] })
@@ -404,9 +405,9 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   const recetas = useFieldArray({ control, name: 'recetas' });
   const e = formState.errors;
 
-  const [sm, dm, sa, da, peso, talla, intervalo, diasOtro, fc, spo2, temperatura, recetasHoy, fechaHoy, tipo] = useWatch({
+  const [sm, dm, sa, da, peso, talla, intervalo, diasOtro, fc, spo2, temperatura, recetasHoy, fechaHoy, tipo, enCasa] = useWatch({
     control,
-    name: ['systolicManual', 'diastolicManual', 'systolicAuto', 'diastolicAuto', 'weightKg', 'heightM', 'intervalo', 'diasOtro', 'heartRate', 'oxygenSaturation', 'temperature', 'recetas', 'visitDate', 'visitType'],
+    name: ['systolicManual', 'diastolicManual', 'systolicAuto', 'diastolicAuto', 'weightKg', 'heightM', 'intervalo', 'diasOtro', 'heartRate', 'oxygenSaturation', 'temperature', 'recetas', 'visitDate', 'visitType', 'isHomeVisit'],
   });
   const s = sm ?? sa;
   const d = dm ?? da;
@@ -610,8 +611,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   // Lo que falta para poder guardar, en palabras (al corregir, lo vacío se permite).
   const falta = [
     !edicion && !(s && d) && 'la toma de presión',
-    !edicion && !(peso && Number.isFinite(peso)) && 'el peso',
-    !edicion && !(talla && Number.isFinite(talla)) && 'la estatura',
+    !edicion && !enCasa && !(peso && Number.isFinite(peso)) && 'el peso',
+    !edicion && !enCasa && !(talla && Number.isFinite(talla)) && 'la estatura',
     recetasHoy.some((r) => !r.medicationId) && 'elegir el medicamento',
   ].filter(Boolean) as string[];
   const sinCambios = edicion && !formState.isDirty;
@@ -708,7 +709,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             {tomaInvertida && !enModal && <p className="hidden w-full text-sm font-medium text-red-700 xl:block">La diastólica debe ser menor que la sistólica. Revisa la toma.</p>}
           </div>
           <div className="grid grid-cols-2 content-start gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)] 2xl:grid-cols-2 2xl:border-t-0 2xl:border-l 2xl:py-5">
-            <Campo etiqueta="Peso (kg)" error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
+            <Campo etiqueta={enCasa ? 'Peso (kg) · opcional en casa' : 'Peso (kg)'} error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
               <Entrada
                 type="number"
                 inputMode="decimal"
@@ -719,7 +720,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
                 aria-invalid={!!e.weightKg}
               />
             </Campo>
-            <Campo etiqueta="Estatura (m)" error={e.heightM?.message} ayuda={!edicion && historial.some((v) => v.heightM) ? 'De la última visita' : 'En metros, p. ej. 1.62'}>
+            <Campo etiqueta={enCasa ? 'Estatura (m) · opcional' : 'Estatura (m)'} error={e.heightM?.message} ayuda={!edicion && historial.some((v) => v.heightM) ? 'De la última visita' : 'En metros, p. ej. 1.62'}>
               <Entrada type="number" inputMode="decimal" step="0.01" enterKeyHint="next" className="h-10 text-base" {...register('heightM', comoNumero)} aria-invalid={!!e.heightM} />
             </Campo>
             <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1 2xl:col-span-2 2xl:flex-row 2xl:items-baseline 2xl:gap-3">
