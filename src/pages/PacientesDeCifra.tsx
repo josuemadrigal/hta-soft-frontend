@@ -3,7 +3,7 @@ import { Check, Search, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useAsistenciaJornadas, useComunidades, useMedico, useMetas } from '../api/consultas';
-import { pacientesDeDonantes, pacientesDeEntregas, pacientesDeMeta, pacientesDeMedico, pacientesDePlanilla, pacientesDeResumen, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import { pacientesDeDonantes, pacientesDeEntregas, pacientesDeMeta, pacientesDeMiJornada, pacientesDeMedico, pacientesDePlanilla, pacientesDeResumen, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
 import type { FiltroReporte, Genero } from '../api/tipos';
 import { describirCifra, explicarCifra, leerCifra } from '../lib/cifras';
 import { useFiltroPeriodo } from '../components/FiltroPeriodo';
@@ -151,7 +151,7 @@ export function PacientesDeCifra() {
   );
 }
 
-type Fuente = 'planilla' | 'ronda' | 'donantes' | 'medico' | 'resumen' | 'metas' | 'entregas';
+type Fuente = 'planilla' | 'ronda' | 'donantes' | 'medico' | 'resumen' | 'metas' | 'entregas' | 'mio';
 
 /** Las cifras del análisis del informe para donantes: "grupo" o "grupo:valor" (tiempo:Primera vez). */
 const DONANTES: Record<string, { titulo: string; explica: string }> = {
@@ -191,7 +191,9 @@ function Listado({
   const consulta = useQuery({
     queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t, medicoId, filtro],
     queryFn: () =>
-      fuente === 'entregas'
+      fuente === 'mio'
+        ? pacientesDeMiJornada(columna)
+        : fuente === 'entregas'
         ? pacientesDeEntregas({ desde: filtro?.from, hasta: filtro?.to, communityId: filtro?.communityId, cifra: columna })
         : fuente === 'metas'
         ? pacientesDeMeta(anio!, { indicador: columna, t, batey })
@@ -234,7 +236,7 @@ function Listado({
   // Las opciones salen de la lista misma, con cuántos tiene cada una.
   const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
   // En la lista de un médico, todos los atendió él: no hace falta ni el filtro ni la columna.
-  const conMedico = fuente !== 'medico';
+  const conMedico = fuente !== 'medico' && fuente !== 'mio';
   const medicos = conMedico ? contar(todos.flatMap((p) => (p.atendio ? [p.atendio] : []))) : [];
   const medicamentos = contar(todos.flatMap((p) => [...new Set(p.tratamiento.map((t) => t.medicamento))]));
   const hayFiltros = !!(q || medico || presion || medicamento);
@@ -456,6 +458,22 @@ function describirEntregas(cifra: string, nombreBatey: (id: number) => string) {
     c.batey && nombreBatey(Number(c.batey)),
   ].filter(Boolean);
   return partes.length ? partes.join(' · ') : 'Pastillas entregadas';
+}
+
+/** /mi-panel/jornada?clave=2026-10-26|12 — los pacientes que atendí en una de mis jornadas. */
+export function PacientesDeMiJornada() {
+  const [params] = useSearchParams();
+  const clave = params.get('clave') ?? '';
+  const [dia, bateyId] = clave.split('|');
+  const comunidades = useComunidades();
+  const batey = comunidades.data?.find((c) => c.id === Number(bateyId))?.name ?? '…';
+  return (
+    <>
+      <EncabezadoPagina titulo={`Jornada en ${batey}`} descripcion={dia ? CORTO.format(new Date(`${dia}T12:00:00`)) : undefined} volver={{ a: '/?vista=mio', texto: 'Mi panel' }} />
+      <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">Los pacientes que atendiste ese día en ese batey, con la visita de ese día.</p>
+      <Listado fuente="mio" columna={clave} desde="" hasta="" />
+    </>
+  );
 }
 
 /** Los pacientes de un indicador de Metas: el año o uno de sus trimestres. */

@@ -316,6 +316,8 @@ export type PacienteDeCifra = {
 };
 export const pacientesDePlanilla = (f: { from: string; to: string; columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/planilla/pacientes${query(f)}`);
 export const pacientesDeDonantes = (f: { anio: number; trimestre?: number; columna: string }) => api<PacienteDeCifra[]>(`/reports/donantes/pacientes${query(f)}`);
+/** Los pacientes que atendió quien consulta en una de sus jornadas (Mi panel). */
+export const pacientesDeMiJornada = (clave: string) => api<PacienteDeCifra[]>(`/stats/mio/jornada${query({ clave })}`);
 export const pacientesDeResumen = (f: FiltroReporte & { cifra: string }) => api<PacienteDeCifra[]>(`/reports/summary/pacientes${query(f)}`);
 export const pacientesDeRonda = (f: { columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/ronda/pacientes${query(f)}`);
 export type DestinatariosPlanilla = { correoConfigurado: boolean; usuarios: { id: number; nombre: string; email: string; rol: string; confirmado: boolean }[]; otrosCorreos: string[] };

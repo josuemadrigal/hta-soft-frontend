@@ -508,7 +508,10 @@ function Detalle({ d }: { d: DetalleJornada }) {
       {j.notas && <p className="mb-4 rounded-lg bg-marca-50 px-4 py-2.5 text-sm whitespace-pre-line">{j.notas}</p>}
       {j.estado === 'CERRADA' && (
         <p className="mb-4 text-sm text-tenue">
-          Cerrada por {j.cerradaPor ?? '—'} el {fechaYHora(j.cerradaEn)}. Las cifras son las del cierre.
+          Cerrada por {j.cerradaPor ?? '—'} el {fechaYHora(j.cerradaEn)}.{' '}
+          {d.listaDelCierre === false
+            ? 'Las cifras son las del cierre; la lista de pacientes es la de hoy (se cerró antes de que se guardara) y puede no coincidir si después cambiaron las visitas.'
+            : 'Las cifras y la lista de pacientes son las del cierre.'}
         </p>
       )}
 

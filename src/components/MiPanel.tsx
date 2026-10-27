@@ -1,12 +1,12 @@
-import { ArrowRight, CalendarDays, ClipboardList, HeartPulse, SearchX, Stethoscope, Tent, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, ClipboardList, HeartPulse, MapPin, SearchX, Stethoscope, Tent, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useMiPanel } from '../api/consultas';
 import { useSesion } from '../auth/sesion';
 import { asistencia } from '../lib/asistencia';
-import { cn, fechaYHora, nombreCompleto } from '../lib/formato';
+import { cn, fecha, fechaYHora, nombreCompleto } from '../lib/formato';
 import { diaJornada } from '../pages/Jornadas';
-import { Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from './ui';
+import { Boton, Cargando, ErrorCarga, Insignia, InsigniaCategoria, Tabla, Tarjeta, Vacio } from './ui';
 import type { PeriodoPanel } from '../lib/periodo-panel';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
@@ -142,6 +142,28 @@ export function MiPanelVista({ periodo }: { periodo: PeriodoPanel }) {
           )}
         </Tarjeta>
       </div>
+
+      {!!d.jornadasRecientes?.length && (
+        <Tarjeta titulo="Mis jornadas recientes" accion={<span className="text-xs text-tenue">Toca una para ver sus pacientes</span>}>
+          <Tabla columnas={['Fecha', 'Batey', { texto: 'Pacientes', className: 'text-right' }, { texto: 'Controlados', className: 'text-right' }]}>
+            {d.jornadasRecientes.map((j) => (
+              <tr key={j.clave} onClick={() => navegar(`/mi-panel/jornada?clave=${encodeURIComponent(j.clave)}`)} className="cursor-pointer hover:bg-fondo">
+                <td className="px-5 py-2.5 whitespace-nowrap">{fecha(j.fecha)}</td>
+                <td className="px-5 py-2.5">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="size-3.5 text-tenue" />
+                    {j.batey}
+                  </span>
+                </td>
+                <td className="tabular px-5 py-2.5 text-right">{j.pacientes}</td>
+                <td className="tabular px-5 py-2.5 text-right">
+                  {j.controlados} <span className="text-xs text-tenue">({Math.round((j.controlados / j.pacientes) * 100)}%)</span>
+                </td>
+              </tr>
+            ))}
+          </Tabla>
+        </Tarjeta>
+      )}
 
       <Tarjeta
         titulo={`Dejaron de venir (${miles(d.sinVenir.total)})`}

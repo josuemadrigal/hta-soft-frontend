@@ -189,6 +189,8 @@ export type DetalleJornada = {
   }[];
   /** Por médico, ese día: a cuántos vio, pastillas entregadas y cuántos quedaron controlados. */
   porMedico?: { medico: string; pacientes: number; pastillas: number; conToma: number; controlados: number; nuevos: number }[];
+  /** Cerrada: la lista y el resumen por médico son los guardados al cerrar (false si se cerró antes de guardarlos). */
+  listaDelCierre?: boolean;
 };
 
 export type SugerenciaJornada = {
@@ -646,6 +648,8 @@ export type FilaPlanilla = {
 export type Planilla = { periodo: { desde: string; hasta: string }; filas: FilaPlanilla[]; total: FilaPlanilla };
 
 export type MiPanel = {
+  /** Sus jornadas de los últimos 12 meses (las 15 más nuevas); clave "2026-10-26|12" abre sus pacientes. */
+  jornadasRecientes?: { clave: string; fecha: string; batey: string; pacientes: number; controlados: number }[];
   pacientes: number;
   controladosPct: number | null;
   leToca: number;
