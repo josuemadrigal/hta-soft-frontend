@@ -318,6 +318,8 @@ export type DatosEnvioPlanilla = { from: string; to: string; periodo: string; de
 export const enviarPlanilla = (d: DatosEnvioPlanilla) => enviar<{ enviados: number; simulado: boolean; para: string[] }>('/reports/planilla/enviar', 'POST', d);
 export const listarMedicos = (f: FiltroReporte, eliminados = false) => api<ListaMedicos>(`/doctors${query({ ...f, eliminados: eliminados ? 'true' : undefined })}`);
 export const detalleMedico = (id: number, f: FiltroReporte) => api<DetalleMedico>(`/doctors/${id}${query(f)}`);
+/** Los pacientes detrás de un logro del médico o de una de sus jornadas (columna "jornada:<clave>"). */
+export const pacientesDeMedico = (id: number, f: FiltroReporte & { columna: string }) => api<PacienteDeCifra[]>(`/doctors/${id}/pacientes${query(f)}`);
 export const compararMedicos = (ids: number[], f: FiltroReporte) => api<ComparacionMedicos>(`/doctors/compare${query({ ...f, ids: ids.join(',') })}`);
 export const restaurarRegistro = (id: number) => enviar<{ visitaId: number; pacienteId: number }>(`/audit-logs/${id}/restaurar`, 'POST');
 export type FiltroAuditoria = { page: number; limit?: number; userId?: number; entity?: string; action?: string; desde?: string; hasta?: string; entityId?: number };

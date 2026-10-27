@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, Search, Users, X } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { useAsistenciaJornadas, useComunidades } from '../api/consultas';
-import { pacientesDeDonantes, pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useAsistenciaJornadas, useComunidades, useMedico } from '../api/consultas';
+import { pacientesDeDonantes, pacientesDeMedico, pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import { useFiltroPeriodo } from '../components/FiltroPeriodo';
 import { COLUMNAS_PLANILLA } from '../components/TablaPlanilla';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
@@ -98,7 +99,7 @@ export function PacientesDeCifra() {
   );
 }
 
-type Fuente = 'planilla' | 'ronda' | 'donantes';
+type Fuente = 'planilla' | 'ronda' | 'donantes' | 'medico';
 
 /** Las cifras del análisis del informe para donantes: "grupo" o "grupo:valor" (tiempo:Primera vez). */
 const DONANTES: Record<string, { titulo: string; explica: string }> = {
@@ -114,11 +115,13 @@ const DONANTES: Record<string, { titulo: string; explica: string }> = {
   sexo: { titulo: 'Sexo', explica: 'Pacientes con toma en el periodo.' },
 };
 
-function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fuente; columna: string; batey?: number; desde: string; hasta: string; anio?: number; t?: number }) {
+function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { fuente: Fuente; columna: string; batey?: number; desde: string; hasta: string; anio?: number; t?: number; medicoId?: number }) {
   const consulta = useQuery({
-    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t],
+    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t, medicoId],
     queryFn: () =>
-      fuente === 'planilla'
+      fuente === 'medico'
+        ? pacientesDeMedico(medicoId!, { from: desde, to: hasta, communityId: batey, columna })
+        : fuente === 'planilla'
         ? pacientesDePlanilla({ from: `${desde}T00:00:00-04:00`, to: `${hasta}T23:59:59-04:00`, columna, communityId: batey })
         : fuente === 'donantes'
           ? pacientesDeDonantes({ anio: anio!, trimestre: t, columna })
@@ -152,7 +155,9 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
   const conEstado = fuente === 'ronda' && columna !== 'vistos' && columna !== 'yaNoVienen' && columna !== 'dejaron';
   // Las opciones salen de la lista misma, con cuántos tiene cada una.
   const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
-  const medicos = contar(todos.flatMap((p) => (p.atendio ? [p.atendio] : [])));
+  // En la lista de un médico, todos los atendió él: no hace falta ni el filtro ni la columna.
+  const conMedico = fuente !== 'medico';
+  const medicos = conMedico ? contar(todos.flatMap((p) => (p.atendio ? [p.atendio] : []))) : [];
   const medicamentos = contar(todos.flatMap((p) => [...new Set(p.tratamiento.map((t) => t.medicamento))]));
   const hayFiltros = !!(q || medico || presion || medicamento);
   const limpiar = () => {
@@ -161,7 +166,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
     setPresion('');
     setMedicamento('');
   };
-  const visitaTexto = (fuente === 'planilla' && columna !== 'enPrograma') || (fuente === 'donantes' && columna !== 'volvieron' && columna !== 'noVolvieron') ? 'Visita contada' : 'Última visita';
+  const visitaTexto = (fuente === 'planilla' && columna !== 'enPrograma') || (fuente === 'donantes' && columna !== 'volvieron' && columna !== 'noVolvieron') || fuente === 'medico' ? 'Visita contada' : 'Última visita';
 
   return (
     <Tarjeta
@@ -217,7 +222,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
               'Paciente',
               visitaTexto,
               'Presión',
-              'Atendió',
+              ...(conMedico ? ['Atendió'] : []),
               'Tratamiento',
               ...(conEstado ? ['Asistencia'] : []),
             ]}
@@ -243,7 +248,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
                     <span className="text-xs text-tenue">Sin clasificar</span>
                   )}
                 </td>
-                <td className="px-5 py-2.5 whitespace-nowrap">{p.atendio ?? <span className="text-tenue">—</span>}</td>
+                {conMedico && <td className="px-5 py-2.5 whitespace-nowrap">{p.atendio ?? <span className="text-tenue">—</span>}</td>}
                 <td className="px-5 py-2.5">
                   {p.tratamiento.length ? (
                     <ul className="space-y-0.5">
@@ -274,6 +279,50 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t }: { fuente: Fu
         </>
       )}
     </Tarjeta>
+  );
+}
+
+/** Los logros del médico que abren su lista. */
+const MEDICO: Record<string, { titulo: string; explica: string }> = {
+  llevoAControl: { titulo: 'Llevó a control', explica: 'Venían sin control en su visita anterior y salieron controlados (< 140/90) con este médico. Se muestra esa visita.' },
+  mejoraron: { titulo: 'Mejoraron', explica: 'Su presión bajó de categoría frente a su visita anterior. Se muestra la visita con este médico.' },
+  atendidos: { titulo: 'Pacientes atendidos', explica: 'Todos los que atendió en el periodo. Se muestra la última visita con este médico.' },
+  controlados: { titulo: 'Controlados', explica: 'Su última toma con este médico en el periodo quedó por debajo de 140/90.' },
+  conReceta: { titulo: 'Con receta', explica: 'Pacientes a los que les recetó: de sus recetas sale el cumplimiento promedio.' },
+  nuevos: { titulo: 'Pacientes nuevos', explica: 'Su visita de primera vez fue con este médico en el periodo.' },
+  domiciliarias: { titulo: 'Visitas domiciliarias', explica: 'Pacientes que atendió en su casa en el periodo.' },
+};
+
+/** /medicos/:id/pacientes — los pacientes detrás de un logro del médico o de una de sus jornadas. ?columna= &desde= &hasta= &batey= */
+export function PacientesDeMedico() {
+  const id = Number(useParams().id);
+  const [params] = useSearchParams();
+  const columna = params.get('columna') ?? '';
+  // El mismo periodo que la ficha del médico (sin fechas en la dirección, el de por defecto).
+  const filtro = useFiltroPeriodo();
+  const { desde, hasta, communityId: batey } = filtro;
+  const medico = useMedico(id, filtro);
+  const comunidades = useComunidades();
+  const nombre = medico.data?.perfil.nombre ?? '…';
+  // Para volver a la ficha del médico con el mismo periodo.
+  const atras = new URLSearchParams(params);
+  atras.delete('columna');
+  const jornada = columna.startsWith('jornada:');
+
+  let titulo = MEDICO[columna]?.titulo ?? 'Pacientes';
+  let explica = MEDICO[columna]?.explica;
+  if (jornada) {
+    const [dia, bateyId] = columna.slice(8).split('|');
+    titulo = `Jornada en ${comunidades.data?.find((c) => c.id === Number(bateyId))?.name ?? '…'}`;
+    explica = `Los pacientes que atendió el ${CORTO.format(new Date(`${dia}T12:00:00`))}.`;
+  }
+
+  return (
+    <>
+      <EncabezadoPagina titulo={titulo} descripcion={jornada ? nombre : `${nombre} · ${textoPeriodo(desde, hasta)}`} volver={{ a: `/medicos/${id}?${atras.toString()}`, texto: nombre }} />
+      {explica && <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">{explica}</p>}
+      <Listado fuente="medico" medicoId={id} columna={columna} batey={batey} desde={desde} hasta={hasta} />
+    </>
   );
 }
 

@@ -13,16 +13,24 @@ import { AYUDA } from '../lib/ayuda-graficas';
 const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
 
-function Logro({ icono, valor, titulo, detalle, destacado }: { icono: ReactNode; valor: ReactNode; titulo: string; detalle?: string; destacado?: boolean }) {
+function Logro({ icono, valor, titulo, detalle, destacado, onClick }: { icono: ReactNode; valor: ReactNode; titulo: string; detalle?: string; destacado?: boolean; onClick?: () => void }) {
   return (
-    <div className={cn('rounded-xl border p-4', destacado ? 'border-marca-500 bg-marca-50' : 'border-borde bg-superficie')}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        'rounded-xl border p-4 text-left transition-colors enabled:cursor-pointer',
+        destacado ? 'border-marca-500 bg-marca-50 enabled:hover:bg-marca-100' : 'border-borde bg-superficie enabled:hover:border-tinta/25 enabled:hover:bg-fondo',
+      )}
+    >
       <div className="flex items-center gap-2 text-sm text-tenue">
         <span className={destacado ? 'text-marca-700' : 'text-tinta/40'}>{icono}</span>
         {titulo}
       </div>
       <p className="tabular mt-2 text-2xl font-semibold tracking-tight">{valor}</p>
       {detalle && <p className="mt-0.5 text-xs text-tenue">{detalle}</p>}
-    </div>
+    </button>
   );
 }
 
@@ -39,6 +47,8 @@ export function MedicoDetalle() {
   const r = d.resumen;
   const l = d.logros;
   const [nombre, ...apellido] = d.perfil.nombre.split(' ');
+  // Cada logro y cada jornada abren sus pacientes, con el mismo periodo y batey.
+  const abrir = (columna: string, n: number) => (n > 0 ? () => navegar(`/medicos/${id}/pacientes?${new URLSearchParams({ ...Object.fromEntries(params), columna })}`) : undefined);
 
   return (
     <>
@@ -85,14 +95,14 @@ export function MedicoDetalle() {
               <Award className="size-5 text-marca-700" /> Logros
             </h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <Logro destacado icono={<HeartPulse className="size-4" />} titulo="Llevó a control" valor={miles(l.llevoAControl)} detalle="Pacientes que venían sin control y salieron controlados" />
-              <Logro destacado icono={<TrendingDown className="size-4" />} titulo="Mejoraron" valor={miles(l.mejoraron)} detalle="Bajaron de categoría frente a su visita anterior" />
-              <Logro icono={<Users className="size-4" />} titulo="Pacientes atendidos" valor={miles(r.pacientes)} detalle={`${miles(r.visitas)} visitas`} />
-              <Logro icono={<CalendarDays className="size-4" />} titulo="Jornadas" valor={miles(l.jornadas)} detalle={`En ${l.bateyes} bateyes`} />
-              <Logro icono={<HeartPulse className="size-4" />} titulo="Controlados" valor={pct(r.controladosPct)} detalle="Última toma con este médico < 140/90" />
-              <Logro icono={<Award className="size-4" />} titulo="Cumplimiento" valor={pct(r.cumplimientoPromedio)} detalle="Promedio de sus recetas" />
-              <Logro icono={<UserPlus className="size-4" />} titulo="Pacientes nuevos" valor={miles(l.nuevos)} detalle="Visitas de primera vez" />
-              <Logro icono={<Home className="size-4" />} titulo="Domiciliarias" valor={miles(l.domiciliarias)} detalle={`${miles(r.pastillas)} pastillas entregadas`} />
+              <Logro destacado icono={<HeartPulse className="size-4" />} titulo="Llevó a control" onClick={abrir('llevoAControl', l.llevoAControl)} valor={miles(l.llevoAControl)} detalle="Pacientes que venían sin control y salieron controlados" />
+              <Logro destacado icono={<TrendingDown className="size-4" />} titulo="Mejoraron" onClick={abrir('mejoraron', l.mejoraron)} valor={miles(l.mejoraron)} detalle="Bajaron de categoría frente a su visita anterior" />
+              <Logro icono={<Users className="size-4" />} titulo="Pacientes atendidos" onClick={abrir('atendidos', r.pacientes)} valor={miles(r.pacientes)} detalle={`${miles(r.visitas)} visitas`} />
+              <Logro icono={<CalendarDays className="size-4" />} titulo="Jornadas" onClick={() => document.getElementById('jornadas-medico')?.scrollIntoView({ behavior: 'smooth' })} valor={miles(l.jornadas)} detalle={`En ${l.bateyes} bateyes`} />
+              <Logro icono={<HeartPulse className="size-4" />} titulo="Controlados" onClick={abrir('controlados', r.controladosPct ? 1 : 0)} valor={pct(r.controladosPct)} detalle="Última toma con este médico < 140/90" />
+              <Logro icono={<Award className="size-4" />} titulo="Cumplimiento" onClick={abrir('conReceta', r.cumplimientoPromedio === null ? 0 : 1)} valor={pct(r.cumplimientoPromedio)} detalle="Promedio de sus recetas" />
+              <Logro icono={<UserPlus className="size-4" />} titulo="Pacientes nuevos" onClick={abrir('nuevos', l.nuevos)} valor={miles(l.nuevos)} detalle="Visitas de primera vez" />
+              <Logro icono={<Home className="size-4" />} titulo="Domiciliarias" onClick={abrir('domiciliarias', l.domiciliarias)} valor={miles(l.domiciliarias)} detalle={`${miles(r.pastillas)} pastillas entregadas`} />
             </div>
           </div>
 
@@ -149,25 +159,27 @@ export function MedicoDetalle() {
             </Tarjeta>
           </div>
 
-          <Tarjeta titulo="Jornadas recientes">
-            <Tabla columnas={['Fecha', 'Batey', { texto: 'Pacientes', className: 'text-right' }, { texto: 'Controlados', className: 'text-right' }]}>
-              {d.jornadas.map((j) => (
-                <tr key={`${j.fecha}-${j.batey}`}>
-                  <td className="px-5 py-2.5 whitespace-nowrap">{fecha(j.fecha)}</td>
-                  <td className="px-5 py-2.5">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="size-3.5 text-tenue" />
-                      {j.batey}
-                    </span>
-                  </td>
-                  <td className="tabular px-5 py-2.5 text-right">{j.pacientes}</td>
-                  <td className="tabular px-5 py-2.5 text-right">
-                    {j.controlados} <span className="text-xs text-tenue">({Math.round((j.controlados / j.pacientes) * 100)}%)</span>
-                  </td>
-                </tr>
-              ))}
-            </Tabla>
-          </Tarjeta>
+          <div id="jornadas-medico" className="scroll-mt-4">
+            <Tarjeta titulo="Jornadas recientes" accion={<span className="text-xs text-tenue">Toca una para ver sus pacientes</span>}>
+              <Tabla columnas={['Fecha', 'Batey', { texto: 'Pacientes', className: 'text-right' }, { texto: 'Controlados', className: 'text-right' }]}>
+                {d.jornadas.map((j) => (
+                  <tr key={j.clave} onClick={abrir(`jornada:${j.clave}`, j.pacientes)} className="cursor-pointer hover:bg-fondo">
+                    <td className="px-5 py-2.5 whitespace-nowrap">{fecha(j.fecha)}</td>
+                    <td className="px-5 py-2.5">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="size-3.5 text-tenue" />
+                        {j.batey}
+                      </span>
+                    </td>
+                    <td className="tabular px-5 py-2.5 text-right">{j.pacientes}</td>
+                    <td className="tabular px-5 py-2.5 text-right">
+                      {j.controlados} <span className="text-xs text-tenue">({Math.round((j.controlados / j.pacientes) * 100)}%)</span>
+                    </td>
+                  </tr>
+                ))}
+              </Tabla>
+            </Tarjeta>
+          </div>
         </div>
       )}
     </>

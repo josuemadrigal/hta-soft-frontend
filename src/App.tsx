@@ -43,7 +43,7 @@ import { HojaPreparacion } from './pages/HojaPreparacion';
 import { HojaIndicaciones } from './pages/HojaIndicaciones';
 import { Planilla } from './pages/Planilla';
 import { Etiquetas } from './pages/Etiquetas';
-import { PacientesDeCifra } from './pages/PacientesDeCifra';
+import { PacientesDeCifra, PacientesDeMedico } from './pages/PacientesDeCifra';
 import { EnviarPlanilla } from './pages/EnviarPlanilla';
 
 function Protegida({ children }: { children: ReactNode }) {
@@ -130,6 +130,7 @@ export function App() {
         <Route path="medicos" element={<ConPermiso permiso="medicos.ver"><Medicos /></ConPermiso>} />
         <Route path="medicos/comparar" element={<ConPermiso permiso="medicos.ver"><MedicosComparar /></ConPermiso>} />
         <Route path="medicos/:id" element={<ConPermiso permiso="medicos.ver"><MedicoDetalle /></ConPermiso>} />
+        <Route path="medicos/:id/pacientes" element={<ConPermiso permiso="medicos.ver"><PacientesDeMedico /></ConPermiso>} />
         <Route path="auditoria" element={<ConPermiso permiso="auditoria.ver"><Auditoria /></ConPermiso>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

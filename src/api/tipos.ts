@@ -486,7 +486,8 @@ export type ListaMedicos = { periodo: { desde: string; hasta: string }; medicos:
 export type DetalleMedico = Pick<ResumenReporte, 'periodo' | 'resumen' | 'porTrimestre' | 'categorias' | 'porBatey' | 'medicamentos' | 'cumplimientoTramos'> & {
   perfil: PerfilMedico;
   logros: LogrosMedico;
-  jornadas: { fecha: string; batey: string; pacientes: number; controlados: number }[];
+  /** clave: "2026-10-26|12" (día y batey), para abrir sus pacientes. */
+  jornadas: { clave: string; fecha: string; batey: string; pacientes: number; controlados: number }[];
 };
 
 export type ComparacionMedicos = {
