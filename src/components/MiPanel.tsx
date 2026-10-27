@@ -40,7 +40,8 @@ export function MiPanelVista({ periodo }: { periodo: PeriodoPanel }) {
   if (consulta.isPending) return <Cargando forma="pagina" texto="Cargando tu panel…" />;
   if (consulta.isError) return <ErrorCarga error={consulta.error} />;
   const d = consulta.data;
-  const mios = `/pacientes?medico=${usuario?.id}`;
+  // Mis pacientes: activos y atendidos por mí en su última visita (la misma regla que las cifras).
+  const mios = `/pacientes?medico=${usuario?.id}&estado=ACTIVE`;
   // Servidor anterior (sin periodo): lo de hoy.
   const atendidos = d.atendidos ?? d.hoy;
   const totalAtendidos = d.atendidosTotal ?? atendidos.length;
@@ -55,6 +56,7 @@ export function MiPanelVista({ periodo }: { periodo: PeriodoPanel }) {
           valor={d.controladosPct === null ? '—' : `${Math.round(d.controladosPct)}%`}
           detalle="Última toma por debajo de 140/90"
           icono={<HeartPulse className="size-4" />}
+          a={`${mios}&clasificacion=controlados`}
         />
         <Cifra
           titulo="Pendientes de esta ronda"
@@ -68,7 +70,8 @@ export function MiPanelVista({ periodo }: { periodo: PeriodoPanel }) {
           valor={miles(totalAtendidos)}
           detalle={periodo.atajo === 'mes' ? 'Visitas que registré' : `${miles(d.visitasMes)} visitas este mes`}
           icono={<Stethoscope className="size-4" />}
-          a={`${mios}&desde=${periodo.desde}&hasta=${periodo.hasta}`}
+          // Con fechas, la lista es de quienes atendí en ese rango (activos o no).
+          a={`/pacientes?medico=${usuario?.id}&desde=${periodo.desde}&hasta=${periodo.hasta}`}
         />
       </div>
 

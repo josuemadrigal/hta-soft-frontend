@@ -11,6 +11,8 @@ import { useSesion } from '../auth/sesion';
 import { Boton, Campo, Cargando, Casilla, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Segmentos, Tabla, Tarjeta, Vacio } from '../components/ui';
 import { descargarCsv } from '../lib/copiar';
 import { cn, diasHasta, fechaDia } from '../lib/formato';
+import { enlaceResumen } from '../lib/cifras';
+import { ymd } from '../components/SelectorFecha';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 
@@ -32,6 +34,10 @@ const redondear = (n: number) => Math.ceil(n / 10) * 10;
  */
 function PedidoSugerido({ medicamentos }: { medicamentos: Medicamento[] }) {
   const consumo = useConsumoMedicamentos();
+  const puedeVer = useSesion().tiene('reportes.ver');
+  // "Se entregan al mes" sale de lo entregado desde consumo.desde: abre esos pacientes (Reportes, misma regla).
+  const listaConsumo = (m: Medicamento) =>
+    enlaceResumen({ medicamento: `${m.name} ${m.concentration}`, pastillas: true }, new URLSearchParams({ desde: ymd(new Date(consumo.data?.desde ?? Date.now() - 365 * 86_400_000)), hasta: ymd(new Date()) }));
   const [meses, setMeses] = useState<'3' | '6' | '12'>('6');
   const h = Number(meses);
   const filas = medicamentos
@@ -109,7 +115,19 @@ function PedidoSugerido({ medicamentos }: { medicamentos: Medicamento[] }) {
                   <td className="px-5 py-3">
                     <span className="font-medium">{f.m.name}</span> <span className="text-tenue">{f.m.concentration}</span>
                   </td>
-                  <td className="tabular px-5 py-3 text-right">{f.porMes ? miles(f.porMes) : <span className="text-tenue">—</span>}</td>
+                  <td className="tabular px-5 py-3 text-right">
+                    {f.porMes ? (
+                      puedeVer ? (
+                        <Link to={listaConsumo(f.m)} className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline" title={`Ver a quién se le entregó (${miles(consumo.data?.medicamentos.find((c) => c.medicationId === f.m.id)?.entregadas ?? 0)} en ${consumo.data?.meses} meses)`}>
+                          {miles(f.porMes)}
+                        </Link>
+                      ) : (
+                        miles(f.porMes)
+                      )
+                    ) : (
+                      <span className="text-tenue">—</span>
+                    )}
+                  </td>
                   <td className="tabular px-5 py-3 text-right">{miles(f.hay)}</td>
                   <td className={cn('tabular px-5 py-3 text-right whitespace-nowrap', corto && 'font-medium text-red-600')}>
                     {f.alcanza === null ? <span className="text-tenue">sin consumo</span> : f.alcanza >= 24 ? 'más de 2 años' : f.alcanza < 1 ? `${Math.round(f.alcanza * 30)} días` : `${f.alcanza.toFixed(1)} meses`}

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowRight, CalendarCheck, CalendarPlus, Tent, HeartPulse, Pill, SearchX, Users } from 'lucide-react';
 import { conteoPendientesEntrega, pacientesSinConsulta } from '../api/recursos';
 import type { ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { MiPanelVista } from '../components/MiPanel';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useAlertasInventario, useComunidades, useEstadisticasPanel, useJornadas, useResumenReporte, useRonda, useTendencia } from '../api/consultas';
@@ -16,6 +16,8 @@ import { cn, fecha, nombreCompleto } from '../lib/formato';
 import { diaJornada, hoyYmd } from './Jornadas';
 import { asistencia } from '../lib/asistencia';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { enlaceResumen, type Cifra } from '../lib/cifras';
+import { ymd } from '../components/SelectorFecha';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const ORDEN = ['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE_2', 'CRISIS'] as const;
@@ -147,6 +149,7 @@ function Seccion({ titulo, detalle, children }: { titulo: string; detalle?: Reac
 
 function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?: number; periodo: PeriodoPanel; nombreBatey?: string }) {
   const { tiene } = useSesion();
+  const navegar = useNavigate();
   const stats = useEstadisticasPanel(batey);
   const alertas = useAlertasInventario();
   const porEntregar = useQuery({ queryKey: ['entregas', 'conteo'], queryFn: conteoPendientesEntrega });
@@ -174,6 +177,17 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
   const atendidosRonda = t.seen + (t.treatmentLeft ?? 0);
   const pctRonda = esperados ? Math.min(100, Math.round((atendidosRonda / esperados) * 100)) : 0;
   const faltan = (c: { missing?: number; pending: number }) => c.missing ?? c.pending;
+  // Cada cifra abre los pacientes que cuenta, con la misma regla (listas de la ronda y de Pacientes).
+  const conBatey = batey ? `&batey=${batey}` : '';
+  const listaRonda = (columna: string) => (tiene('reportes.ver') ? `/reportes/pacientes?fuente=ronda&columna=${columna}${conBatey}` : undefined);
+  const enSeguimientoCon = (filtro: string) => `/pacientes?estado=ACTIVE&situacion=seguimiento&${filtro}${conBatey}&orden=presion`;
+  // Un trimestre de la tendencia: sus visitas, con un día de margen a cada lado (el trimestre lo fija la cifra).
+  const listaTrimestre = (clave: string) => {
+    const [a, t] = clave.split('-').map(Number);
+    const desde = ymd(new Date(a, (t - 1) * 3, 0));
+    const hasta = ymd(new Date(a, t * 3, 1));
+    return enlaceResumen({ trimestre: clave }, new URLSearchParams(`desde=${desde}&hasta=${hasta}${conBatey}`));
+  };
 
   // Tendencia del control
   const trimestres = tendencia.data?.trimestres ?? [];
@@ -293,7 +307,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
           valor={miles(enSeguimiento)}
           detalle={`Vinieron en los últimos 6 meses · ${miles(t.active)} registrados`}
           icono={<Users className="size-4" />}
-          a="/pacientes?situacion=le-toca"
+          a={listaRonda('seguimiento')}
         />
         <Indicador
           titulo={`Ronda ${r.round.label}`}
@@ -301,7 +315,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
           progreso={pctRonda}
           detalle={`${miles(atendidosRonda)} de ~${miles(esperados)} esperados${t.treatmentLeft ? ` (${miles(t.treatmentLeft)} con tratamiento dejado)` : ''} · cierra en ${diasParaCerrar} días`}
           icono={<CalendarCheck className="size-4" />}
-          a="/jornadas"
+          a={listaRonda('atendidos') ?? '/jornadas'}
         />
         <Indicador
           titulo="Presión controlada"
@@ -319,13 +333,14 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
             </>
           }
           icono={<HeartPulse className="size-4" />}
+          a={tiene('pacientes.ver') ? enSeguimientoCon('clasificacion=controlados') : undefined}
         />
         <Indicador
           titulo="Dejaron de venir"
           valor={miles(t.absent)}
           detalle={`Más de 6 meses sin venir${t.retired ? ` · ${miles(t.retired)} ya no vienen (no cuentan)` : ` · ${miles(t.absentYear)} hace más de un año`}`}
           icono={<SearchX className="size-4" />}
-          a="/pacientes?situacion=sin-venir&orden=ausencia"
+          a={listaRonda('dejaron') ?? '/pacientes?situacion=sin-venir&orden=ausencia'}
         />
       </div>
 
@@ -345,7 +360,15 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
             ) : (
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
-                  <ComposedChart data={trimestres} margin={{ left: -8, right: 4 }}>
+                  <ComposedChart
+                    data={trimestres}
+                    margin={{ left: -8, right: 4 }}
+                    style={tiene('reportes.ver') ? { cursor: 'pointer' } : undefined}
+                    onClick={(e) => {
+                      const q = trimestres[Number(e?.activeIndex)];
+                      if (q && e?.activeIndex != null && tiene('reportes.ver')) navegar(listaTrimestre(q.clave));
+                    }}
+                  >
                     <CartesianGrid {...REJILLA} />
                     <XAxis dataKey="trimestre" {...EJE} />
                     <YAxis yAxisId="n" allowDecimals={false} {...EJE} />
@@ -382,7 +405,7 @@ function PanelGeneral({ batey, periodo, nombreBatey: nombreDelBatey }: { batey?:
                   return (
                     <li key={x.nombre}>
                       {tiene('pacientes.ver') ? (
-                        <Link to={`/pacientes?${filtro}&orden=presion`} className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-fondo" title="Ver estos pacientes">
+                        <Link to={enSeguimientoCon(filtro)} className="flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-fondo" title="Ver estos pacientes">
                           {fila}
                         </Link>
                       ) : (
@@ -623,6 +646,8 @@ function ActividadPeriodo({ periodo, batey }: { periodo: PeriodoPanel; batey?: n
   // Días de RD (UTC−4): el servidor compara instantes.
   const consulta = useResumenReporte({ from: `${periodo.desde}T00:00:00-04:00`, to: `${periodo.hasta}T23:59:59-04:00`, communityId: batey });
   const enlace = `/reportes?desde=${periodo.desde}&hasta=${periodo.hasta}${batey ? `&batey=${batey}` : ''}`;
+  // Cada cifra abre sus pacientes, con el mismo día o rango.
+  const lista = (c: Cifra) => enlaceResumen(c, new URLSearchParams(`desde=${periodo.desde}&hasta=${periodo.hasta}${batey ? `&batey=${batey}` : ''}`));
   const cabecera = (
     <span className="flex flex-wrap items-center gap-x-3">
       Visitas registradas {periodo.frase}
@@ -647,26 +672,29 @@ function ActividadPeriodo({ periodo, batey }: { periodo: PeriodoPanel; batey?: n
           const meds = [...r.medicamentos].sort((a, b) => b.pastillas - a.pastillas);
           return (
             <div className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-5 transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
-              <Indicador titulo="Pacientes atendidos" valor={miles(x.pacientes)} detalle={`${miles(x.nuevos)} de primera vez`} icono={<Users className="size-4" />} a={`/pacientes?desde=${periodo.desde}&hasta=${periodo.hasta}${batey ? `&batey=${batey}` : ''}`} />
-              <Indicador titulo="Visitas" valor={miles(x.visitas)} detalle={`${miles(x.domiciliarias)} en su casa`} icono={<CalendarCheck className="size-4" />} />
+              <Indicador titulo="Pacientes atendidos" valor={miles(x.pacientes)} detalle={`${miles(x.nuevos)} de primera vez`} icono={<Users className="size-4" />} a={lista({})} />
+              <Indicador titulo="Visitas" valor={miles(x.visitas)} detalle={`${miles(x.domiciliarias)} en su casa`} icono={<CalendarCheck className="size-4" />} a={lista({})} />
               <Indicador
                 titulo="Salieron controlados"
                 valor={x.controladosPct === null ? '—' : `${Math.round(x.controladosPct)}%`}
                 progreso={x.controladosPct ?? undefined}
                 detalle="Última toma del periodo < 140/90"
                 icono={<HeartPulse className="size-4" />}
+                a={lista({ estado: 'controlados' })}
               />
               <Indicador
                 titulo="Presión promedio"
                 valor={x.sistolicaPromedio ? `${Math.round(x.sistolicaPromedio)}/${Math.round(x.diastolicaPromedio ?? 0)}` : '—'}
                 detalle="mmHg, todas las tomas"
                 icono={<HeartPulse className="size-4" />}
+                a={lista({ tipo: 'conToma' })}
               />
               <Indicador
                 titulo="Pastillas entregadas"
                 valor={miles(x.pastillas)}
                 detalle={meds.slice(0, 2).map((m) => `${m.medicamento}: ${miles(m.pastillas)}`).join(' · ') || 'Sin medicamentos'}
                 icono={<Pill className="size-4" />}
+                a={lista({ pastillas: true })}
               />
             </div>
           );

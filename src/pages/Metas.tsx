@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Pencil, Save, Target } from 'lucide-react';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { useComunidades, useMetas } from '../api/consultas';
@@ -107,7 +107,7 @@ export function Metas() {
           )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {consulta.data.indicadores.map((i) => (
-              <TarjetaIndicador key={i.clave} i={i} anio={anio} fraccion={consulta.data.fraccionAnio} />
+              <TarjetaIndicador key={i.clave} i={i} anio={anio} batey={batey} fraccion={consulta.data.fraccionAnio} />
             ))}
           </div>
           <Tarjeta titulo={`Bajas registradas en ${anio}`}>
@@ -130,7 +130,10 @@ export function Metas() {
   );
 }
 
-function TarjetaIndicador({ i, anio, fraccion }: { i: IndicadorAnual; anio: number; fraccion: number }) {
+function TarjetaIndicador({ i, anio, fraccion, batey }: { i: IndicadorAnual; anio: number; fraccion: number; batey?: number }) {
+  const navegar = useNavigate();
+  // El valor del año y cada trimestre abren sus pacientes (misma regla que el indicador).
+  const lista = (t?: number) => `/reportes/pacientes?fuente=metas&columna=${i.clave}&anio=${anio}${t ? `&t=${t}` : ''}${batey ? `&batey=${batey}` : ''}`;
   const e = ESTADOS[i.estado];
   const fmt = (v: number | null) => formatoIndicador(i.tipo, v);
   // Avance hacia la meta: porcentaje alcanzado (para "menos es mejor", qué tan cerca está de bajar a la meta).
@@ -144,7 +147,13 @@ function TarjetaIndicador({ i, anio, fraccion }: { i: IndicadorAnual; anio: numb
       <div className="space-y-3 p-5">
         <p className="text-xs text-tenue">{i.descripcion}</p>
         <div className="flex items-end justify-between gap-2">
-          <p className="tabular text-3xl font-semibold tracking-tight">{fmt(i.valor)}</p>
+          {i.valor === null ? (
+            <p className="tabular text-3xl font-semibold tracking-tight">{fmt(i.valor)}</p>
+          ) : (
+            <Link to={lista()} className="tabular -mx-1 rounded-md px-1 text-3xl font-semibold tracking-tight hover:bg-marca-50" title="Ver los pacientes">
+              {fmt(i.valor)}
+            </Link>
+          )}
           {i.meta !== null && <p className="tabular pb-1 text-sm text-tenue">meta {fmt(i.meta)}</p>}
         </div>
         {avance !== null && (
@@ -162,12 +171,12 @@ function TarjetaIndicador({ i, anio, fraccion }: { i: IndicadorAnual; anio: numb
         {i.trimestres.length > 0 && (
           <div className="h-24">
             <ResponsiveContainer>
-              <BarChart data={i.trimestres.map((t) => ({ ...t, etiqueta: t.etiqueta.split(' ')[0] }))} margin={{ top: 6, right: 0, left: 0, bottom: 0 }}>
+              <BarChart data={i.trimestres.map((t) => ({ ...t, etiqueta: t.etiqueta.split(' ')[0] }))} margin={{ top: 6, right: 0, left: 0, bottom: 0 }} style={{ cursor: 'pointer' }}>
                 <XAxis dataKey="etiqueta" {...EJE} fontSize={11} />
                 <YAxis hide domain={[0, i.tipo === 'pct' ? 100 : 'auto']} />
                 <Tooltip {...TOOLTIP} formatter={(v) => fmt(Number(v))} />
                 {i.meta !== null && i.tipo === 'pct' && <ReferenceLine y={i.meta} stroke={COLOR.tinta} strokeDasharray="4 3" />}
-                <Bar dataKey="valor" name={i.nombre} fill={COLOR.amarillo} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="valor" name={i.nombre} fill={COLOR.amarillo} radius={[3, 3, 0, 0]} maxBarSize={28} onClick={(_, n) => navegar(lista(Number(i.trimestres[n].etiqueta.slice(1, 2))))} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PackagePlus, Pencil, SlidersHorizontal } from 'lucide-react';
+import { PackagePlus, Pencil, SlidersHorizontal, X } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -39,7 +39,14 @@ export function MedicamentoDetalle() {
   const id = Number(useParams().id);
   const consulta = useMedicamento(id);
   const [pagina, setPagina] = useState(1);
-  const movimientos = useMovimientos(id, pagina);
+  // Tocar un lote deja en el kárdex solo sus movimientos (lo que suman es lo que le queda).
+  const [lote, setLote] = useState<number | null>(null);
+  const movimientos = useMovimientos(id, pagina, lote ?? undefined);
+  const elegirLote = (l: number | null) => {
+    setLote(l);
+    setPagina(1);
+    document.getElementById('kardex')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const navegar = useNavigate();
   const puedeGestionar = useSesion().tiene('inventario.gestionar');
   const [verAgotados, setVerAgotados] = useState(false);
@@ -100,7 +107,7 @@ export function MedicamentoDetalle() {
             {lotes.map((l) => {
               const e = estadoLote(l);
               return (
-                <tr key={l.id} className={cn(l.cantidadActual === 0 && 'opacity-50')}>
+                <tr key={l.id} onClick={() => elegirLote(lote === l.id ? null : l.id)} title="Ver los movimientos de este lote" className={cn('cursor-pointer hover:bg-fondo', l.cantidadActual === 0 && 'opacity-50', lote === l.id && 'bg-marca-50')}>
                   <td className="px-5 py-3 font-mono text-[13px] whitespace-nowrap">{l.numero ?? `#${l.id}`}</td>
                   <td className="px-5 py-3">
                     {ORIGENES[l.origen]}
@@ -115,7 +122,7 @@ export function MedicamentoDetalle() {
                   </td>
                   <td className="px-5 py-2 text-right">
                     {puedeGestionar && l.cantidadActual > 0 && (
-                      <Boton variante="fantasma" className="h-8 px-2 text-xs" icono={<SlidersHorizontal className="size-3.5" />} onClick={() => navegar(`/medicamentos/${id}/ajuste?lote=${l.id}`)}>
+                      <Boton variante="fantasma" className="h-8 px-2 text-xs" icono={<SlidersHorizontal className="size-3.5" />} onClick={(e) => (e.stopPropagation(), navegar(`/medicamentos/${id}/ajuste?lote=${l.id}`))}>
                         Ajustar
                       </Boton>
                     )}
@@ -127,43 +134,59 @@ export function MedicamentoDetalle() {
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Kárdex (movimientos)">
-        {movimientos.isPending ? (
-          <Cargando />
-        ) : !movimientos.data?.data.length ? (
-          <Vacio titulo="Sin movimientos" />
-        ) : (
-          <>
-            <Tabla columnas={['Fecha', 'Movimiento', 'Lote', { texto: 'Cantidad', className: 'text-right' }, { texto: 'Saldo', className: 'text-right' }, 'Paciente · detalle', 'Usuario']}>
-              {movimientos.data.data.map((mv) => (
-                <tr key={mv.id}>
-                  <td className="px-5 py-2.5 whitespace-nowrap">{fechaYHora(mv.createdAt)}</td>
-                  <td className="px-5 py-2.5">
-                    <Insignia color={TIPOS[mv.tipo].color}>{TIPOS[mv.tipo].texto}</Insignia>
-                  </td>
-                  <td className="px-5 py-2.5 font-mono text-xs whitespace-nowrap">{mv.lote?.numero ?? '—'}</td>
-                  <td className={cn('tabular px-5 py-2.5 text-right font-medium', mv.cantidad > 0 ? 'text-green-700' : 'text-red-600')}>
-                    {mv.cantidad > 0 ? '+' : ''}
-                    {miles(mv.cantidad)}
-                  </td>
-                  <td className="tabular px-5 py-2.5 text-right">{miles(mv.saldo)}</td>
-                  <td className="px-5 py-2.5">
-                    {mv.patient && (
-                      <Link to={`/pacientes/${mv.patient.id}`} className="block font-medium whitespace-nowrap hover:underline">
-                        {nombreCompleto(mv.patient)}
-                        <span className="ml-1.5 text-xs font-normal text-tenue">{mv.patient.community?.name ?? 'Sin batey'}</span>
-                      </Link>
-                    )}
-                    <span className="text-xs text-tenue">{mv.motivo ?? (mv.visitId ? `Visita #${mv.visitId}` : mv.patient ? '' : '—')}</span>
-                  </td>
-                  <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{mv.userName ?? '—'}</td>
-                </tr>
-              ))}
-            </Tabla>
-            <Paginacion pagina={pagina} ultima={movimientos.data.meta.lastPage} total={movimientos.data.meta.total} alCambiar={setPagina} />
-          </>
-        )}
-      </Tarjeta>
+      <div id="kardex" className="scroll-mt-4">
+        <Tarjeta
+          titulo={lote ? `Kárdex del lote ${m.lotes.find((l) => l.id === lote)?.numero ?? `#${lote}`}` : 'Kárdex (movimientos)'}
+          accion={
+            lote ? (
+              <span className="flex items-center gap-3 text-xs text-tenue">
+                {movimientos.data?.meta.suma !== undefined && <span>Suman {miles(movimientos.data.meta.suma)} · queda {miles(m.lotes.find((l) => l.id === lote)?.cantidadActual ?? 0)}</span>}
+                <button type="button" onClick={() => elegirLote(null)} className="flex cursor-pointer items-center gap-1 font-medium text-marca-700 hover:underline">
+                  <X className="size-3.5" /> Ver todos
+                </button>
+              </span>
+            ) : (
+              <span className="text-xs text-tenue">Toca un lote para ver solo sus movimientos</span>
+            )
+          }
+        >
+          {movimientos.isPending ? (
+            <Cargando />
+          ) : !movimientos.data?.data.length ? (
+            <Vacio titulo="Sin movimientos" />
+          ) : (
+            <>
+              <Tabla columnas={['Fecha', 'Movimiento', 'Lote', { texto: 'Cantidad', className: 'text-right' }, { texto: 'Saldo', className: 'text-right' }, 'Paciente · detalle', 'Usuario']}>
+                {movimientos.data.data.map((mv) => (
+                  <tr key={mv.id}>
+                    <td className="px-5 py-2.5 whitespace-nowrap">{fechaYHora(mv.createdAt)}</td>
+                    <td className="px-5 py-2.5">
+                      <Insignia color={TIPOS[mv.tipo].color}>{TIPOS[mv.tipo].texto}</Insignia>
+                    </td>
+                    <td className="px-5 py-2.5 font-mono text-xs whitespace-nowrap">{mv.lote?.numero ?? '—'}</td>
+                    <td className={cn('tabular px-5 py-2.5 text-right font-medium', mv.cantidad > 0 ? 'text-green-700' : 'text-red-600')}>
+                      {mv.cantidad > 0 ? '+' : ''}
+                      {miles(mv.cantidad)}
+                    </td>
+                    <td className="tabular px-5 py-2.5 text-right">{miles(mv.saldo)}</td>
+                    <td className="px-5 py-2.5">
+                      {mv.patient && (
+                        <Link to={`/pacientes/${mv.patient.id}`} className="block font-medium whitespace-nowrap hover:underline">
+                          {nombreCompleto(mv.patient)}
+                          <span className="ml-1.5 text-xs font-normal text-tenue">{mv.patient.community?.name ?? 'Sin batey'}</span>
+                        </Link>
+                      )}
+                      <span className="text-xs text-tenue">{mv.motivo ?? (mv.visitId ? `Visita #${mv.visitId}` : mv.patient ? '' : '—')}</span>
+                    </td>
+                    <td className="px-5 py-2.5 whitespace-nowrap text-tenue">{mv.userName ?? '—'}</td>
+                  </tr>
+                ))}
+              </Tabla>
+              <Paginacion pagina={pagina} ultima={movimientos.data.meta.lastPage} total={movimientos.data.meta.total} alCambiar={setPagina} />
+            </>
+          )}
+        </Tarjeta>
+      </div>
     </>
   );
 }

@@ -110,6 +110,8 @@ export function Pacientes() {
                 opciones={[
                   ...[...(configs.data ?? [])].sort((a, b) => a.priority - b.priority).map((c) => ({ value: c.id, label: CATEGORIAS[c.categoryName] })),
                   { value: 'ninguna', label: 'Sin toma válida' },
+                  { value: 'controlados', label: 'Controlados (< 140/90)' },
+                  { value: 'noControlados', label: 'Sin control (≥ 140/90)' },
                 ]}
                 aria-label="Clasificación de la última toma"
               />

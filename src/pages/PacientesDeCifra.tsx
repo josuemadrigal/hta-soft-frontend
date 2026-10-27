@@ -2,12 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Check, Search, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { useAsistenciaJornadas, useComunidades, useMedico } from '../api/consultas';
-import { pacientesDeDonantes, pacientesDeMedico, pacientesDePlanilla, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import { useAsistenciaJornadas, useComunidades, useMedico, useMetas } from '../api/consultas';
+import { pacientesDeDonantes, pacientesDeEntregas, pacientesDeMeta, pacientesDeMedico, pacientesDePlanilla, pacientesDeResumen, pacientesDeRonda, type PacienteDeCifra } from '../api/recursos';
+import type { FiltroReporte, Genero } from '../api/tipos';
+import { describirCifra, explicarCifra, leerCifra } from '../lib/cifras';
 import { useFiltroPeriodo } from '../components/FiltroPeriodo';
 import { COLUMNAS_PLANILLA } from '../components/TablaPlanilla';
 import { Boton, Cargando, EncabezadoPagina, Entrada, ErrorCarga, Insignia, Selector, Tabla, Tarjeta, Vacio } from '../components/ui';
-import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
+import { CATEGORIAS, colorCategoria, MOTIVOS_REPOSICION } from '../lib/etiquetas';
 import { cn, edadTexto, fecha, fechaDia, nombreCompleto } from '../lib/formato';
 import { coincide } from '../lib/busqueda';
 
@@ -16,6 +18,8 @@ const RONDA: Record<string, { titulo: string; explica: string }> = {
   regulares: { titulo: 'Regulares', explica: 'Pacientes activos que se han perdido como mucho las visitas que se fijan en Configuración. Los que nunca han venido cuentan si se registraron en ese tiempo.' },
   vistos: { titulo: 'Vistos en la ronda', explica: 'Regulares que ya vinieron a consulta en este trimestre.' },
   tratamiento: { titulo: 'Con tratamiento dejado', explica: 'No vinieron a consulta en este trimestre, pero se les dejó el tratamiento (reposición sin consulta). Cuentan como atendidos en la ronda; no tienen toma de presión.' },
+  atendidos: { titulo: 'Atendidos en la ronda', explica: 'Regulares que vinieron a consulta en este trimestre o a los que se les dejó el tratamiento. Es lo que avanza la ronda en el panel.' },
+  seguimiento: { titulo: 'En seguimiento', explica: 'Regulares que vinieron en los últimos 6 meses: los vistos en esta ronda y los que todavía no vienen en ella. No cuenta a quienes solo se les dejó el tratamiento.' },
   faltan: { titulo: 'Todavía no vienen en esta ronda', explica: 'Regulares que no han venido este trimestre. "Faltan" en la tabla es cuántos de ellos hacen falta para llegar a lo esperado; aquí están todos, primero a los que les toca.' },
   dejaron: { titulo: 'Dejaron de venir', explica: 'Regulares que llevan más de 6 meses sin venir: todavía se pueden recuperar.' },
   yaNoVienen: { titulo: 'Ya no vienen', explica: 'Se perdieron más visitas de las que se fijan en Configuración: no cuentan en la ronda.' },
@@ -56,7 +60,7 @@ const textoPeriodo = (desde: string, hasta: string) => {
  */
 export function PacientesDeCifra() {
   const [params] = useSearchParams();
-  const fuente: Fuente = params.get('fuente') === 'ronda' ? 'ronda' : params.get('fuente') === 'donantes' ? 'donantes' : 'planilla';
+  const fuente = (['ronda', 'donantes', 'resumen', 'metas', 'entregas'].includes(params.get('fuente') ?? '') ? params.get('fuente') : 'planilla') as Fuente;
   const anio = Number(params.get('anio')) || new Date().getFullYear();
   const t = params.get('t') === 'anual' ? undefined : Number(params.get('t')) || undefined;
   const columna = params.get('columna') ?? '';
@@ -67,6 +71,54 @@ export function PacientesDeCifra() {
   const nombreBatey = batey ? (comunidades.data?.find((c) => c.id === batey)?.name ?? '…') : 'Todos los bateyes';
 
   if (fuente === 'ronda' && columna === 'esperados') return <Esperados batey={batey} nombreBatey={nombreBatey} />;
+  if (fuente === 'entregas') {
+    const cifra = params.get('cifra') ?? '';
+    const atras = new URLSearchParams(params);
+    for (const k of ['fuente', 'cifra']) atras.delete(k);
+    return (
+      <>
+        <EncabezadoPagina
+          titulo={describirEntregas(cifra, (id) => comunidades.data?.find((x) => x.id === id)?.name ?? '…')}
+          descripcion={`Entregas de medicamentos · ${cifra.includes('pendientes') ? 'pendiente hoy' : textoPeriodo(desde, hasta)}${batey ? ` · ${nombreBatey}` : ''}`}
+          volver={{ a: `/reportes/entregas?${atras}`, texto: 'Entregas de medicamentos' }}
+        />
+        <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">
+          {cifra.includes('pendientes')
+            ? 'Recetas con pastillas que todavía no se han entregado (no depende de las fechas). "Aporte" trae las pastillas que se le deben.'
+            : 'Cada paciente con las entregas y pastillas netas que suma (ya restadas las devueltas). La visita que se muestra es la de su última entrega, si la tuvo.'}
+        </p>
+        <Listado fuente="entregas" columna={cifra} filtro={{ from: desde, to: hasta, communityId: batey }} desde="" hasta="" />
+      </>
+    );
+  }
+  if (fuente === 'metas')
+    return <PacientesDeMetas anio={anio} t={t} batey={batey} indicador={columna} nombreBatey={batey ? nombreBatey : undefined} deDonantes={params.get('de') === 'donantes'} nombreDe={(id) => comunidades.data?.find((x) => x.id === id)?.name ?? '…'} />;
+  if (fuente === 'resumen') {
+    const cifra = params.get('cifra') ?? '';
+    const c = leerCifra(cifra);
+    const nombre = (id: number) => comunidades.data?.find((x) => x.id === id)?.name ?? '…';
+    const filtro: FiltroReporte = {
+      from: desde || undefined,
+      to: params.get('hasta') || undefined,
+      communityId: batey,
+      gender: (params.get('genero') as Genero) || undefined,
+      ageMin: params.get('edadMin') ? Number(params.get('edadMin')) : undefined,
+      ageMax: params.get('edadMax') ? Number(params.get('edadMax')) : undefined,
+    };
+    const atras = new URLSearchParams(params);
+    for (const k of ['fuente', 'cifra']) atras.delete(k);
+    return (
+      <>
+        <EncabezadoPagina
+          titulo={describirCifra(c, nombre)}
+          descripcion={`Reportes · ${desde ? textoPeriodo(desde, hasta) : 'últimos 12 meses'}${batey && !c.batey ? ` · ${nombreBatey}` : ''}`}
+          volver={{ a: `/reportes?${atras}`, texto: 'Reportes' }}
+        />
+        <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">{explicarCifra(c)}</p>
+        <Listado fuente="resumen" columna={cifra} filtro={filtro} desde="" hasta="" />
+      </>
+    );
+  }
 
   const col = fuente === 'planilla' ? COLUMNAS_PLANILLA.find((c) => c.clave === columna) : null;
   if (fuente === 'donantes') {
@@ -99,7 +151,7 @@ export function PacientesDeCifra() {
   );
 }
 
-type Fuente = 'planilla' | 'ronda' | 'donantes' | 'medico';
+type Fuente = 'planilla' | 'ronda' | 'donantes' | 'medico' | 'resumen' | 'metas' | 'entregas';
 
 /** Las cifras del análisis del informe para donantes: "grupo" o "grupo:valor" (tiempo:Primera vez). */
 const DONANTES: Record<string, { titulo: string; explica: string }> = {
@@ -115,11 +167,37 @@ const DONANTES: Record<string, { titulo: string; explica: string }> = {
   sexo: { titulo: 'Sexo', explica: 'Pacientes con toma en el periodo.' },
 };
 
-function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { fuente: Fuente; columna: string; batey?: number; desde: string; hasta: string; anio?: number; t?: number; medicoId?: number }) {
+function Listado({
+  fuente,
+  columna,
+  batey,
+  desde,
+  hasta,
+  anio,
+  t,
+  medicoId,
+  filtro,
+}: {
+  fuente: Fuente;
+  columna: string;
+  batey?: number;
+  desde: string;
+  hasta: string;
+  anio?: number;
+  t?: number;
+  medicoId?: number;
+  filtro?: FiltroReporte;
+}) {
   const consulta = useQuery({
-    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t, medicoId],
+    queryKey: ['reportes', 'cifra', fuente, columna, batey, desde, hasta, anio, t, medicoId, filtro],
     queryFn: () =>
-      fuente === 'medico'
+      fuente === 'entregas'
+        ? pacientesDeEntregas({ desde: filtro?.from, hasta: filtro?.to, communityId: filtro?.communityId, cifra: columna })
+        : fuente === 'metas'
+        ? pacientesDeMeta(anio!, { indicador: columna, t, batey })
+        : fuente === 'resumen'
+        ? pacientesDeResumen({ ...filtro, cifra: columna })
+        : fuente === 'medico'
         ? pacientesDeMedico(medicoId!, { from: desde, to: hasta, communityId: batey, columna })
         : fuente === 'planilla'
         ? pacientesDePlanilla({ from: `${desde}T00:00:00-04:00`, to: `${hasta}T23:59:59-04:00`, columna, communityId: batey })
@@ -152,7 +230,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { 
     })
     .sort((a, b) => (fuente === 'ronda' ? ORDEN_ESTADO.indexOf(a.estado ?? '') - ORDEN_ESTADO.indexOf(b.estado ?? '') : 0));
   const variosBateyes = new Set(todos.map((p) => p.community.id)).size > 1;
-  const conEstado = fuente === 'ronda' && columna !== 'vistos' && columna !== 'yaNoVienen' && columna !== 'dejaron';
+  const conEstado = (fuente === 'ronda' && columna !== 'vistos' && columna !== 'yaNoVienen' && columna !== 'dejaron') || (fuente === 'metas' && columna === 'cobertura_pct');
   // Las opciones salen de la lista misma, con cuántos tiene cada una.
   const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
   // En la lista de un médico, todos los atendió él: no hace falta ni el filtro ni la columna.
@@ -166,13 +244,22 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { 
     setPresion('');
     setMedicamento('');
   };
-  const visitaTexto = (fuente === 'planilla' && columna !== 'enPrograma') || (fuente === 'donantes' && columna !== 'volvieron' && columna !== 'noVolvieron') || fuente === 'medico' ? 'Visita contada' : 'Última visita';
+  const visitaTexto = (fuente === 'planilla' && columna !== 'enPrograma') || (fuente === 'donantes' && columna !== 'volvieron' && columna !== 'noVolvieron') || fuente === 'medico' || fuente === 'resumen' || (fuente === 'metas' && columna !== 'pacientes_nuevos') ? 'Visita contada' : 'Última visita';
+  // Lo que suma la lista (con los filtros puestos), para cotejarlo con la cifra.
+  const conAporte = todos.some((p) => p.aporte);
+  const sumar = (k: 'visitas' | 'pastillas' | 'entregas') => filas.reduce((a, p) => a + (p.aporte?.[k] ?? 0), 0);
+  const deEntregas = fuente === 'entregas';
 
   return (
     <Tarjeta
       titulo={
         <span className="flex items-center gap-2">
           <Users className="size-4" /> {hayFiltros ? `${filas.length} de ${todos.length}` : todos.length.toLocaleString('es-DO')} {todos.length === 1 ? 'paciente' : 'pacientes'}
+          {conAporte && (
+            <span className="font-normal text-tenue">
+              · {deEntregas ? `${sumar('entregas').toLocaleString('es-DO')} entregas` : `${sumar('visitas').toLocaleString('es-DO')} visitas`} · {sumar('pastillas').toLocaleString('es-DO')} pastillas
+            </span>
+          )}
         </span>
       }
     >
@@ -225,6 +312,7 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { 
               ...(conMedico ? ['Atendió'] : []),
               'Tratamiento',
               ...(conEstado ? ['Asistencia'] : []),
+              ...(conAporte ? [{ texto: 'Aporte', className: 'text-right' }] : []),
             ]}
           >
             {filas.map((p) => (
@@ -266,11 +354,33 @@ function Listado({ fuente, columna, batey, desde, hasta, anio, t, medicoId }: { 
                   )}
                 </td>
                 {conEstado && <td className="px-5 py-2.5">{p.estado && <Insignia color={ESTADOS[p.estado].color}>{ESTADOS[p.estado].texto}</Insignia>}</td>}
+                {conAporte && (
+                  <td className="tabular px-5 py-2.5 text-right text-xs whitespace-nowrap text-tenue">
+                    {p.aporte && (
+                      <>
+                        {p.aporte.entregas !== undefined ? (
+                          p.aporte.entregas > 0 && (
+                            <span className="block">
+                              {p.aporte.entregas} {p.aporte.entregas === 1 ? 'entrega' : 'entregas'}
+                            </span>
+                          )
+                        ) : (
+                          <span className="block">
+                            {p.aporte.visitas} {p.aporte.visitas === 1 ? 'visita' : 'visitas'}
+                            {p.aporte.visitas === 0 && ' (reposición)'}
+                          </span>
+                        )}
+                        <span className="block">{p.aporte.pastillas.toLocaleString('es-DO')} pastillas</span>
+                        {p.aporte.cumplimiento !== null && <span className="block">{Math.round(p.aporte.cumplimiento)}% cumplim.</span>}
+                      </>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {filas.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-tenue">
+                <td colSpan={8} className="px-5 py-8 text-center text-tenue">
                   Nadie coincide con los filtros.
                 </td>
               </tr>
@@ -311,6 +421,11 @@ export function PacientesDeMedico() {
 
   let titulo = MEDICO[columna]?.titulo ?? 'Pacientes';
   let explica = MEDICO[columna]?.explica;
+  if (!jornada && columna.includes(':')) {
+    const c = leerCifra(columna);
+    titulo = describirCifra(c, (b) => comunidades.data?.find((x) => x.id === b)?.name ?? '…');
+    explica = explicarCifra(c);
+  }
   if (jornada) {
     const [dia, bateyId] = columna.slice(8).split('|');
     titulo = `Jornada en ${comunidades.data?.find((c) => c.id === Number(bateyId))?.name ?? '…'}`;
@@ -322,6 +437,66 @@ export function PacientesDeMedico() {
       <EncabezadoPagina titulo={titulo} descripcion={jornada ? nombre : `${nombre} · ${textoPeriodo(desde, hasta)}`} volver={{ a: `/medicos/${id}?${atras.toString()}`, texto: nombre }} />
       {explica && <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">{explica}</p>}
       <Listado fuente="medico" medicoId={id} columna={columna} batey={batey} desde={desde} hasta={hasta} />
+    </>
+  );
+}
+
+const VIAS_ENTREGA: Record<string, string> = { visita: 'Entregadas en la visita', mesa: 'Entregadas en la mesa', reposicion: 'Reposición sin consulta' };
+/** Título de una cifra del reporte de entregas. */
+function describirEntregas(cifra: string, nombreBatey: (id: number) => string) {
+  const c = Object.fromEntries(cifra.split(',').filter(Boolean).map((p) => (p.includes(':') ? [p.slice(0, p.indexOf(':')), p.slice(p.indexOf(':') + 1)] : [p, '1'])));
+  const partes = [
+    c.pendientes && 'Pendientes de entregar',
+    c.devueltas && 'Devueltas al inventario',
+    c.descartadas && 'Descartadas',
+    c.via && VIAS_ENTREGA[c.via],
+    c.motivo && `Reposición: ${MOTIVOS_REPOSICION[c.motivo as keyof typeof MOTIVOS_REPOSICION] ?? c.motivo}`,
+    c.persona && `Entregó ${c.persona}`,
+    c.medicamento,
+    c.batey && nombreBatey(Number(c.batey)),
+  ].filter(Boolean);
+  return partes.length ? partes.join(' · ') : 'Pastillas entregadas';
+}
+
+/** Los pacientes de un indicador de Metas: el año o uno de sus trimestres. */
+function PacientesDeMetas({
+  anio,
+  t,
+  batey,
+  indicador,
+  nombreBatey,
+  deDonantes,
+  nombreDe,
+}: {
+  anio: number;
+  t?: number;
+  batey?: number;
+  indicador: string;
+  nombreBatey?: string;
+  /** Abierta desde el informe para donantes: vuelve allá. */
+  deDonantes?: boolean;
+  nombreDe: (id: number) => string;
+}) {
+  const metas = useMetas(anio, batey);
+  const i = metas.data?.indicadores.find((x) => x.clave === indicador);
+  // Las cifras del informe que no son indicadores (pastillas, una categoría, un batey…) usan la regla del resumen.
+  const cifra = !i && (indicador.includes(':') || indicador === 'pastillas') ? leerCifra(indicador) : null;
+  const notas: Record<string, string> = {
+    controlados_pct: 'Los que su última toma del periodo quedó por debajo de 140/90. El % es sobre los que tienen toma.',
+    riesgo_pct: 'Los que su última toma del periodo quedó en grado 2 o crisis (≥ 160/100). El % es sobre los que tienen toma.',
+    cobertura_pct: 'Los que estaban en seguimiento en los trimestres que se promedian; "Vino en la ronda" si volvió en el trimestre. El % del año es el promedio de los trimestres.',
+    cumplimiento_pct: 'Pacientes con recetas que tienen el dato de cumplimiento; la columna "Aporte" trae su promedio.',
+    dias_jornada: 'Los días de jornada son días con visitas en un batey (sin domiciliarias). Aquí están los pacientes de esas visitas.',
+  };
+  return (
+    <>
+      <EncabezadoPagina
+        titulo={cifra ? describirCifra(cifra, nombreDe) : (i?.nombre ?? (metas.isPending ? '…' : 'Pacientes'))}
+        descripcion={`${deDonantes ? 'Informe para donantes' : 'Metas'} · ${t ? `T${t} ${anio}` : `Año ${anio}`}${nombreBatey ? ` · ${nombreBatey}` : ''}`}
+        volver={deDonantes ? { a: `/reportes/donantes?anio=${anio}&t=${t ?? 'anual'}`, texto: 'Informe para donantes' } : { a: `/metas?anio=${anio}${batey ? `&batey=${batey}` : ''}`, texto: 'Metas' }}
+      />
+      <p className="-mt-2 mb-4 max-w-3xl text-sm text-tenue">{cifra ? explicarCifra(cifra) : (notas[indicador] ?? i?.descripcion)}</p>
+      <Listado fuente="metas" columna={indicador} anio={anio} t={t} batey={batey} desde="" hasta="" />
     </>
   );
 }

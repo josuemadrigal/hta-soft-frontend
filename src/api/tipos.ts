@@ -181,6 +181,10 @@ export type DetalleJornada = {
     /** Si atendidoHoy, quién lo atendió ese día; si no, quién lo vio la última vez. */
     atendio: string | null;
     pastillasHoy?: number;
+    /** Entregado ese día por medicamento ("Amlodipina 5 mg" → 95). */
+    medicamentosHoy?: Record<string, number>;
+    /** Lo que hay que llevarle (medicationId → pastillas): su última receta si falta, o lo que se le debe. */
+    llevar?: Record<number, number>;
     nuevo?: boolean;
   }[];
   /** Por médico, ese día: a cuántos vio, pastillas entregadas y cuántos quedaron controlados. */
@@ -356,6 +360,8 @@ export type RegistroAuditoria = {
 
 export type TendenciaPanel = {
   trimestres: {
+    /** "2026-4" */
+    clave: string;
     trimestre: string;
     visitas: number;
     pacientes: number;
@@ -574,7 +580,7 @@ export type ReporteDonantes = {
   mismoAnterior: ValoresIndicadores & { etiqueta: string };
   evolucion: { etiqueta: string; controlados: number | null; pacientes: number | null; visitas: number | null }[];
   categorias: { categoria: CategoriaPA; pacientes: number }[];
-  porBatey: { batey: string; pacientes: number; hombres: number; mujeres: number; edadPromedio: number | null; visitas: number; controladosPct: number | null; pastillas: number; pastillasPorMed: Record<string, number> }[];
+  porBatey: { communityId?: number; batey: string; pacientes: number; hombres: number; mujeres: number; edadPromedio: number | null; visitas: number; controladosPct: number | null; pastillas: number; pastillasPorMed: Record<string, number> }[];
   medicamentosNombres: string[];
   medicamentos: { medicamento: string; pastillas: number; pacientes: number }[];
   pastillasTotal: number;

@@ -12,8 +12,8 @@ export const useMedicamentos = () => useQuery({ queryKey: ['medicamentos'], quer
 export const useMedicamento = (id: number | undefined) =>
   useQuery({ queryKey: ['medicamentos', id], queryFn: () => r.obtenerMedicamento(id!), enabled: !!id });
 export const useAlertasInventario = () => useQuery({ queryKey: ['medicamentos', 'alertas'], queryFn: r.alertasInventario });
-export const useMovimientos = (id: number, page: number) =>
-  useQuery({ queryKey: ['medicamentos', id, 'movimientos', page], queryFn: () => r.movimientosMedicamento(id, page), placeholderData: keepPreviousData });
+export const useMovimientos = (id: number, page: number, lote?: number) =>
+  useQuery({ queryKey: ['medicamentos', id, 'movimientos', page, lote ?? null], queryFn: () => r.movimientosMedicamento(id, page, lote), placeholderData: keepPreviousData });
 export const useJornadas = (f: { desde?: string; hasta?: string; communityId?: number; estado?: string }) =>
   useQuery({ queryKey: ['jornadas', f], queryFn: () => r.listarJornadas(f), placeholderData: keepPreviousData });
 export const useSugerenciasJornadas = () => useQuery({ queryKey: ['jornadas', 'sugerencias'], queryFn: r.sugerenciasJornadas });

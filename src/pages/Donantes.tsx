@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Check, FileDown, HeartHandshake, Lightbulb, Pencil } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { useReporteDonantes } from '../api/consultas';
@@ -122,6 +122,7 @@ function Cifra({ titulo, valor, children, enlace }: { titulo: string; valor: Rea
 }
 
 function Informe({ r }: { r: ReporteDonantes }) {
+  const navegar = useNavigate();
   const a = r.actual;
   const p = r.previo;
   const total = r.categorias.reduce((x, c) => x + c.pacientes, 0);
@@ -131,6 +132,14 @@ function Informe({ r }: { r: ReporteDonantes }) {
   const periodo = r.periodo.anual ? 'año' : 'trimestre';
   // La lista de pacientes detrás de una cifra del análisis.
   const enlaceDonantes = (columna: string) => `/reportes/pacientes?fuente=donantes&anio=${r.periodo.anio}&t=${r.periodo.trimestre ?? 'anual'}&columna=${encodeURIComponent(columna)}`;
+  // Las cifras de arriba son los indicadores del periodo (la misma regla de Metas) o cifras del resumen ("batey:3,pastillas").
+  const enlaceIndicador = (columna: string, anio = r.periodo.anio, t = r.periodo.trimestre) =>
+    `/reportes/pacientes?fuente=metas&de=donantes&anio=${anio}${t ? `&t=${t}` : ''}&columna=${encodeURIComponent(columna)}`;
+  const celda = (columna: string, contenido: ReactNode) => (
+    <Link to={enlaceIndicador(columna)} className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline" title="Ver los pacientes">
+      {contenido}
+    </Link>
+  );
 
   return (
     <article className="space-y-5">
@@ -146,7 +155,9 @@ function Informe({ r }: { r: ReporteDonantes }) {
           </p>
         </div>
         <div className="rounded-xl bg-marca-500 px-6 py-4 text-center">
-          <p className="tabular text-4xl font-bold">{miles(a.pacientes_atendidos)}</p>
+          <Link to={enlaceIndicador('pacientes_atendidos')} title="Ver los pacientes" className="tabular block text-4xl font-bold hover:underline">
+            {miles(a.pacientes_atendidos)}
+          </Link>
           <p className="text-sm font-medium">pacientes atendidos</p>
           <p className="text-xs">en {bateyes} bateyes</p>
         </div>
@@ -155,22 +166,22 @@ function Informe({ r }: { r: ReporteDonantes }) {
       <Mensaje r={r} />
 
       <section className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <Cifra titulo="Pacientes con la presión controlada" valor={formatoIndicador('pct', a.controlados_pct)}>
+        <Cifra enlace={enlaceIndicador('controlados_pct')} titulo="Pacientes con la presión controlada" valor={formatoIndicador('pct', a.controlados_pct)}>
           <Comparacion actual={a.controlados_pct} antes={p.controlados_pct} etiqueta={p.etiqueta} pct />
         </Cifra>
-        <Cifra titulo="Consultas realizadas" valor={miles(a.visitas)}>
+        <Cifra enlace={enlaceIndicador('visitas')} titulo="Consultas realizadas" valor={miles(a.visitas)}>
           <Comparacion actual={a.visitas} antes={p.visitas} etiqueta={p.etiqueta} />
         </Cifra>
-        <Cifra titulo="Pastillas entregadas gratis" valor={miles(r.pastillasTotal)}>
+        <Cifra enlace={enlaceIndicador('pastillas')} titulo="Pastillas entregadas gratis" valor={miles(r.pastillasTotal)}>
           <span className="text-tenue">{[...new Set(r.medicamentos.map((m) => m.medicamento.split(' ')[0]))].join(', ') || '—'} · {r.medicamentos.length} presentaciones</span>
         </Cifra>
-        <Cifra titulo="Días de jornada en los bateyes" valor={miles(a.dias_jornada)}>
+        <Cifra enlace={enlaceIndicador('dias_jornada')} titulo="Días de jornada en los bateyes" valor={miles(a.dias_jornada)}>
           <Comparacion actual={a.dias_jornada} antes={p.dias_jornada} etiqueta={p.etiqueta} />
         </Cifra>
-        <Cifra titulo="Pacientes nuevos" valor={miles(a.pacientes_nuevos)}>
+        <Cifra enlace={enlaceIndicador('pacientes_nuevos')} titulo="Pacientes nuevos" valor={miles(a.pacientes_nuevos)}>
           <Comparacion actual={a.pacientes_nuevos} antes={p.pacientes_nuevos} etiqueta={p.etiqueta} />
         </Cifra>
-        <Cifra titulo="Toman su tratamiento" valor={formatoIndicador('pct', a.cumplimiento_pct)}>
+        <Cifra enlace={enlaceIndicador('cumplimiento_pct')} titulo="Toman su tratamiento" valor={formatoIndicador('pct', a.cumplimiento_pct)}>
           <span className="text-tenue">cumplimiento promedio</span>
         </Cifra>
       </section>
@@ -186,7 +197,17 @@ function Informe({ r }: { r: ReporteDonantes }) {
         <Tarjeta titulo="Evolución en los últimos dos años" copiable ayuda={AYUDA.donantesEvolucion} className="sin-cortar">
           <div className="h-64 px-2 pt-4 pb-2">
             <ResponsiveContainer>
-              <ComposedChart data={r.evolucion} margin={{ left: -8, right: 4 }}>
+              <ComposedChart
+                data={r.evolucion}
+                margin={{ left: -8, right: 4 }}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => {
+                  // "T3 2025" → los pacientes atendidos en ese trimestre.
+                  const q = r.evolucion[Number(e?.activeIndex)];
+                  const m = q && e?.activeIndex != null && /^T(\d) (\d{4})$/.exec(q.etiqueta);
+                  if (m) navegar(enlaceIndicador('pacientes_atendidos', Number(m[2]), Number(m[1])));
+                }}
+              >
                 <CartesianGrid {...REJILLA} />
                 <XAxis dataKey="etiqueta" {...EJE} fontSize={11} />
                 <YAxis yAxisId="n" allowDecimals={false} {...EJE} />
@@ -202,7 +223,7 @@ function Informe({ r }: { r: ReporteDonantes }) {
         <Tarjeta titulo={`Cómo terminaron el ${periodo}`} copiable ayuda={AYUDA.donantesCierre} className="sin-cortar" accion={<span className="text-xs text-tenue">Última toma de cada paciente</span>}>
           <div className="p-5">
             <Barras
-              filas={r.categorias.map((c) => ({ etiqueta: CATEGORIAS[c.categoria], valor: c.pacientes, color: colorCategoria(c.categoria), detalle: total ? `${Math.round((c.pacientes / total) * 100)}%` : undefined }))}
+              filas={r.categorias.map((c) => ({ etiqueta: CATEGORIAS[c.categoria], valor: c.pacientes, color: colorCategoria(c.categoria), detalle: total ? `${Math.round((c.pacientes / total) * 100)}%` : undefined, enlace: c.pacientes ? enlaceIndicador(`categoria:${c.categoria}`) : undefined }))}
             />
           </div>
         </Tarjeta>
@@ -298,17 +319,35 @@ function Informe({ r }: { r: ReporteDonantes }) {
               {r.porBatey.map((b) => (
                 <tr key={b.batey} className="border-b border-borde last:border-0">
                   <td className="px-5 py-1.5 whitespace-nowrap">{b.batey}</td>
-                  <td className="px-3 py-1.5 text-right">{miles(b.pacientes)}</td>
-                  <td className="px-3 py-1.5 text-right">{miles(b.hombres)}</td>
-                  <td className="px-3 py-1.5 text-right">{miles(b.mujeres)}</td>
-                  <td className="px-3 py-1.5 text-right">{b.edadPromedio ?? '—'}</td>
-                  <td className="px-3 py-1.5 text-right">{formatoIndicador('pct', b.controladosPct)}</td>
-                  {r.medicamentosNombres.map((m) => (
-                    <td key={m} className="px-3 py-1.5 text-right">
-                      {miles(b.pastillasPorMed[m] ?? 0)}
-                    </td>
-                  ))}
-                  <td className="px-5 py-1.5 text-right font-medium">{miles(b.pastillas)}</td>
+                  {b.communityId ? (
+                    <>
+                      <td className="px-3 py-1.5 text-right">{celda(`batey:${b.communityId}`, miles(b.pacientes))}</td>
+                      <td className="px-3 py-1.5 text-right">{b.hombres ? celda(`batey:${b.communityId},genero:MALE`, miles(b.hombres)) : 0}</td>
+                      <td className="px-3 py-1.5 text-right">{b.mujeres ? celda(`batey:${b.communityId},genero:FEMALE`, miles(b.mujeres)) : 0}</td>
+                      <td className="px-3 py-1.5 text-right">{b.edadPromedio === null ? '—' : celda(`batey:${b.communityId}`, b.edadPromedio)}</td>
+                      <td className="px-3 py-1.5 text-right">{b.controladosPct === null ? '—' : celda(`batey:${b.communityId},estado:controlados`, formatoIndicador('pct', b.controladosPct))}</td>
+                      {r.medicamentosNombres.map((m) => (
+                        <td key={m} className="px-3 py-1.5 text-right">
+                          {b.pastillasPorMed[m] ? celda(`batey:${b.communityId},medicamento:${m},pastillas`, miles(b.pastillasPorMed[m])) : 0}
+                        </td>
+                      ))}
+                      <td className="px-5 py-1.5 text-right font-medium">{celda(`batey:${b.communityId},pastillas`, miles(b.pastillas))}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-3 py-1.5 text-right">{miles(b.pacientes)}</td>
+                      <td className="px-3 py-1.5 text-right">{miles(b.hombres)}</td>
+                      <td className="px-3 py-1.5 text-right">{miles(b.mujeres)}</td>
+                      <td className="px-3 py-1.5 text-right">{b.edadPromedio ?? '—'}</td>
+                      <td className="px-3 py-1.5 text-right">{formatoIndicador('pct', b.controladosPct)}</td>
+                      {r.medicamentosNombres.map((m) => (
+                        <td key={m} className="px-3 py-1.5 text-right">
+                          {miles(b.pastillasPorMed[m] ?? 0)}
+                        </td>
+                      ))}
+                      <td className="px-5 py-1.5 text-right font-medium">{miles(b.pastillas)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -316,17 +355,17 @@ function Informe({ r }: { r: ReporteDonantes }) {
             <tfoot className="tabular">
               <tr className="border-t-2 border-tinta/20 bg-fondo font-semibold">
                 <td className="px-5 py-2">Total</td>
-                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.pacientes, 0))}</td>
-                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.hombres, 0))}</td>
-                <td className="px-3 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.mujeres, 0))}</td>
+                <td className="px-3 py-2 text-right">{celda('pacientes_atendidos', miles(r.porBatey.reduce((x, b) => x + b.pacientes, 0)))}</td>
+                <td className="px-3 py-2 text-right">{celda('genero:MALE', miles(r.porBatey.reduce((x, b) => x + b.hombres, 0)))}</td>
+                <td className="px-3 py-2 text-right">{celda('genero:FEMALE', miles(r.porBatey.reduce((x, b) => x + b.mujeres, 0)))}</td>
                 <td className="px-3 py-2 text-right">{r.demografia.edadPromedio ?? '—'}</td>
-                <td className="px-3 py-2 text-right">{formatoIndicador('pct', a.controlados_pct)}</td>
+                <td className="px-3 py-2 text-right">{celda('controlados_pct', formatoIndicador('pct', a.controlados_pct))}</td>
                 {r.medicamentosNombres.map((m) => (
                   <td key={m} className="px-3 py-2 text-right">
-                    {miles(r.porBatey.reduce((x, b) => x + (b.pastillasPorMed[m] ?? 0), 0))}
+                    {celda(`medicamento:${m},pastillas`, miles(r.porBatey.reduce((x, b) => x + (b.pastillasPorMed[m] ?? 0), 0)))}
                   </td>
                 ))}
-                <td className="px-5 py-2 text-right">{miles(r.porBatey.reduce((x, b) => x + b.pastillas, 0))}</td>
+                <td className="px-5 py-2 text-right">{celda('pastillas', miles(r.porBatey.reduce((x, b) => x + b.pastillas, 0)))}</td>
               </tr>
             </tfoot>
           </table>

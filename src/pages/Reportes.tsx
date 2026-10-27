@@ -16,6 +16,7 @@ import { BotonesTrimestre } from '../components/Periodo';
 import { CATEGORIAS, colorCategoria, GENEROS, opciones } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { enlaceResumen, type Cifra } from '../lib/cifras';
 import { SelectorFecha, ymd } from '../components/SelectorFecha';
 
 // Fecha local (no UTC): después de las 8 p. m. en RD, toISOString ya daría mañana.
@@ -32,9 +33,18 @@ const ORDEN_CATEGORIAS: CategoriaPA[] = ['NORMAL', 'ELEVATED', 'GRADE_1', 'GRADE
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
 const miles = (v: number) => v.toLocaleString('es-DO');
 
-function Kpi({ titulo, valor, detalle, className }: { titulo: string; valor: ReactNode; detalle?: ReactNode; className?: string }) {
+function Kpi({ titulo, valor, detalle, className, a }: { titulo: string; valor: ReactNode; detalle?: ReactNode; className?: string; a?: string }) {
+  const navegar = useNavigate();
   return (
-    <div className={cn('rounded-xl border border-borde bg-superficie p-4', className)}>
+    // Un div (no un enlace): el detalle puede traer sus propios enlaces.
+    <div
+      role={a ? 'link' : undefined}
+      tabIndex={a ? 0 : undefined}
+      title={a ? 'Ver los pacientes' : undefined}
+      onClick={a ? () => navegar(a) : undefined}
+      onKeyDown={a ? (e) => e.key === 'Enter' && navegar(a) : undefined}
+      className={cn('rounded-xl border border-borde bg-superficie p-4', a && 'cursor-pointer transition-colors hover:border-tinta/25 hover:bg-fondo', className)}
+    >
       <p className="text-xs text-tenue">{titulo}</p>
       <p className="tabular mt-1.5 text-2xl font-semibold tracking-tight">{valor}</p>
       {detalle && <div className="mt-0.5 text-xs text-tenue">{detalle}</div>}
@@ -52,28 +62,43 @@ function BotonCsv({ onClick }: { onClick: () => void }) {
 
 function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) {
   const s = r.resumen;
+  const [params] = useSearchParams();
+  const navegar = useNavigate();
+  // Cada cifra abre los pacientes que la forman, con el mismo periodo y filtros.
+  const base = new URLSearchParams(params);
+  if (!base.get('desde') && filtro.from) base.set('desde', filtro.from);
+  const a = (c: Cifra) => enlaceResumen(c, base);
+  const ir = (c: Cifra) => navegar(a(c));
+  // Clic en un trimestre de las gráficas de recharts (activeIndex es la posición en los datos).
+  const enTrimestre = (extra: Cifra) => (e: { activeIndex?: number | string | null } | null) => {
+    const t = r.porTrimestre[Number(e?.activeIndex)];
+    if (t && e?.activeIndex != null) ir({ ...extra, trimestre: t.clave });
+  };
   const sufijo = `${filtro.from ?? ''}_${filtro.to ?? ''}`;
   if (s.visitas === 0) return <Tarjeta><Vacio icono={<PieChart className="size-8" />} titulo="Sin visitas en este periodo">Cambia las fechas o quita filtros.</Vacio></Tarjeta>;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-7">
-        <Kpi titulo="Pacientes atendidos" valor={miles(s.pacientes)} detalle={`${miles(s.nuevos)} visitas de primera vez`} />
-        <Kpi titulo="Visitas" valor={miles(s.visitas)} detalle={`${miles(s.domiciliarias)} domiciliarias`} />
-        <Kpi titulo="Controlados" valor={pct(s.controladosPct)} detalle="Última toma < 140/90" />
-        <Kpi titulo="PA promedio" valor={s.sistolicaPromedio ? `${Math.round(s.sistolicaPromedio)}/${Math.round(s.diastolicaPromedio ?? 0)}` : '—'} detalle="mmHg, todas las tomas" />
-        <Kpi titulo="Cumplimiento" valor={pct(s.cumplimientoPromedio)} detalle="Promedio de recetas" />
+        <Kpi titulo="Pacientes atendidos" a={a({})} valor={miles(s.pacientes)} detalle={<Link to={a({ tipo: 'nuevos' })} onClick={(e) => e.stopPropagation()} className="hover:underline">{miles(s.nuevos)} visitas de primera vez</Link>} />
+        <Kpi titulo="Visitas" a={a({})} valor={miles(s.visitas)} detalle={<Link to={a({ tipo: 'domiciliarias' })} onClick={(e) => e.stopPropagation()} className="hover:underline">{miles(s.domiciliarias)} domiciliarias</Link>} />
+        <Kpi titulo="Controlados" a={a({ estado: 'controlados' })} valor={pct(s.controladosPct)} detalle="Última toma < 140/90" />
+        <Kpi titulo="PA promedio" a={a({ tipo: 'conToma' })} valor={s.sistolicaPromedio ? `${Math.round(s.sistolicaPromedio)}/${Math.round(s.diastolicaPromedio ?? 0)}` : '—'} detalle="mmHg, todas las tomas" />
+        <Kpi titulo="Cumplimiento" a={a({ tipo: 'conReceta' })} valor={pct(s.cumplimientoPromedio)} detalle="Promedio de recetas" />
         <Kpi
           titulo="Pastillas entregadas"
+          a={a({ pastillas: true })}
           valor={miles(s.pastillas)}
           className="col-span-2 md:col-span-1 xl:col-span-2"
           detalle={
             r.medicamentos.length > 0 && (
               <ul className="mt-2 space-y-1 border-t border-borde pt-2">
                 {r.medicamentos.map((m) => (
-                  <li key={m.medicamento} className="flex items-baseline justify-between gap-3">
-                    <span className="truncate">{m.medicamento}</span>
-                    <span className="tabular shrink-0 font-medium text-tinta">{miles(m.pastillas)}</span>
+                  <li key={m.medicamento}>
+                    <Link to={a({ medicamento: m.medicamento, pastillas: true })} onClick={(e) => e.stopPropagation()} className="-mx-1 flex items-baseline justify-between gap-3 rounded px-1 hover:bg-black/[0.04]">
+                      <span className="truncate">{m.medicamento}</span>
+                      <span className="tabular shrink-0 font-medium text-tinta">{miles(m.pastillas)}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -86,7 +111,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
         <Tarjeta titulo="Visitas y control por trimestre" copiable ayuda={AYUDA.visitasYControl}>
           <div className="h-72 px-2 pt-4 pb-2">
             <ResponsiveContainer>
-              <ComposedChart data={r.porTrimestre} margin={{ left: -8, right: 4 }}>
+              <ComposedChart data={r.porTrimestre} margin={{ left: -8, right: 4 }} onClick={enTrimestre({})} style={{ cursor: 'pointer' }}>
                 <CartesianGrid {...REJILLA} />
                 <XAxis dataKey="trimestre" {...EJE} />
                 <YAxis yAxisId="v" allowDecimals={false} {...EJE} />
@@ -108,6 +133,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
                 valor: c.pacientes,
                 color: colorCategoria(c.categoria),
                 detalle: s.pacientes ? `${Math.round((c.pacientes / s.pacientes) * 100)}%` : undefined,
+                enlace: c.pacientes ? a({ categoria: c.categoria }) : undefined,
               }))}
             />
           </div>
@@ -120,7 +146,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
           <Tarjeta titulo="Presión arterial promedio por trimestre" copiable ayuda={AYUDA.presionPromedio}>
             <div className="h-64 px-2 pt-4 pb-2">
               <ResponsiveContainer>
-                <LineChart data={r.porTrimestre} margin={{ left: -16, right: 12 }}>
+                <LineChart data={r.porTrimestre} margin={{ left: -16, right: 12 }} onClick={enTrimestre({ tipo: 'conToma' })} style={{ cursor: 'pointer' }}>
                   <CartesianGrid {...REJILLA} />
                   <XAxis dataKey="trimestre" {...EJE} />
                   <YAxis domain={[60, 'auto']} {...EJE} />
@@ -135,14 +161,14 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
           <Tarjeta titulo="Clasificación por trimestre" copiable ayuda={AYUDA.clasificacionTrimestre} className="flex flex-1 flex-col" accion={<span className="text-xs text-tenue">% de pacientes vistos</span>}>
             <div className="min-h-64 flex-1 px-2 pt-4 pb-2">
               <ResponsiveContainer>
-                <BarChart data={r.porTrimestre.map((t) => ({ trimestre: t.trimestre, ...t.categorias }))} stackOffset="expand" margin={{ left: -8, right: 12 }}>
+                <BarChart data={r.porTrimestre.map((t) => ({ trimestre: t.trimestre, clave: t.clave, ...t.categorias }))} stackOffset="expand" margin={{ left: -8, right: 12 }} style={{ cursor: 'pointer' }}>
                   <CartesianGrid {...REJILLA} />
                   <XAxis dataKey="trimestre" {...EJE} />
                   <YAxis {...EJE} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
                   <Tooltip {...TOOLTIP} formatter={(v, n) => [`${miles(Number(v))} pacientes`, n]} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
                   <Legend {...LEYENDA} itemSorter={(i) => ORDEN_CATEGORIAS.indexOf(i.dataKey as CategoriaPA)} />
                   {ORDEN_CATEGORIAS.map((c) => (
-                    <Bar key={c} dataKey={c} name={CATEGORIAS[c]} stackId="c" fill={colorCategoria(c)} maxBarSize={44} />
+                    <Bar key={c} dataKey={c} name={CATEGORIAS[c]} stackId="c" fill={colorCategoria(c)} maxBarSize={44} onClick={(d) => ir({ trimestre: (d.payload as { clave: string }).clave, categoria: c })} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -157,7 +183,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
               formato={(v) => `${Math.round(v)}%`}
               filas={[...r.porBatey]
                 .sort((a, b) => (b.controladosPct ?? 0) - (a.controladosPct ?? 0))
-                .map((b) => ({ etiqueta: b.batey, valor: b.controladosPct ?? 0, detalle: `de ${b.pacientes}` }))}
+                .map((b) => ({ etiqueta: b.batey, valor: b.controladosPct ?? 0, detalle: `de ${b.pacientes}`, enlace: a({ batey: b.communityId, estado: 'controlados' }) }))}
             />
           </div>
         </Tarjeta>
@@ -187,7 +213,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
           />
         }
       >
-        <TablaBateyes r={r} />
+        <TablaBateyes r={r} a={a} />
       </Tarjeta>
 
       {r.medicamentos.length > 0 && (
@@ -198,14 +224,14 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
                 <Barras
                   max={100}
                   formato={(v) => `${Math.round(v)}%`}
-                  filas={r.medicamentos.map((m) => ({ etiqueta: m.medicamento, valor: m.cumplimientoPromedio ?? 0, detalle: `${m.pacientes} pac.` }))}
+                  filas={r.medicamentos.map((m) => ({ etiqueta: m.medicamento, valor: m.cumplimientoPromedio ?? 0, detalle: `${m.pacientes} pac.`, enlace: m.pacientes ? a({ medicamento: m.medicamento }) : undefined }))}
                 />
               </div>
             </Tarjeta>
             <Tarjeta titulo="Distribución del cumplimiento" copiable ayuda={AYUDA.distribucionCumplimiento} accion={<span className="text-xs text-tenue">Recetas</span>}>
               <div className="p-5">
                 <Barras
-                  filas={r.cumplimientoTramos.map((t, i) => ({ etiqueta: t.tramo, valor: t.recetas, color: ['#dc2626', '#ea580c', '#ca8a04', '#15803d'][i] }))}
+                  filas={r.cumplimientoTramos.map((t, i) => ({ etiqueta: t.tramo, valor: t.recetas, color: ['#dc2626', '#ea580c', '#ca8a04', '#15803d'][i], enlace: t.recetas ? a({ tramo: i }) : undefined }))}
                   formato={miles}
                 />
               </div>
@@ -231,14 +257,14 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
           >
             <div className="h-72 px-2 pt-4 pb-2">
               <ResponsiveContainer>
-                <BarChart data={r.pastillasPorTrimestre} margin={{ left: 0, right: 12 }}>
+                <BarChart data={r.pastillasPorTrimestre.map((f, i) => ({ ...f, clave: r.porTrimestre[i]?.clave }))} margin={{ left: 0, right: 12 }} style={{ cursor: 'pointer' }}>
                   <CartesianGrid {...REJILLA} />
                   <XAxis dataKey="trimestre" {...EJE} />
                   <YAxis {...EJE} tickFormatter={miles} />
                   <Tooltip {...TOOLTIP} formatter={(v) => miles(Number(v))} />
                   <Legend {...LEYENDA} />
                   {r.medicamentosNombres.map((m, i) => (
-                    <Bar key={m} dataKey={m} stackId="p" fill={SERIES[i % SERIES.length]} maxBarSize={44} />
+                    <Bar key={m} dataKey={m} stackId="p" fill={SERIES[i % SERIES.length]} maxBarSize={44} onClick={(d) => ir({ trimestre: (d.payload as { clave: string }).clave, medicamento: m, pastillas: true })} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -250,7 +276,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Tarjeta titulo="Pacientes por edad" copiable ayuda={AYUDA.edad}>
           <div className="p-5">
-            <Barras filas={r.demografia.edad.map((g) => ({ etiqueta: `${g.grupo} años`, valor: g.pacientes }))} formato={miles} />
+            <Barras filas={r.demografia.edad.map((g) => ({ etiqueta: `${g.grupo} años`, valor: g.pacientes, enlace: g.pacientes ? a({ edad: g.grupo }) : undefined }))} formato={miles} />
           </div>
         </Tarjeta>
         <Tarjeta titulo="Pacientes por género" copiable ayuda={AYUDA.genero}>
@@ -261,6 +287,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
                 valor: n,
                 color: SERIES[i],
                 detalle: `${Math.round((n / r.demografia.total) * 100)}%`,
+                enlace: a({ genero: g }),
               }))}
               formato={miles}
             />
@@ -271,7 +298,7 @@ function Contenido({ r, filtro }: { r: ResumenReporte; filtro: FiltroReporte }) 
             <Barras
               max={100}
               formato={(v) => `${Math.round(v)}%`}
-              filas={r.demografia.habitos.map((h) => ({ etiqueta: h.habito, valor: (h.pacientes / Math.max(1, r.demografia.total)) * 100, color: '#b45309', detalle: `(${h.pacientes})` }))}
+              filas={r.demografia.habitos.map((h, i) => ({ etiqueta: h.habito, valor: (h.pacientes / Math.max(1, r.demografia.total)) * 100, color: '#b45309', detalle: `(${h.pacientes})`, enlace: h.pacientes ? a({ habito: i }) : undefined }))}
             />
           </div>
         </Tarjeta>
@@ -516,7 +543,13 @@ const colorControl = (v: number | null) => (v === null ? 'text-tenue' : v >= 60 
  * Resumen por batey con encabezado agrupado: atención, control y pastillas entregadas por
  * medicamento y concentración. La columna del batey queda fija al desplazar a los lados.
  */
-function TablaBateyes({ r }: { r: ResumenReporte }) {
+function TablaBateyes({ r, a }: { r: ResumenReporte; a: (c: Cifra) => string }) {
+  // Cada número de la tabla abre sus pacientes.
+  const celda = (c: Cifra, contenido: ReactNode) => (
+    <Link to={a(c)} className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline" title="Ver los pacientes">
+      {contenido}
+    </Link>
+  );
   const s = r.resumen;
   // Medicamentos agrupados: { Amlodipina: ['Amlodipina 5 mg', 'Amlodipina 10 mg'], … }
   const grupos = new Map<string, string[]>();
@@ -574,34 +607,34 @@ function TablaBateyes({ r }: { r: ResumenReporte }) {
           {r.porBatey.map((b) => (
             <tr key={b.communityId} className="group hover:bg-fondo">
               <td className={cn(fijo, 'px-5 py-2.5 font-medium whitespace-nowrap group-hover:bg-fondo')}>{b.batey}</td>
-              <td className={cn(td, separador)}>{miles(b.pacientes)}</td>
-              <td className={td}>{miles(b.visitas)}</td>
-              <td className={cn(td, separador, 'font-medium', colorControl(b.controladosPct))}>{pct(b.controladosPct)}</td>
-              <td className={cn(td, 'font-mono text-[13px]')}>{b.sistolicaPromedio ? `${Math.round(b.sistolicaPromedio)}/${Math.round(b.diastolicaPromedio ?? 0)}` : '—'}</td>
-              <td className={td}>{pct(b.cumplimientoPromedio)}</td>
+              <td className={cn(td, separador)}>{celda({ batey: b.communityId }, miles(b.pacientes))}</td>
+              <td className={td}>{celda({ batey: b.communityId }, miles(b.visitas))}</td>
+              <td className={cn(td, separador, 'font-medium', colorControl(b.controladosPct))}>{celda({ batey: b.communityId, estado: 'controlados' }, pct(b.controladosPct))}</td>
+              <td className={cn(td, 'font-mono text-[13px]')}>{b.sistolicaPromedio ? celda({ batey: b.communityId, tipo: 'conToma' }, `${Math.round(b.sistolicaPromedio)}/${Math.round(b.diastolicaPromedio ?? 0)}`) : '—'}</td>
+              <td className={td}>{b.cumplimientoPromedio === null ? '—' : celda({ batey: b.communityId, tipo: 'conReceta' }, pct(b.cumplimientoPromedio))}</td>
               {r.medicamentosNombres.map((m) => (
                 <td key={m} className={cn(td, primeroDelGrupo.has(m) && separador)}>
-                  {cantidad(b.pastillasPorMed[m] ?? 0)}
+                  {b.pastillasPorMed[m] ? celda({ batey: b.communityId, medicamento: m, pastillas: true }, miles(b.pastillasPorMed[m])) : cantidad(0)}
                 </td>
               ))}
-              <td className={cn(td, separador, 'font-semibold')}>{miles(b.pastillas)}</td>
+              <td className={cn(td, separador, 'font-semibold')}>{celda({ batey: b.communityId, pastillas: true }, miles(b.pastillas))}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-tinta/15 bg-fondo font-semibold">
             <td className={cn(fijo, 'bg-fondo px-5 py-3')}>Total · {r.porBatey.length} bateyes</td>
-            <td className={cn(td, separador)}>{miles(s.pacientes)}</td>
-            <td className={td}>{miles(s.visitas)}</td>
-            <td className={cn(td, separador, colorControl(s.controladosPct))}>{pct(s.controladosPct)}</td>
-            <td className={cn(td, 'font-mono text-[13px]')}>{s.sistolicaPromedio ? `${Math.round(s.sistolicaPromedio)}/${Math.round(s.diastolicaPromedio ?? 0)}` : '—'}</td>
-            <td className={td}>{pct(s.cumplimientoPromedio)}</td>
+            <td className={cn(td, separador)}>{celda({}, miles(s.pacientes))}</td>
+            <td className={td}>{celda({}, miles(s.visitas))}</td>
+            <td className={cn(td, separador, colorControl(s.controladosPct))}>{celda({ estado: 'controlados' }, pct(s.controladosPct))}</td>
+            <td className={cn(td, 'font-mono text-[13px]')}>{s.sistolicaPromedio ? celda({ tipo: 'conToma' }, `${Math.round(s.sistolicaPromedio)}/${Math.round(s.diastolicaPromedio ?? 0)}`) : '—'}</td>
+            <td className={td}>{s.cumplimientoPromedio === null ? '—' : celda({ tipo: 'conReceta' }, pct(s.cumplimientoPromedio))}</td>
             {r.medicamentosNombres.map((m) => (
               <td key={m} className={cn(td, primeroDelGrupo.has(m) && separador)}>
-                {miles(totalMed(m))}
+                {celda({ medicamento: m, pastillas: true }, miles(totalMed(m)))}
               </td>
             ))}
-            <td className={cn(td, separador)}>{miles(s.pastillas)}</td>
+            <td className={cn(td, separador)}>{celda({ pastillas: true }, miles(s.pastillas))}</td>
           </tr>
         </tfoot>
       </table>

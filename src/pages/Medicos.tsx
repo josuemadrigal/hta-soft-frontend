@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, GitCompareArrows, Stethoscope } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useMedicos } from '../api/consultas';
 import type { FilaMedico } from '../api/tipos';
@@ -9,20 +9,22 @@ import { COLOR, EJE, LEYENDA, REJILLA, TOOLTIP } from '../components/graficas';
 import { Avatar, Boton, Cargando, EncabezadoPagina, ErrorCarga, Insignia, Tarjeta, Vacio } from '../components/ui';
 import { cn, fecha } from '../lib/formato';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { enlaceMedico } from '../lib/cifras';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
 
-type Columna = { clave: string; texto: string; valor: (m: FilaMedico) => number | null; mostrar: (m: FilaMedico) => string; ayuda?: string };
+/** lista: la cifra del médico que abre sus pacientes (ver PacientesDeMedico). */
+type Columna = { clave: string; texto: string; valor: (m: FilaMedico) => number | null; mostrar: (m: FilaMedico) => string; ayuda?: string; lista?: string };
 
 const COLUMNAS: Columna[] = [
-  { clave: 'visitas', texto: 'Visitas', valor: (m) => m.visitas, mostrar: (m) => miles(m.visitas) },
-  { clave: 'pacientes', texto: 'Pacientes', valor: (m) => m.pacientes, mostrar: (m) => miles(m.pacientes) },
+  { clave: 'visitas', texto: 'Visitas', valor: (m) => m.visitas, mostrar: (m) => miles(m.visitas), lista: 'atendidos' },
+  { clave: 'pacientes', texto: 'Pacientes', valor: (m) => m.pacientes, mostrar: (m) => miles(m.pacientes), lista: 'atendidos' },
   { clave: 'jornadas', texto: 'Jornadas', valor: (m) => m.logros.jornadas, mostrar: (m) => miles(m.logros.jornadas), ayuda: 'Días de trabajo en un batey' },
-  { clave: 'control', texto: 'Controlados', valor: (m) => m.controladosPct, mostrar: (m) => pct(m.controladosPct), ayuda: 'Pacientes cuya última toma con este médico fue < 140/90' },
-  { clave: 'aControl', texto: 'Llevó a control', valor: (m) => m.logros.llevoAControl, mostrar: (m) => miles(m.logros.llevoAControl), ayuda: 'Venían sin control y en su visita salieron controlados' },
-  { clave: 'mejoraron', texto: 'Mejoraron', valor: (m) => m.logros.mejoraron, mostrar: (m) => miles(m.logros.mejoraron), ayuda: 'Bajaron de categoría respecto a la visita anterior' },
-  { clave: 'cumplimiento', texto: 'Cumplimiento', valor: (m) => m.cumplimientoPromedio, mostrar: (m) => pct(m.cumplimientoPromedio) },
+  { clave: 'control', texto: 'Controlados', valor: (m) => m.controladosPct, mostrar: (m) => pct(m.controladosPct), ayuda: 'Pacientes cuya última toma con este médico fue < 140/90', lista: 'controlados' },
+  { clave: 'aControl', texto: 'Llevó a control', valor: (m) => m.logros.llevoAControl, mostrar: (m) => miles(m.logros.llevoAControl), ayuda: 'Venían sin control y en su visita salieron controlados', lista: 'llevoAControl' },
+  { clave: 'mejoraron', texto: 'Mejoraron', valor: (m) => m.logros.mejoraron, mostrar: (m) => miles(m.logros.mejoraron), ayuda: 'Bajaron de categoría respecto a la visita anterior', lista: 'mejoraron' },
+  { clave: 'cumplimiento', texto: 'Cumplimiento', valor: (m) => m.cumplimientoPromedio, mostrar: (m) => pct(m.cumplimientoPromedio), lista: 'conReceta' },
 ];
 
 export function Medicos() {
@@ -42,7 +44,7 @@ export function Medicos() {
       return orden.desc ? -d : d;
     });
   const alternar = (id: number) => setElegidos((e) => (e.includes(id) ? e.filter((x) => x !== id) : e.length >= 4 ? e : [...e, id]));
-  const grafica = lista.filter((m) => m.visitas > 0).slice(0, 12).map((m) => ({ nombre: m.nombre.split(' ').slice(0, 2).join(' '), visitas: m.visitas, controlados: m.controladosPct }));
+  const grafica = lista.filter((m) => m.visitas > 0).slice(0, 12).map((m) => ({ id: m.id, nombre: m.nombre.split(' ').slice(0, 2).join(' '), visitas: m.visitas, controlados: m.controladosPct }));
   const consultaFiltro = `desde=${filtro.desde}&hasta=${filtro.hasta}${filtro.communityId ? `&batey=${filtro.communityId}` : ''}`;
 
   return (
@@ -72,7 +74,15 @@ export function Medicos() {
             <Tarjeta titulo="Visitas y control por médico" copiable ayuda={AYUDA.visitasPorMedico} accion={<span className="text-xs text-tenue">Los 12 con más visitas</span>}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
-                  <ComposedChart data={grafica} margin={{ left: -8, right: 4, bottom: 8 }}>
+                  <ComposedChart
+                    data={grafica}
+                    margin={{ left: -8, right: 4, bottom: 8 }}
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => {
+                      const m = grafica[Number(e?.activeIndex)];
+                      if (m && e?.activeIndex != null) navegar(enlaceMedico(m.id, 'atendidos', new URLSearchParams(consultaFiltro)));
+                    }}
+                  >
                     <CartesianGrid {...REJILLA} />
                     <XAxis dataKey="nombre" {...EJE} interval={0} angle={-25} textAnchor="end" height={56} fontSize={11} />
                     <YAxis yAxisId="v" {...EJE} tickFormatter={miles} />
@@ -151,7 +161,18 @@ export function Medicos() {
                         </td>
                         {COLUMNAS.map((c) => (
                           <td key={c.clave} className="tabular px-3 py-3 text-right">
-                            {c.mostrar(m)}
+                            {c.lista && c.valor(m) ? (
+                              <Link
+                                to={enlaceMedico(m.id, c.lista, new URLSearchParams(consultaFiltro))}
+                                onClick={(e) => e.stopPropagation()}
+                                className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline"
+                                title="Ver los pacientes"
+                              >
+                                {c.mostrar(m)}
+                              </Link>
+                            ) : (
+                              c.mostrar(m)
+                            )}
                           </td>
                         ))}
                         <td className="px-3 py-3 whitespace-nowrap text-tenue">{fecha(m.logros.ultima)}</td>

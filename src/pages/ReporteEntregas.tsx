@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Download, PackageOpen, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useComunidades } from '../api/consultas';
 import { pacientesSinConsulta, reporteEntregas } from '../api/recursos';
@@ -39,9 +39,18 @@ const VIAS = [
   { clave: 'reposicion', nombre: 'Reposición sin consulta', color: '#6366f1' },
 ] as const;
 
-function Kpi({ titulo, valor, detalle, color }: { titulo: string; valor: ReactNode; detalle?: ReactNode; color?: string }) {
+function Kpi({ titulo, valor, detalle, color, a }: { titulo: string; valor: ReactNode; detalle?: ReactNode; color?: string; a?: string }) {
+  const navegar = useNavigate();
   return (
-    <div className="rounded-xl border border-borde bg-superficie p-4">
+    // Un div (no un enlace): el detalle puede traer sus propios enlaces.
+    <div
+      role={a ? 'link' : undefined}
+      tabIndex={a ? 0 : undefined}
+      title={a ? 'Ver los pacientes' : undefined}
+      onClick={a ? () => navegar(a) : undefined}
+      onKeyDown={a ? (e) => e.key === 'Enter' && navegar(a) : undefined}
+      className={cn('rounded-xl border border-borde bg-superficie p-4', a && 'cursor-pointer transition-colors hover:border-tinta/25 hover:bg-fondo')}
+    >
       <p className="flex items-center gap-1.5 text-xs text-tenue">
         {color && <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />}
         {titulo}
@@ -63,17 +72,36 @@ function BotonCsv({ onClick }: { onClick: () => void }) {
 const td = 'px-5 py-2.5 text-right tabular-nums whitespace-nowrap';
 const der = 'text-right';
 
-function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
+/** Un número de las tablas que abre sus pacientes. */
+function Cifra({ a, children }: { a: string; children: ReactNode }) {
+  return (
+    <Link to={a} className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline" title="Ver los pacientes">
+      {children}
+    </Link>
+  );
+}
+
+function Contenido({ r, sufijo, filtros }: { r: ReporteEntregas; sufijo: string; filtros: URLSearchParams }) {
   const t = r.totales;
+  // Cada cifra abre los pacientes que la forman (misma regla del reporte, mismo periodo y batey).
+  const a = (c: Record<string, string | number | boolean | undefined>) => {
+    const q = new URLSearchParams(filtros);
+    q.set('fuente', 'entregas');
+    q.set('cifra', Object.entries(c).filter(([, v]) => v !== undefined && v !== false).map(([k, v]) => (v === true ? k : `${k}:${v}`)).join(','));
+    return `/reportes/pacientes?${q}`;
+  };
+  const navegar = useNavigate();
+  const n = (c: Record<string, string | number | boolean | undefined>, v: number, texto: ReactNode = miles(v)) => (v ? <Cifra a={a(c)}>{texto}</Cifra> : cantidad(0));
   const pendientes = (
     <Kpi
       titulo="Pendientes hoy"
+      a={t.pendientesPacientes ? a({ pendientes: true }) : undefined}
       valor={miles(t.pendientesPacientes)}
       detalle={
         <>
           {t.pendientesPacientes === 1 ? 'paciente' : 'pacientes'} · {miles(t.pendientesPastillas)} pastillas{' '}
           {t.pendientesPacientes > 0 && (
-            <Link to="/entregas" className="font-medium text-marca-700 hover:underline">
+            <Link to="/entregas" onClick={(e) => e.stopPropagation()} className="font-medium text-marca-700 hover:underline">
               Ir a la mesa
             </Link>
           )}
@@ -102,13 +130,14 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
           titulo="Pastillas entregadas"
+          a={a({})}
           valor={miles(t.pastillas)}
           detalle={`${miles(t.entregas)} entregas · ${miles(t.pacientes)} ${t.pacientes === 1 ? 'paciente' : 'pacientes'}`}
         />
         {VIAS.map((v) => (
-          <Kpi key={v.clave} titulo={v.nombre} color={v.color} valor={miles(t[v.clave])} detalle={t.pastillas ? `${Math.round((t[v.clave] / t.pastillas) * 100)}% de las pastillas` : undefined} />
+          <Kpi key={v.clave} titulo={v.nombre} color={v.color} a={t[v.clave] ? a({ via: v.clave }) : undefined} valor={miles(t[v.clave])} detalle={t.pastillas ? `${Math.round((t[v.clave] / t.pastillas) * 100)}% de las pastillas` : undefined} />
         ))}
-        <Kpi titulo="Devueltas" valor={miles(t.devueltas)} detalle={`al inventario · ${miles(t.descartadas)} descartadas`} />
+        <Kpi titulo="Devueltas" a={t.devueltas ? a({ devueltas: true }) : undefined} valor={miles(t.devueltas)} detalle={`al inventario · ${miles(t.descartadas)} descartadas`} />
         {pendientes}
       </div>
 
@@ -116,14 +145,14 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
         {/* Alto según la cantidad de bateyes: barras horizontales para que los nombres se lean en tableta. */}
         <div className="px-2 pt-4 pb-2" style={{ height: Math.max(220, bateys.length * 34 + 70) }}>
           <ResponsiveContainer>
-            <BarChart data={bateys} layout="vertical" margin={{ left: 8, right: 16 }}>
+            <BarChart data={bateys} layout="vertical" margin={{ left: 8, right: 16 }} style={{ cursor: 'pointer' }}>
               <CartesianGrid {...REJILLA} vertical horizontal={false} />
               <XAxis type="number" {...EJE} tickFormatter={miles} />
               <YAxis type="category" dataKey="batey" width={110} {...EJE} />
               <Tooltip {...TOOLTIP} formatter={(v) => miles(Number(v))} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
               <Legend {...LEYENDA} />
               {VIAS.map((v, i) => (
-                <Bar key={v.clave} dataKey={v.clave} name={v.nombre} stackId="v" fill={v.color} maxBarSize={22} radius={i === VIAS.length - 1 ? [0, 4, 4, 0] : undefined} />
+                <Bar key={v.clave} dataKey={v.clave} name={v.nombre} stackId="v" fill={v.color} maxBarSize={22} onClick={(d) => navegar(a({ batey: (d.payload as { communityId: number }).communityId, via: v.clave }))} radius={i === VIAS.length - 1 ? [0, 4, 4, 0] : undefined} />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -167,16 +196,14 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
           {r.porBatey.map((b) => (
             <tr key={b.communityId} className="hover:bg-fondo">
               <td className="px-5 py-2.5 font-medium whitespace-nowrap">{b.batey}</td>
-              <td className={td}>{cantidad(b.entregas)}</td>
-              <td className={cn(td, 'font-semibold')}>{cantidad(b.pastillas)}</td>
-              <td className={td}>{cantidad(b.visita)}</td>
-              <td className={td}>{cantidad(b.mesa)}</td>
-              <td className={td}>{cantidad(b.reposicion)}</td>
+              <td className={td}>{n({ batey: b.communityId }, b.entregas)}</td>
+              <td className={cn(td, 'font-semibold')}>{n({ batey: b.communityId }, b.pastillas)}</td>
+              <td className={td}>{n({ batey: b.communityId, via: 'visita' }, b.visita)}</td>
+              <td className={td}>{n({ batey: b.communityId, via: 'mesa' }, b.mesa)}</td>
+              <td className={td}>{n({ batey: b.communityId, via: 'reposicion' }, b.reposicion)}</td>
               <td className={td}>
                 {b.pendientesPacientes ? (
-                  <span className="text-amber-700">
-                    {miles(b.pendientesPacientes)} pac. · {miles(b.pendientesPastillas)}
-                  </span>
+                  <span className="text-amber-700">{n({ batey: b.communityId, pendientes: true }, b.pendientesPacientes, `${miles(b.pendientesPacientes)} pac. · ${miles(b.pendientesPastillas)}`)}</span>
                 ) : (
                   cantidad(0)
                 )}
@@ -185,14 +212,12 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
           ))}
           <tr className="border-t-2 border-tinta/15 bg-fondo font-semibold">
             <td className="px-5 py-3">Total</td>
-            <td className={td}>{miles(t.entregas)}</td>
-            <td className={td}>{miles(t.pastillas)}</td>
-            <td className={td}>{miles(t.visita)}</td>
-            <td className={td}>{miles(t.mesa)}</td>
-            <td className={td}>{miles(t.reposicion)}</td>
-            <td className={td}>
-              {miles(t.pendientesPacientes)} pac. · {miles(t.pendientesPastillas)}
-            </td>
+            <td className={td}>{n({}, t.entregas)}</td>
+            <td className={td}>{n({}, t.pastillas)}</td>
+            <td className={td}>{n({ via: 'visita' }, t.visita)}</td>
+            <td className={td}>{n({ via: 'mesa' }, t.mesa)}</td>
+            <td className={td}>{n({ via: 'reposicion' }, t.reposicion)}</td>
+            <td className={td}>{n({ pendientes: true }, t.pendientesPacientes, `${miles(t.pendientesPacientes)} pac. · ${miles(t.pendientesPastillas)}`)}</td>
           </tr>
         </Tabla>
       </Tarjeta>
@@ -233,12 +258,12 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
           {r.porMedicamento.map((m) => (
             <tr key={m.medicamento} className="hover:bg-fondo">
               <td className="px-5 py-2.5 font-medium whitespace-nowrap">{m.medicamento}</td>
-              <td className={cn(td, 'font-semibold')}>{cantidad(m.pastillas)}</td>
-              <td className={td}>{cantidad(m.visita)}</td>
-              <td className={td}>{cantidad(m.mesa)}</td>
-              <td className={td}>{cantidad(m.reposicion)}</td>
-              <td className={td}>{cantidad(m.devueltas)}</td>
-              <td className={td}>{cantidad(m.descartadas)}</td>
+              <td className={cn(td, 'font-semibold')}>{n({ medicamento: m.medicamento }, m.pastillas)}</td>
+              <td className={td}>{n({ medicamento: m.medicamento, via: 'visita' }, m.visita)}</td>
+              <td className={td}>{n({ medicamento: m.medicamento, via: 'mesa' }, m.mesa)}</td>
+              <td className={td}>{n({ medicamento: m.medicamento, via: 'reposicion' }, m.reposicion)}</td>
+              <td className={td}>{n({ medicamento: m.medicamento, devueltas: true }, m.devueltas)}</td>
+              <td className={td}>{n({ medicamento: m.medicamento, descartadas: true }, m.descartadas)}</td>
             </tr>
           ))}
         </Tabla>
@@ -254,8 +279,8 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
               {r.porPersona.map((p) => (
                 <tr key={p.nombre} className="hover:bg-fondo">
                   <td className="px-5 py-2.5 font-medium">{p.nombre}</td>
-                  <td className={td}>{miles(p.entregas)}</td>
-                  <td className={td}>{miles(p.pastillas)}</td>
+                  <td className={td}>{n({ persona: p.nombre }, p.entregas)}</td>
+                  <td className={td}>{n({ persona: p.nombre }, p.pastillas)}</td>
                 </tr>
               ))}
             </Tabla>
@@ -270,8 +295,8 @@ function Contenido({ r, sufijo }: { r: ReporteEntregas; sufijo: string }) {
               {r.reposicionesPorMotivo.map((m) => (
                 <tr key={m.motivo} className="hover:bg-fondo">
                   <td className="px-5 py-2.5">{MOTIVOS_REPOSICION[m.motivo] ?? m.motivo}</td>
-                  <td className={td}>{miles(m.entregas)}</td>
-                  <td className={td}>{miles(m.pastillas)}</td>
+                  <td className={td}>{n({ motivo: m.motivo }, m.entregas)}</td>
+                  <td className={td}>{n({ motivo: m.motivo }, m.pastillas)}</td>
                 </tr>
               ))}
             </Tabla>
@@ -360,7 +385,7 @@ export function PantallaReporteEntregas() {
         <ErrorCarga error={consulta.error} />
       ) : (
         <div className={cn('transition-opacity', consulta.isPlaceholderData && 'opacity-60')}>
-          <Contenido r={consulta.data} sufijo={`${desde}_${hasta}`} />
+          <Contenido r={consulta.data} sufijo={`${desde}_${hasta}`} filtros={new URLSearchParams({ desde, hasta, ...(communityId ? { batey: String(communityId) } : {}) })} />
         </div>
       )}
       <SinConsulta />

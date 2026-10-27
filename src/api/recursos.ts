@@ -94,7 +94,7 @@ export type FiltroPacientes = {
   status?: string;
   /** id del rango de PA de la última visita, o "ninguna" */
   clasificacion?: string;
-  situacion?: 'visto' | 'le-toca' | 'sin-venir' | 'sin-venir-ano' | 'sin-visitas';
+  situacion?: 'seguimiento' | 'visto' | 'le-toca' | 'sin-venir' | 'sin-venir-ano' | 'sin-visitas';
   ageMin?: number;
   ageMax?: number;
   orden?: 'nombre' | 'codigo' | 'ultima-visita' | 'ausencia' | 'presion' | 'visitas';
@@ -115,7 +115,8 @@ export const listarPacientes = (f: FiltroPacientes) =>
 export type PacienteParecido = Pick<Paciente, 'id' | 'patientCode' | 'firstName' | 'lastName' | 'birthDate' | 'birthDateIsEstimated' | 'status' | 'lastVisitDate' | 'address' | 'communityId'> & { community: { name: string } };
 export const pacientesParecidos = (d: { nombre: string; apellido: string; batey?: number; nacimiento?: string }) => api<PacienteParecido[]>(`/patients/parecidos${query(d)}`);
 /** Lo que se entrega por mes de cada medicamento (últimos 12 meses, o los que haya). */
-export type ConsumoMedicamentos = { meses: number; medicamentos: { medicationId: number; entregadas: number; porMes: number }[] };
+/** desde: el inicio de lo que se promedia (hace 12 meses, o la primera visita). */
+export type ConsumoMedicamentos = { meses: number; desde?: string; medicamentos: { medicationId: number; entregadas: number; porMes: number }[] };
 export const consumoMedicamentos = () => api<ConsumoMedicamentos>('/medication/consumo');
 export const obtenerPaciente = (id: number) => api<Paciente | null>(`/patients/${id}`);
 export const tensionPaciente = (id: number) => api<PuntoTension[]>(`/patients/${id}/timeline`);
@@ -226,7 +227,9 @@ export type DatosMedicamento = Pick<Medicamento, 'name' | 'concentration' | 'sto
 export const crearMedicamento = (d: DatosMedicamento) => enviar<Medicamento>('/medication', 'POST', d);
 export const editarMedicamento = (id: number, d: Partial<DatosMedicamento>) => enviar<Medicamento>(`/medication/${id}`, 'PATCH', d);
 export const alertasInventario = () => api<AlertasInventario>('/medication/alertas');
-export const movimientosMedicamento = (id: number, page: number) => api<Paginado<MovimientoInventario>>(`/medication/${id}/movimientos?page=${page}`);
+/** Con lote: solo sus movimientos, y meta.suma trae lo que suman. */
+export const movimientosMedicamento = (id: number, page: number, lote?: number) =>
+  api<Paginado<MovimientoInventario> & { meta: { suma?: number } }>(`/medication/${id}/movimientos?page=${page}${lote ? `&lote=${lote}` : ''}`);
 export type DatosEntrada = { cantidad: number; origen: OrigenLote; numero?: string; vencimiento?: string; procedencia?: string; nota?: string; fechaEntrada?: string };
 export const registrarEntrada = (medId: number, d: DatosEntrada) => enviar<Lote>(`/medication/${medId}/entradas`, 'POST', d);
 export type DatosAjuste = { loteId: number; cantidad: number; tipo: 'AJUSTE' | 'VENCIDO'; motivo: string };
@@ -308,9 +311,12 @@ export type PacienteDeCifra = {
   presion: string | null;
   categoria: CategoriaPA | null;
   estado?: 'visto' | 'tratamiento' | 'le-toca' | 'sin-venir' | 'sin-visitas' | 'ya-no-viene';
+  /** En las cifras del resumen: lo que suma este paciente (visitas contadas, pastillas, cumplimiento promedio). */
+  aporte?: { visitas: number; pastillas: number; cumplimiento: number | null; entregas?: number };
 };
 export const pacientesDePlanilla = (f: { from: string; to: string; columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/planilla/pacientes${query(f)}`);
 export const pacientesDeDonantes = (f: { anio: number; trimestre?: number; columna: string }) => api<PacienteDeCifra[]>(`/reports/donantes/pacientes${query(f)}`);
+export const pacientesDeResumen = (f: FiltroReporte & { cifra: string }) => api<PacienteDeCifra[]>(`/reports/summary/pacientes${query(f)}`);
 export const pacientesDeRonda = (f: { columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/ronda/pacientes${query(f)}`);
 export type DestinatariosPlanilla = { correoConfigurado: boolean; usuarios: { id: number; nombre: string; email: string; rol: string; confirmado: boolean }[]; otrosCorreos: string[] };
 export const destinatariosPlanilla = () => api<DestinatariosPlanilla>('/reports/planilla/destinatarios');
@@ -359,6 +365,8 @@ export const cambiarCodigoPaciente = (id: number, codigo: string) => enviar<Paci
 
 /* Metas, donantes, mapa */
 export const metasAnio = (anio: number, batey?: number) => api<MetasAnio>(`/metas/${anio}${batey ? `?batey=${batey}` : ''}`);
+/** Los pacientes detrás de un indicador de Metas (del año, o de un trimestre t). */
+export const pacientesDeMeta = (anio: number, f: { indicador: string; t?: number; batey?: number }) => api<PacienteDeCifra[]>(`/metas/${anio}/pacientes${query(f)}`);
 export const guardarMetas = (anio: number, valores: Partial<Record<ClaveIndicador, number | null>>, batey?: number) =>
   enviar<MetasAnio>(`/metas/${anio}${batey ? `?batey=${batey}` : ''}`, 'PUT', { valores });
 /** trimestre null = año completo */
@@ -407,6 +415,8 @@ export const obtenerEntrega = (id: number) => api<Entrega & { patient: PacienteC
 export type DatosDevolucion = { items: { entregaItemId: number; cantidad: number }[]; motivo: MotivoDevolucion; destino: DestinoDevolucion; nota?: string };
 export const devolverEntrega = (id: number, d: DatosDevolucion) => enviar<Entrega>(`/entregas/${id}/devolucion`, 'POST', d);
 export const reporteEntregas = (f: { desde?: string; hasta?: string; communityId?: number }) => api<ReporteEntregas>(`/entregas/reporte${query(f)}`);
+/** Los pacientes detrás de una cifra del reporte de entregas (cifra: "batey:3,via:mesa,medicamento:…"). */
+export const pacientesDeEntregas = (f: { desde?: string; hasta?: string; communityId?: number; cifra: string }) => api<PacienteDeCifra[]>(`/entregas/reporte/pacientes${query(f)}`);
 export const preparacionJornada = (id: number) => api<PreparacionJornada>(`/jornadas/${id}/preparacion`);
 export type SinConsulta = { paciente: { id: number; patientCode: string; firstName: string; lastName: string; batey: string }; rondas: number; ultimaConsulta: string | null; ultimaEntrega: string; con: string | null };
 export const pacientesSinConsulta = () => api<SinConsulta[]>('/entregas/sin-consulta');

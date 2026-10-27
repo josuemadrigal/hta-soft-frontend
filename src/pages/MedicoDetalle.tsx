@@ -9,6 +9,7 @@ import { Avatar, Boton, Cargando, EncabezadoPagina, ErrorCarga, Insignia, Tabla,
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn, fecha } from '../lib/formato';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { enlaceMedico, type Cifra } from '../lib/cifras';
 
 const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
@@ -48,7 +49,8 @@ export function MedicoDetalle() {
   const l = d.logros;
   const [nombre, ...apellido] = d.perfil.nombre.split(' ');
   // Cada logro y cada jornada abren sus pacientes, con el mismo periodo y batey.
-  const abrir = (columna: string, n: number) => (n > 0 ? () => navegar(`/medicos/${id}/pacientes?${new URLSearchParams({ ...Object.fromEntries(params), columna })}`) : undefined);
+  const abrir = (columna: string, n: number) => (n > 0 ? () => navegar(enlaceMedico(id, columna, params)) : undefined);
+  const a = (c: Cifra) => enlaceMedico(id, c, params);
 
   return (
     <>
@@ -110,7 +112,15 @@ export function MedicoDetalle() {
             <Tarjeta titulo="Visitas y control por trimestre" copiable ayuda={AYUDA.visitasMedico}>
               <div className="h-72 px-2 pt-4 pb-2">
                 <ResponsiveContainer>
-                  <ComposedChart data={d.porTrimestre} margin={{ left: -8, right: 4 }}>
+                  <ComposedChart
+                    data={d.porTrimestre}
+                    margin={{ left: -8, right: 4 }}
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => {
+                      const t = d.porTrimestre[Number(e?.activeIndex)];
+                      if (t && e?.activeIndex != null) navegar(a({ trimestre: t.clave }));
+                    }}
+                  >
                     <CartesianGrid {...REJILLA} />
                     <XAxis dataKey="trimestre" {...EJE} />
                     <YAxis yAxisId="v" allowDecimals={false} {...EJE} />
@@ -131,6 +141,7 @@ export function MedicoDetalle() {
                     valor: c.pacientes,
                     color: colorCategoria(c.categoria),
                     detalle: r.pacientes ? `${Math.round((c.pacientes / r.pacientes) * 100)}%` : undefined,
+                    enlace: c.pacientes ? a({ categoria: c.categoria }) : undefined,
                   }))}
                   formato={miles}
                 />
@@ -141,7 +152,7 @@ export function MedicoDetalle() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Tarjeta titulo="Bateyes donde atendió" copiable ayuda={AYUDA.bateyesMedico}>
               <div className="p-5">
-                <Barras filas={d.porBatey.map((b) => ({ etiqueta: b.batey, valor: b.pacientes, detalle: `${pct(b.controladosPct)} ctrl.` }))} formato={miles} />
+                <Barras filas={d.porBatey.map((b) => ({ etiqueta: b.batey, valor: b.pacientes, detalle: `${pct(b.controladosPct)} ctrl.`, enlace: a({ batey: b.communityId }) }))} formato={miles} />
               </div>
             </Tarjeta>
             <Tarjeta titulo="Medicamentos que recetó" copiable ayuda={AYUDA.medicamentosMedico} accion={<span className="text-xs text-tenue">Cumplimiento promedio</span>}>
@@ -152,7 +163,7 @@ export function MedicoDetalle() {
                   <Barras
                     max={100}
                     formato={(v) => `${Math.round(v)}%`}
-                    filas={d.medicamentos.map((m) => ({ etiqueta: m.medicamento, valor: m.cumplimientoPromedio ?? 0, detalle: `${miles(m.pacientes)} pac.` }))}
+                    filas={d.medicamentos.map((m) => ({ etiqueta: m.medicamento, valor: m.cumplimientoPromedio ?? 0, detalle: `${miles(m.pacientes)} pac.`, enlace: a({ medicamento: m.medicamento }) }))}
                   />
                 )}
               </div>

@@ -401,10 +401,25 @@ function Detalle({ d }: { d: DetalleJornada }) {
   const [medico, setMedico] = useState('');
   const [presion, setPresion] = useState('');
   const [soloNuevos, setSoloNuevos] = useState(false);
+  // Desde las tablas: lo entregado de un medicamento, o a quién hay que llevarle uno.
+  const [medHoy, setMedHoy] = useState('');
+  const [llevarMed, setLlevarMed] = useState<number | null>(null);
+  const irALista = () => document.getElementById('pacientes-jornada')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const elegirMedico = (m: string) => {
     setMedico(m);
     if (m) setVista('atendidos');
-    document.getElementById('pacientes-jornada')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    irALista();
+  };
+  /** Cada cifra de arriba abre su lista aquí abajo: la vista y los filtros que la forman. */
+  const mostrar = (v: 'faltan' | 'atendidos' | 'todos', f: { presion?: string; nuevos?: boolean; medHoy?: string; llevar?: number } = {}) => {
+    setVista(v);
+    setBuscar('');
+    setMedico('');
+    setPresion(f.presion ?? '');
+    setSoloNuevos(!!f.nuevos);
+    setMedHoy(f.medHoy ?? '');
+    setLlevarMed(f.llevar ?? null);
+    irALista();
   };
   const q = buscar.trim().toLowerCase();
   // Cerrada: "No vinieron" es la lista que se guardó al cerrar (la misma de la tarjeta), no la de hoy:
@@ -416,6 +431,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
     if (q && !coincide(q, p)) return false;
     if (medico && !(p.atendidoHoy && p.atendio === medico)) return false;
     if (soloNuevos && !p.nuevo) return false;
+    if (medHoy && !p.medicamentosHoy?.[medHoy]) return false;
+    if (llevarMed !== null && !p.llevar?.[llevarMed]) return false;
     const c = p.categoria?.categoryName;
     if (presion === 'controlados' && !(c === 'NORMAL' || c === 'ELEVATED')) return false;
     if (presion === 'noControlados' && !(c === 'GRADE_1' || c === 'GRADE_2' || c === 'CRISIS')) return false;
@@ -423,12 +440,14 @@ function Detalle({ d }: { d: DetalleJornada }) {
     if (presion && !['controlados', 'noControlados', 'sinToma'].includes(presion) && c !== presion) return false;
     return true;
   });
-  const hayFiltros = !!(q || medico || presion || soloNuevos);
+  const hayFiltros = !!(q || medico || presion || soloNuevos || medHoy || llevarMed !== null);
   const limpiar = () => {
     setBuscar('');
     setMedico('');
     setPresion('');
     setSoloNuevos(false);
+    setMedHoy('');
+    setLlevarMed(null);
   };
   const medicos = d.porMedico ?? [];
   const faltaAlgo = d.llevar.some((m) => m.falta > 0);
@@ -496,17 +515,24 @@ function Detalle({ d }: { d: DetalleJornada }) {
       <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
         {[
           // Esperados: media alta de las últimas jornadas del batey (ver Configuración); nunca vienen todos los regulares.
-          { t: 'Esperados', v: suelen?.promedio ?? r.esperados, ayuda: suelen ? `media alta de las últimas ${suelen.jornadas.length} · ${r.esperados} regulares` : `de ${r.activos} regulares` },
-          { t: 'Atendidos', v: r.atendidos, ayuda: r.atendidos - r.atendidosEsperados > 0 ? `${r.atendidos - r.atendidosEsperados} fuera de lista` : undefined },
-          { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, color: r.faltan ? 'text-red-600' : '', ayuda: r.noVinieron ? `${r.noVinieron} marcados "No vino"` : undefined },
-          { t: 'Controlados', v: r.controlados, ayuda: r.atendidos ? `${Math.round((r.controlados / r.atendidos) * 100)}% de los atendidos` : undefined },
-          { t: 'Pacientes nuevos', v: r.nuevos },
-        ].map((k) => (
-          <div key={k.t} className="rounded-xl border border-borde bg-superficie p-4">
+          { t: 'Esperados', v: suelen?.promedio ?? r.esperados, a: () => navegar(`/reportes/pacientes?fuente=ronda&columna=esperados&batey=${j.communityId}`), ayuda: suelen ? `media alta de las últimas ${suelen.jornadas.length} · ${r.esperados} regulares` : `de ${r.activos} regulares` },
+          { t: 'Atendidos', v: r.atendidos, a: () => mostrar('atendidos'), ayuda: r.atendidos - r.atendidosEsperados > 0 ? `${r.atendidos - r.atendidosEsperados} fuera de lista` : undefined },
+          { t: planificada ? 'Faltan por ver' : 'No vinieron', v: r.faltan, a: () => mostrar('faltan'), color: r.faltan ? 'text-red-600' : '', ayuda: r.noVinieron ? `${r.noVinieron} marcados "No vino"` : undefined },
+          { t: 'Controlados', v: r.controlados, a: () => mostrar('atendidos', { presion: 'controlados' }), ayuda: r.atendidos ? `${Math.round((r.controlados / r.atendidos) * 100)}% de los atendidos` : undefined },
+          { t: 'Pacientes nuevos', v: r.nuevos, a: () => mostrar('atendidos', { nuevos: true }) },
+        ].map((k: { t: string; v: number; a?: () => void; color?: string; ayuda?: string }) => (
+          <button
+            type="button"
+            key={k.t}
+            onClick={k.a}
+            disabled={!k.a || !k.v}
+            title="Ver los pacientes"
+            className="rounded-xl border border-borde bg-superficie p-4 text-left transition-colors enabled:cursor-pointer enabled:hover:border-tinta/25 enabled:hover:bg-fondo"
+          >
             <p className="text-xs text-tenue">{k.t}</p>
             <p className={cn('tabular mt-1 text-2xl font-semibold', k.color)}>{miles(k.v)}</p>
             {k.ayuda && <p className="text-xs text-tenue">{k.ayuda}</p>}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -534,10 +560,10 @@ function Detalle({ d }: { d: DetalleJornada }) {
                 )}
                 <Tabla columnas={['Medicamento', { texto: 'Pacientes', className: 'text-right' }, { texto: 'Llevar', className: 'text-right' }, { texto: 'Disponible', className: 'text-right' }, { texto: 'Falta', className: 'text-right' }]}>
                   {d.llevar.map((m) => (
-                    <tr key={m.medicationId} className={cn(m.falta > 0 && 'bg-red-50/60')}>
+                    <tr key={m.medicationId} onClick={() => mostrar('todos', { llevar: m.medicationId })} title="Ver a quién se le lleva" className={cn('cursor-pointer hover:bg-fondo', m.falta > 0 && 'bg-red-50/60')}>
                       <td className="px-5 py-2.5">
                         {tiene('inventario.gestionar') ? (
-                          <Link to={`/medicamentos/${m.medicationId}`} className="hover:underline">
+                          <Link to={`/medicamentos/${m.medicationId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">
                             {m.medicamento}
                           </Link>
                         ) : (
@@ -561,12 +587,12 @@ function Detalle({ d }: { d: DetalleJornada }) {
           ) : (
             <Tabla columnas={['Medicamento', { texto: 'Pastillas', className: 'text-right' }]}>
               {entregadas.map((m) => (
-                <tr key={m.medicamento}>
+                <tr key={m.medicamento} onClick={() => mostrar('atendidos', { medHoy: m.medicamento })} title="Ver a quién se le entregó" className="cursor-pointer hover:bg-fondo">
                   <td className="px-5 py-2.5">{m.medicamento}</td>
                   <td className="tabular px-5 py-2.5 text-right font-medium">{miles(m.pastillas)}</td>
                 </tr>
               ))}
-              <tr className="border-t border-borde font-semibold">
+              <tr onClick={() => mostrar('atendidos')} className="cursor-pointer border-t border-borde font-semibold hover:bg-fondo">
                 <td className="px-5 py-2.5">Total</td>
                 <td className="tabular px-5 py-2.5 text-right">{miles(entregadas.reduce((a, m) => a + m.pastillas, 0))}</td>
               </tr>
@@ -705,6 +731,16 @@ function Detalle({ d }: { d: DetalleJornada }) {
                 Solo nuevos
               </button>
             )}
+            {medHoy && (
+              <button type="button" onClick={() => setMedHoy('')} className="flex h-10 items-center gap-1.5 rounded-lg border border-tinta bg-marca-500 px-3 text-sm font-medium">
+                Entregado: {medHoy} <X className="size-3.5" />
+              </button>
+            )}
+            {llevarMed !== null && (
+              <button type="button" onClick={() => setLlevarMed(null)} className="flex h-10 items-center gap-1.5 rounded-lg border border-tinta bg-marca-500 px-3 text-sm font-medium">
+                Llevar: {d.llevar.find((m) => m.medicationId === llevarMed)?.medicamento} <X className="size-3.5" />
+              </button>
+            )}
             {hayFiltros && (
               <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
                 Limpiar
@@ -713,6 +749,8 @@ function Detalle({ d }: { d: DetalleJornada }) {
             {hayFiltros && (
               <span className="w-full text-xs text-tenue">
                 {pacientes.length} de {enVista.length}
+                {medHoy && ` · ${miles(pacientes.reduce((t, p) => t + (p.medicamentosHoy?.[medHoy] ?? 0), 0))} pastillas de ${medHoy}`}
+                {llevarMed !== null && ` · ${miles(pacientes.reduce((t, p) => t + (p.llevar?.[llevarMed] ?? 0), 0))} pastillas que llevar`}
               </span>
             )}
           </div>

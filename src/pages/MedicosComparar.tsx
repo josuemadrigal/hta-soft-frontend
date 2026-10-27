@@ -1,5 +1,5 @@
 import { Crown, Plus, X } from 'lucide-react';
-import { useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useComparacion, useMedicos } from '../api/consultas';
 import type { ComparacionMedicos } from '../api/tipos';
@@ -9,6 +9,7 @@ import { Cargando, EncabezadoPagina, ErrorCarga, Selector, Tarjeta, Vacio } from
 import { CATEGORIAS, colorCategoria } from '../lib/etiquetas';
 import { cn } from '../lib/formato';
 import { AYUDA } from '../lib/ayuda-graficas';
+import { enlaceMedico } from '../lib/cifras';
 
 /** Un color por médico (el amarillo de marca no se usa en líneas: no se lee sobre blanco). */
 const COLORES = ['#1d1b18', '#d97706', '#2563eb', '#db2777'];
@@ -16,18 +17,19 @@ const miles = (n: number) => n.toLocaleString('es-DO');
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
 
 type Medico = ComparacionMedicos['medicos'][number];
-const FILAS: { texto: string; valor: (m: Medico) => number | null; mostrar: (m: Medico) => string; menorEsMejor?: boolean }[] = [
-  { texto: 'Visitas', valor: (m) => m.visitas, mostrar: (m) => miles(m.visitas) },
-  { texto: 'Pacientes atendidos', valor: (m) => m.pacientes, mostrar: (m) => miles(m.pacientes) },
+/** lista: la cifra que abre los pacientes de ese médico. */
+const FILAS: { texto: string; valor: (m: Medico) => number | null; mostrar: (m: Medico) => string; menorEsMejor?: boolean; lista?: string }[] = [
+  { texto: 'Visitas', valor: (m) => m.visitas, mostrar: (m) => miles(m.visitas), lista: 'atendidos' },
+  { texto: 'Pacientes atendidos', valor: (m) => m.pacientes, mostrar: (m) => miles(m.pacientes), lista: 'atendidos' },
   { texto: 'Jornadas', valor: (m) => m.logros.jornadas, mostrar: (m) => miles(m.logros.jornadas) },
   { texto: 'Bateyes', valor: (m) => m.logros.bateyes, mostrar: (m) => miles(m.logros.bateyes) },
-  { texto: 'Pacientes controlados', valor: (m) => m.controladosPct, mostrar: (m) => pct(m.controladosPct) },
-  { texto: 'Llevó a control', valor: (m) => m.logros.llevoAControl, mostrar: (m) => miles(m.logros.llevoAControl) },
-  { texto: 'Mejoraron de categoría', valor: (m) => m.logros.mejoraron, mostrar: (m) => miles(m.logros.mejoraron) },
-  { texto: 'PA sistólica promedio', valor: (m) => m.sistolicaPromedio, mostrar: (m) => (m.sistolicaPromedio ? `${Math.round(m.sistolicaPromedio)}/${Math.round(m.diastolicaPromedio ?? 0)}` : '—'), menorEsMejor: true },
-  { texto: 'Cumplimiento promedio', valor: (m) => m.cumplimientoPromedio, mostrar: (m) => pct(m.cumplimientoPromedio) },
-  { texto: 'Pacientes nuevos', valor: (m) => m.logros.nuevos, mostrar: (m) => miles(m.logros.nuevos) },
-  { texto: 'Domiciliarias', valor: (m) => m.logros.domiciliarias, mostrar: (m) => miles(m.logros.domiciliarias) },
+  { texto: 'Pacientes controlados', valor: (m) => m.controladosPct, mostrar: (m) => pct(m.controladosPct), lista: 'controlados' },
+  { texto: 'Llevó a control', valor: (m) => m.logros.llevoAControl, mostrar: (m) => miles(m.logros.llevoAControl), lista: 'llevoAControl' },
+  { texto: 'Mejoraron de categoría', valor: (m) => m.logros.mejoraron, mostrar: (m) => miles(m.logros.mejoraron), lista: 'mejoraron' },
+  { texto: 'PA sistólica promedio', valor: (m) => m.sistolicaPromedio, mostrar: (m) => (m.sistolicaPromedio ? `${Math.round(m.sistolicaPromedio)}/${Math.round(m.diastolicaPromedio ?? 0)}` : '—'), menorEsMejor: true, lista: 'tipo:conToma' },
+  { texto: 'Cumplimiento promedio', valor: (m) => m.cumplimientoPromedio, mostrar: (m) => pct(m.cumplimientoPromedio), lista: 'conReceta' },
+  { texto: 'Pacientes nuevos', valor: (m) => m.logros.nuevos, mostrar: (m) => miles(m.logros.nuevos), lista: 'nuevos' },
+  { texto: 'Domiciliarias', valor: (m) => m.logros.domiciliarias, mostrar: (m) => miles(m.logros.domiciliarias), lista: 'domiciliarias' },
 ];
 
 export function MedicosComparar() {
@@ -37,6 +39,7 @@ export function MedicosComparar() {
     .map(Number)
     .filter((n) => n > 0);
   const filtro = useFiltroPeriodo();
+  const navegar = useNavigate();
   const todos = useMedicos(filtro);
   const consulta = useComparacion(ids, filtro);
   const cambiarIds = (nuevos: number[]) =>
@@ -54,6 +57,7 @@ export function MedicosComparar() {
   const serie = (campo: 'controladosPct' | 'visitas') =>
     trimestres.map(([clave, trimestre]) => ({
       trimestre,
+      clave,
       ...Object.fromEntries(medicos.map((m) => [m.nombre, m.porTrimestre.find((t) => t.clave === clave)?.[campo] ?? null])),
     }));
   const disponibles = (todos.data?.medicos ?? []).filter((m) => m.visitas > 0 && !ids.includes(m.id));
@@ -130,7 +134,13 @@ export function MedicosComparar() {
                           return (
                             <td key={m.id} className={cn('tabular px-5 py-2.5 text-right', gana && 'bg-marca-50 font-semibold')}>
                               {gana && <Crown className="mr-1.5 inline size-3.5 text-marca-700" />}
-                              {f.mostrar(m)}
+                              {f.lista && f.valor(m) ? (
+                                <Link to={enlaceMedico(m.id, f.lista, params)} className="-mx-1 rounded px-1 hover:bg-marca-50 hover:underline" title="Ver los pacientes">
+                                  {f.mostrar(m)}
+                                </Link>
+                              ) : (
+                                f.mostrar(m)
+                              )}
                             </td>
                           );
                         })}
@@ -153,7 +163,21 @@ export function MedicosComparar() {
                     <Tooltip {...TOOLTIP} formatter={(v) => (v === null ? '—' : `${v}%`)} />
                     <Legend {...LEYENDA} />
                     {medicos.map((m, i) => (
-                      <Line key={m.id} dataKey={m.nombre} stroke={COLORES[i]} strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                      <Line
+                        key={m.id}
+                        dataKey={m.nombre}
+                        stroke={COLORES[i]}
+                        strokeWidth={2.5}
+                        connectNulls
+                        // Cada punto abre los pacientes de ese médico en ese trimestre.
+                        dot={(p: { cx?: number; cy?: number; value?: number | null; payload?: { clave: string }; index?: number }) =>
+                          p.value == null || p.cx == null ? (
+                            <g key={p.index} />
+                          ) : (
+                            <circle key={p.index} cx={p.cx} cy={p.cy} r={4} fill={COLORES[i]} className="cursor-pointer" onClick={() => navegar(enlaceMedico(m.id, `trimestre:${p.payload!.clave}`, params))} />
+                          )
+                        }
+                      />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -169,7 +193,7 @@ export function MedicosComparar() {
                     <Tooltip {...TOOLTIP} />
                     <Legend {...LEYENDA} />
                     {medicos.map((m, i) => (
-                      <Bar key={m.id} dataKey={m.nombre} fill={COLORES[i]} radius={[3, 3, 0, 0]} maxBarSize={22} />
+                      <Bar key={m.id} dataKey={m.nombre} fill={COLORES[i]} radius={[3, 3, 0, 0]} maxBarSize={22} className="cursor-pointer" onClick={(d) => navegar(enlaceMedico(m.id, `trimestre:${(d.payload as { clave: string }).clave}`, params))} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
@@ -188,9 +212,11 @@ export function MedicosComparar() {
                       {m.categorias
                         .filter((c) => c.pacientes > 0)
                         .map((c) => (
-                          <span
+                          <Link
                             key={c.categoria}
-                            title={`${CATEGORIAS[c.categoria]}: ${c.pacientes} (${Math.round((c.pacientes / total) * 100)}%)`}
+                            to={enlaceMedico(m.id, `categoria:${c.categoria}`, params)}
+                            title={`${CATEGORIAS[c.categoria]}: ${c.pacientes} (${Math.round((c.pacientes / total) * 100)}%) · ver los pacientes`}
+                            className="transition-opacity hover:opacity-80"
                             style={{ width: `${(c.pacientes / total) * 100}%`, backgroundColor: colorCategoria(c.categoria) }}
                           />
                         ))}

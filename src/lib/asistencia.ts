@@ -27,6 +27,7 @@ export function asistencia(ultimaVisita: string | null | undefined, ahora = new 
 
 /** Opciones del filtro de pacientes (valores de ?situacion=). */
 export const SITUACIONES_ASISTENCIA = [
+  { value: 'seguimiento', label: 'En seguimiento (últimos 6 meses)' },
   { value: 'visto', label: 'Vistos en la ronda' },
   { value: 'le-toca', label: 'Pendientes de esta ronda' },
   { value: 'sin-venir', label: 'No asisten hace más de 6 meses' },
