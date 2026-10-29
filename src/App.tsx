@@ -39,6 +39,7 @@ import { Entregas } from './pages/Entregas';
 import { Reposicion } from './pages/Reposicion';
 import { DevolverEntrega } from './pages/DevolverEntrega';
 import { EditarEntrega } from './pages/EditarEntrega';
+import { Comentarios } from './pages/Comentarios';
 import { PantallaReporteEntregas } from './pages/ReporteEntregas';
 import { HojaPreparacion } from './pages/HojaPreparacion';
 import { HojaIndicaciones } from './pages/HojaIndicaciones';
@@ -115,6 +116,7 @@ export function App() {
         <Route path="reportes" element={<ConPermiso permiso="reportes.ver"><Reportes /></ConPermiso>} />
         <Route path="reportes/entregas" element={<ConPermiso permiso="reportes.ver"><PantallaReporteEntregas /></ConPermiso>} />
         <Route path="reportes/donantes" element={<ConPermiso permiso="reportes.ver"><Donantes /></ConPermiso>} />
+        <Route path="reportes/comentarios" element={<ConPermiso permiso="reportes.ver"><Comentarios /></ConPermiso>} />
         <Route path="reportes/pacientes" element={<ConPermiso permiso="reportes.ver"><PacientesDeCifra /></ConPermiso>} />
         <Route path="reportes/planilla" element={<ConPermiso permiso="reportes.ver"><Planilla /></ConPermiso>} />
         <Route path="reportes/planilla/enviar" element={<ConPermiso permiso="reportes.ver"><EnviarPlanilla /></ConPermiso>} />

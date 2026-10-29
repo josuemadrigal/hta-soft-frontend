@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { AlertTriangle, ClipboardList, Download, FileSpreadsheet, HeartHandshake, PieChart, Pill, Users, X } from 'lucide-react';
+import { AlertTriangle, ClipboardList, MessageSquareText, Download, FileSpreadsheet, HeartHandshake, PieChart, Pill, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -422,6 +422,9 @@ export function Reportes() {
             </Boton>
             <Boton variante="secundario" icono={<HeartHandshake className="size-4" />} onClick={() => navegar('/reportes/donantes')}>
               Informe para donantes
+            </Boton>
+            <Boton variante="secundario" icono={<MessageSquareText className="size-4" />} onClick={() => navegar(`/reportes/comentarios?${new URLSearchParams({ ...Object.fromEntries(params), desde, hasta })}`)}>
+              Comentarios
             </Boton>
             <Boton variante="secundario" icono={<Pill className="size-4" />} onClick={() => navegar('/reportes/entregas')}>
               Entregas de medicamentos

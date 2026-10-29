@@ -318,6 +318,25 @@ export const pacientesDePlanilla = (f: { from: string; to: string; columna: stri
 export const pacientesDeDonantes = (f: { anio: number; trimestre?: number; columna: string }) => api<PacienteDeCifra[]>(`/reports/donantes/pacientes${query(f)}`);
 /** Los pacientes que atendió quien consulta en una de sus jornadas (Mi panel). */
 export const pacientesDeMiJornada = (clave: string) => api<PacienteDeCifra[]>(`/stats/mio/jornada${query({ clave })}`);
+/** Un comentario de visita para el reporte de comentarios. vinoAnterior: si vino a la ronda (trimestre) anterior. */
+export type ComentarioVisita = {
+  visitaId: number;
+  fecha: string;
+  comentario: string | null;
+  motivo: string | null;
+  domicilio: boolean;
+  nueva: boolean;
+  paciente: { id: number; patientCode: string; firstName: string; lastName: string; gender: Genero; birthDate: string; birthDateIsEstimated: boolean };
+  batey: { id: number; name: string };
+  presion: string | null;
+  categoria: CategoriaPA | null;
+  cumplimiento: number | null;
+  medico: string;
+  anterior: string | null;
+  vinoAnterior: 'si' | 'no' | 'primera';
+  rondasSinVenir: number | null;
+};
+export const comentariosVisitas = (f: FiltroReporte) => api<ComentarioVisita[]>(`/reports/comentarios${query(f)}`);
 export const pacientesDeResumen = (f: FiltroReporte & { cifra: string }) => api<PacienteDeCifra[]>(`/reports/summary/pacientes${query(f)}`);
 export const pacientesDeRonda = (f: { columna: string; communityId?: number }) => api<PacienteDeCifra[]>(`/reports/ronda/pacientes${query(f)}`);
 export type DestinatariosPlanilla = { correoConfigurado: boolean; usuarios: { id: number; nombre: string; email: string; rol: string; confirmado: boolean }[]; otrosCorreos: string[] };
