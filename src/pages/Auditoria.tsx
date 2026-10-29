@@ -146,6 +146,8 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
       const que = dev.motivo === 'CORRECCION' ? 'Corrigió la entrega' : dev.destino === 'DESCARTE' ? 'El paciente devolvió (se descartaron)' : 'El paciente devolvió (al inventario)';
       return `${d.paciente}: ${que} · ${dev.medicamentos.join(' · ')}${dev.nota ? ` · ${dev.nota}` : ''}`;
     }
+    const cambios = d.cambios as { entregadoPor?: { antes: string | null; despues: string } } | undefined;
+    if (r.action === 'UPDATE' && cambios?.entregadoPor) return `${d.paciente}: ${medicamentos} · quien entregó: ${cambios.entregadoPor.antes ?? '(sin registrar)'} → ${cambios.entregadoPor.despues}`;
     return `${d.paciente}: ${medicamentos}${motivo} · recibió ${d.recibio}`;
   }
   if (r.entity === 'User' && r.action === 'DELETE') {

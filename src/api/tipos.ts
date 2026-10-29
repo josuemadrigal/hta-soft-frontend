@@ -722,6 +722,7 @@ export type Entrega = {
   visitId: number | null;
   tipo: 'VISITA' | 'REPOSICION';
   fecha: string;
+  entregadoPorId?: number | null;
   entregadoPorNombre: string | null;
   recibio: RecibioEntrega;
   recibioNombre: string | null;

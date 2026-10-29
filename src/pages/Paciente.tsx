@@ -940,11 +940,18 @@ function EntregasDelPaciente({ paciente: p }: { paciente: TPaciente }) {
                 {e.recibio !== 'PACIENTE' && `recibió ${e.recibioNombre ? conQuien(e.recibioNombre, e.recibioParentesco) : RECIBIO_ENTREGA[e.recibio].toLowerCase()} · `}
                 {e.entregadoPorNombre && `entregó ${e.entregadoPorNombre}`}
               </p>
-              {puede && e.items.some((i) => i.cantidad > (i.devoluciones ?? []).reduce((a, d) => a + d.cantidad, 0)) && (
-                <Link to={`/entregas/${e.id}/devolver`} className="mt-0.5 inline-block text-xs text-tenue underline hover:text-tinta">
-                  Devolver o corregir
-                </Link>
-              )}
+              <span className="mt-0.5 flex gap-3">
+                {puede && e.items.some((i) => i.cantidad > (i.devoluciones ?? []).reduce((a, d) => a + d.cantidad, 0)) && (
+                  <Link to={`/entregas/${e.id}/devolver`} className="text-xs text-tenue underline hover:text-tinta">
+                    Devolver o corregir
+                  </Link>
+                )}
+                {tiene('entregas.editar') && (
+                  <Link to={`/entregas/${e.id}/editar`} className="text-xs text-tenue underline hover:text-tinta">
+                    Editar
+                  </Link>
+                )}
+              </span>
             </li>
           ))}
         </ul>

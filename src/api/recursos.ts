@@ -416,6 +416,8 @@ export const registrarReposicion = (d: DatosEntrega & { motivo: MotivoReposicion
 export const obtenerEntrega = (id: number) => api<Entrega & { patient: PacienteConPendientes['paciente'] }>(`/entregas/${id}`);
 export type DatosDevolucion = { items: { entregaItemId: number; cantidad: number }[]; motivo: MotivoDevolucion; destino: DestinoDevolucion; nota?: string };
 export const devolverEntrega = (id: number, d: DatosDevolucion) => enviar<Entrega>(`/entregas/${id}/devolucion`, 'POST', d);
+/** Corregir quién entregó: un usuario (entregadoPorId) o solo el nombre de alguien sin cuenta. */
+export const editarEntrega = (id: number, d: { entregadoPorId?: number; entregadoPorNombre?: string }) => enviar<Entrega>(`/entregas/${id}`, 'PATCH', d);
 export const reporteEntregas = (f: { desde?: string; hasta?: string; communityId?: number }) => api<ReporteEntregas>(`/entregas/reporte${query(f)}`);
 /** Los pacientes detrás de una cifra del reporte de entregas (cifra: "batey:3,via:mesa,medicamento:…"). */
 export const pacientesDeEntregas = (f: { desde?: string; hasta?: string; communityId?: number; cifra: string }) => api<PacienteDeCifra[]>(`/entregas/reporte/pacientes${query(f)}`);

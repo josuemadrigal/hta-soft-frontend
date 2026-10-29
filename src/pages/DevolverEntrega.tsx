@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
+import { useSesion } from '../auth/sesion';
 import { toast } from 'sonner';
 import { devolverEntrega, obtenerEntrega } from '../api/recursos';
 import type { DestinoDevolucion, MotivoDevolucion } from '../api/tipos';
@@ -19,6 +20,7 @@ export function DevolverEntrega() {
   const volverA = useVolver();
   const cliente = useQueryClient();
   const enLinea = useEnLinea();
+  const { tiene } = useSesion();
   const [motivo, setMotivo] = useState<MotivoDevolucion | ''>('');
   const [destino, setDestino] = useState<DestinoDevolucion>('INVENTARIO');
   const [cantidades, setCantidades] = useState<Record<number, number | ''>>({});
@@ -56,7 +58,18 @@ export function DevolverEntrega() {
     <>
       <EncabezadoPagina
         titulo="Devolver o corregir una entrega"
-        descripcion={`${nombre} · ${e.patient.patientCode} · ${e.tipo === 'REPOSICION' ? 'reposición' : 'entrega'} del ${fecha(e.fecha)}${e.entregadoPorNombre ? ` · entregó ${e.entregadoPorNombre}` : ''}`}
+        descripcion={
+          <span>
+            {nombre} · {e.patient.patientCode} · {e.tipo === 'REPOSICION' ? 'reposición' : 'entrega'} del {fecha(e.fecha)}
+            {e.entregadoPorNombre && ` · entregó ${e.entregadoPorNombre}`}
+            {/* Corregir quién entregó es otra página (no toca las cantidades) */}
+            {tiene('entregas.editar') && (
+              <Link to={`/entregas/${id}/editar`} className="ml-2 font-medium text-marca-700 underline hover:text-tinta">
+                Cambiar quién entregó
+              </Link>
+            )}
+          </span>
+        }
         volver={{ a: `/pacientes/${e.patientId}`, texto: nombre }}
       />
       {devolvibles.length === 0 ? (

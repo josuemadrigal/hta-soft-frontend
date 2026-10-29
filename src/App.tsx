@@ -38,6 +38,7 @@ import { EnviarResumen } from './pages/EnviarResumen';
 import { Entregas } from './pages/Entregas';
 import { Reposicion } from './pages/Reposicion';
 import { DevolverEntrega } from './pages/DevolverEntrega';
+import { EditarEntrega } from './pages/EditarEntrega';
 import { PantallaReporteEntregas } from './pages/ReporteEntregas';
 import { HojaPreparacion } from './pages/HojaPreparacion';
 import { HojaIndicaciones } from './pages/HojaIndicaciones';
@@ -77,6 +78,7 @@ export function App() {
         <Route path="cuenta" element={<MiCuenta />} />
         <Route path="jornada" element={<ConPermiso permiso="visitas.registrar"><Jornada /></ConPermiso>} />
         <Route path="entregas" element={<ConPermiso permiso="entregas.registrar"><Entregas /></ConPermiso>} />
+        <Route path="entregas/:id/editar" element={<ConPermiso permiso="entregas.editar"><EditarEntrega /></ConPermiso>} />
         <Route path="entregas/:id/devolver" element={<ConPermiso permiso="entregas.registrar"><DevolverEntrega /></ConPermiso>} />
         <Route path="jornadas" element={<ConPermiso permiso="pacientes.ver"><Jornadas /></ConPermiso>} />
         <Route path="etiquetas" element={<ConPermiso permiso="pacientes.ver"><Etiquetas /></ConPermiso>} />
