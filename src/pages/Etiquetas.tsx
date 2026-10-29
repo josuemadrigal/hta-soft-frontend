@@ -419,17 +419,26 @@ function Libre({ alAgregar }: { alAgregar: (l: Omit<Lote, 'id'>[]) => void }) {
 
 /* ───────────── Vista previa ───────────── */
 
-/** Una etiqueta como sale impresa (Times, 11 pt, el logo arriba), a la escala de `pulgada` px por pulgada. */
+/** Logo (pulgadas de ancho) y letra (pt) según las líneas: lo mismo que el PDF (pdf-etiquetas.ts, tamanoEtiqueta). */
+const tamanoEtiqueta = (lineas: number) => (lineas <= 2 ? { logo: 1.5, letra: 14 } : { logo: 1.35, letra: 12.5 });
+
+/** Una etiqueta como sale impresa (Times, el logo arriba), a la escala de `pulgada` px por pulgada. */
 function EtiquetaMuestra({ lineas, pulgada = 96 }: { lineas: LineaEtiqueta[]; pulgada?: number }) {
   const pt = pulgada / 72;
+  const tam = tamanoEtiqueta(lineas.length);
   return (
     <div
       className="flex flex-col items-center justify-center overflow-hidden bg-white text-center leading-[1.12] text-[#111] ring-1 ring-black/10"
-      style={{ width: HOJA.etiquetaAncho * pulgada, height: HOJA.etiquetaAlto * pulgada, fontFamily: '"Times New Roman", Times, serif', fontSize: 11 * pt, borderRadius: 0.06 * pulgada }}
+      style={{ width: HOJA.etiquetaAncho * pulgada, height: HOJA.etiquetaAlto * pulgada, fontFamily: '"Times New Roman", Times, serif', fontSize: tam.letra * pt, borderRadius: 0.06 * pulgada }}
     >
-      <img src="/logo-etiqueta.png" alt="" style={{ width: 1.05 * pulgada, marginBottom: 2 * pt }} />
+      <img src="/logo-etiqueta.png" alt="" style={{ width: tam.logo * pulgada, marginBottom: 3 * pt }} />
       {lineas.map((l, i) => (
-        <span key={i} className={cn('block max-w-full truncate px-1', l.negrita && 'font-bold', l.rojo && 'text-[#e11d20]')}>
+        <span
+          key={i}
+          className={cn('block max-w-full truncate px-1', l.negrita && 'font-bold', l.rojo && 'text-[#e11d20]')}
+          // Como el PDF: si la línea es larga, la letra se achica para que quepa (aprox.: ~0.5 em por letra en Times).
+          style={{ fontSize: Math.max(7, Math.min(tam.letra, ((HOJA.etiquetaAncho - 0.2) * 72) / (Math.max(1, l.texto.length) * 0.5))) * pt }}
+        >
           {l.numerosEnRojo && !l.rojo
             ? l.texto.split(/(\d+(?:[.,]\d+)?)/).map((t, j) => (/^\d/.test(t) ? <span key={j} className="text-[#e11d20]">{t}</span> : t))
             : l.texto}

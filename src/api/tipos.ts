@@ -45,6 +45,8 @@ export type Usuario = {
   ultimoAcceso?: string | null;
   /** Última vez que usó la app (cada minuto como mucho): "en línea" si fue hace menos de 5 minutos. */
   ultimaActividad?: string | null;
+  /** Desde qué equipo y navegador entró ("Chrome en Windows · computadora"). */
+  ultimoDispositivo?: string | null;
   contrasenaCambiadaEn?: string | null;
 };
 

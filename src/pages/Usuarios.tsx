@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Check, KeyRound, LockOpen, LogOut, MailCheck, MailWarning, Pencil, Plus, Send, Trash2 } from 'lucide-react';
+import { Camera, Check, KeyRound, LockOpen, LogOut, MailCheck, MailWarning, Monitor, Pencil, Plus, Send, Smartphone, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -185,6 +185,12 @@ function Conexion({ u }: { u: Usuario }) {
         </span>
       )}
       {u.ultimoAcceso && <span className="block text-xs text-tenue">Entró: {fechaYHora(u.ultimoAcceso)}</span>}
+      {u.ultimoDispositivo && (
+        <span className="flex items-center gap-1 text-xs text-tenue" title="Equipo y navegador de su última conexión">
+          {/celular|tableta/.test(u.ultimoDispositivo) ? <Smartphone className="size-3.5 shrink-0" /> : <Monitor className="size-3.5 shrink-0" />}
+          {u.ultimoDispositivo}
+        </span>
+      )}
     </div>
   );
 }
