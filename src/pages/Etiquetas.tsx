@@ -42,6 +42,44 @@ const leerAjuste = () => {
   }
 };
 
+/** La hoja que está en la impresora: qué etiquetas ya se usaron (1–30). Se recuerda en esta computadora. */
+const CLAVE_USADAS = 'hta:etiquetas-usadas';
+const leerUsadas = () => {
+  try {
+    const a = JSON.parse(localStorage.getItem(CLAVE_USADAS) ?? '[]');
+    return new Set<number>(Array.isArray(a) ? a.filter((n) => Number.isInteger(n) && n >= 1 && n <= HOJA.porHoja) : []);
+  } catch {
+    return new Set<number>();
+  }
+};
+
+/**
+ * Reparte las etiquetas en hojas de 30, como el PDF: en la primera se saltan las usadas (aunque no estén
+ * seguidas); las siguientes van completas. null = posición vacía.
+ */
+function repartir(lotes: { lineas: LineaEtiqueta[]; cantidad: number }[], usadas: Set<number>) {
+  const hojas: (LineaEtiqueta[] | null)[][] = [];
+  let hoja: (LineaEtiqueta[] | null)[] = [];
+  let posicion = 0;
+  const poner = (x: LineaEtiqueta[]) => {
+    for (;;) {
+      if (posicion === HOJA.porHoja) {
+        hojas.push(hoja);
+        hoja = [];
+        posicion = 0;
+      }
+      if (!(hojas.length === 0 && usadas.has(posicion + 1))) break;
+      hoja.push(null);
+      posicion++;
+    }
+    hoja.push(x);
+    posicion++;
+  };
+  for (const l of lotes) for (let i = 0; i < l.cantidad; i++) poner(l.lineas);
+  hojas.push(hoja);
+  return hojas;
+}
+
 /**
  * Número que se puede borrar y reescribir: mientras se escribe se guarda el texto tal cual; solo un
  * valor válido cambia la cantidad, y al salir del campo vuelve al último válido.
@@ -73,8 +111,17 @@ function Numero({ valor, alCambiar, min, max, decimales, className, ...resto }: 
 export function Etiquetas() {
   const [tipo, setTipo] = useState<'proxima' | 'medicamento' | 'libre'>('proxima');
   const [lotes, setLotes] = useState<Lote[]>([]);
-  const [inicio, setInicio] = useState(1);
+  const [usadas, setUsadas] = useState(leerUsadas);
+  // Después de descargar: lo que quedará usado en la última hoja impresa, para marcarlo con un toque.
+  const [impresas, setImpresas] = useState<Set<number> | null>(null);
   const [ajuste, setAjuste] = useState(leerAjuste);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE_USADAS, JSON.stringify([...usadas].sort((a, b) => a - b)));
+    } catch {
+      /* sin almacenamiento: no se recuerda */
+    }
+  }, [usadas]);
   useEffect(() => {
     try {
       localStorage.setItem(CLAVE_AJUSTE, JSON.stringify(ajuste));
@@ -88,12 +135,29 @@ export function Etiquetas() {
     toast.success(nuevos.length === 1 ? `Agregado: ${nuevos[0].nombre}` : `Agregados ${nuevos.length} bateyes`);
   };
   const total = lotes.reduce((a, l) => a + l.cantidad, 0);
-  const hojas = total ? Math.ceil((total + inicio - 1) / HOJA.porHoja) : 0;
+  const reparto = repartir(lotes, usadas);
+  const hojas = total ? reparto.length : 0;
+  const libres = HOJA.porHoja - usadas.size;
   const pdf = useMutation({
-    mutationFn: () => descargarEtiquetas({ lotes: lotes.map(({ lineas, cantidad }) => ({ lineas, cantidad })), inicio, ajuste }),
-    onSuccess: () => toast.success('PDF listo. Imprímelo al 100 % (tamaño real), en hojas Avery 5160.'),
+    mutationFn: () => descargarEtiquetas({ lotes: lotes.map(({ lineas, cantidad }) => ({ lineas, cantidad })), usadas: [...usadas], ajuste }),
+    onSuccess: () => {
+      // La última hoja: sus usadas de antes (si es la primera) más lo que se imprime en ella.
+      const ultima = reparto[reparto.length - 1];
+      const quedan = new Set<number>(reparto.length === 1 ? usadas : []);
+      ultima.forEach((x, i) => x && quedan.add(i + 1));
+      setImpresas(quedan);
+      toast.success('PDF listo. Imprímelo al 100 % (tamaño real), en hojas Avery 5160.');
+    },
     onError: (e) => toast.error(e.message),
   });
+  const marcarImpresas = () => {
+    if (!impresas) return;
+    // Hoja llena: la próxima vez se empieza con una nueva.
+    setUsadas(impresas.size >= HOJA.porHoja ? new Set() : impresas);
+    setImpresas(null);
+    setLotes([]);
+    toast.success(impresas.size >= HOJA.porHoja ? 'La hoja quedó llena: la próxima vez se usa una nueva.' : `Marcadas como usadas: quedan ${HOJA.porHoja - impresas.size} libres en la hoja.`);
+  };
 
   return (
     <>
@@ -150,9 +214,37 @@ export function Etiquetas() {
               </ul>
             )}
             <div className="space-y-4 border-t border-borde p-5">
-              <Campo etiqueta="Empezar en la etiqueta" ayuda="Para aprovechar una hoja ya usada: toca dónde empieza la primera.">
-                <ElegirInicio inicio={inicio} alCambiar={setInicio} />
+              <Campo
+                etiqueta={`Hoja en la impresora · ${libres} ${libres === 1 ? 'libre' : 'libres'}`}
+                ayuda="Toca aquí o en la hoja de abajo las etiquetas que ya se usaron (quedan rayadas): las nuevas se ponen en los espacios libres. Se recuerda en esta computadora."
+              >
+                <div className="flex items-start gap-3">
+                  <MarcarUsadas usadas={usadas} alCambiar={setUsadas} />
+                  <div className="flex flex-col gap-1.5">
+                    <Boton variante="secundario" className="h-8 px-2.5 text-xs" disabled={!usadas.size} onClick={() => setUsadas(new Set())}>
+                      Hoja nueva
+                    </Boton>
+                    <Boton variante="secundario" className="h-8 px-2.5 text-xs" disabled={usadas.size === HOJA.porHoja} onClick={() => setUsadas(new Set(Array.from({ length: HOJA.porHoja }, (_, i) => i + 1)))}>
+                      Todas usadas
+                    </Boton>
+                  </div>
+                </div>
               </Campo>
+              {impresas && (
+                <div className="rounded-lg bg-marca-50 p-3 text-sm">
+                  <p>
+                    ¿Ya imprimiste? Marca como usadas las etiquetas de la última hoja: {impresas.size >= HOJA.porHoja ? 'quedó llena' : `quedarán ${HOJA.porHoja - impresas.size} libres`} para la próxima vez.
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <Boton className="h-8 px-3 text-xs" onClick={marcarImpresas}>
+                      Marcar como usadas
+                    </Boton>
+                    <Boton variante="fantasma" className="h-8 px-3 text-xs" onClick={() => setImpresas(null)}>
+                      Todavía no
+                    </Boton>
+                  </div>
+                </div>
+              )}
               <details className="text-sm">
                 <summary className="cursor-pointer text-tenue hover:text-tinta">Ajustar a la impresora</summary>
                 <div className="mt-3 grid grid-cols-2 gap-3">
@@ -173,7 +265,7 @@ export function Etiquetas() {
               </p>
             </div>
           </Tarjeta>
-          {lotes.length > 0 && <VistaHoja lotes={lotes} inicio={inicio} />}
+          <VistaHoja reparto={reparto} usadas={usadas} alCambiar={setUsadas} />
         </aside>
       </div>
     </>
@@ -448,33 +540,61 @@ function EtiquetaMuestra({ lineas, pulgada = 96 }: { lineas: LineaEtiqueta[]; pu
   );
 }
 
-/** Las 30 posiciones de la hoja: se toca dónde empieza la primera etiqueta. */
-function ElegirInicio({ inicio, alCambiar }: { inicio: number; alCambiar: (n: number) => void }) {
+/** Tocar o arrastrar sobre las posiciones de la hoja: al arrastrar se aplica lo mismo que en la primera tocada (marcar o desmarcar). */
+function useMarcarUsadas(usadas: Set<number>, alCambiar: (s: Set<number>) => void) {
+  const [arrastre, setArrastre] = useState<boolean | null>(null);
+  const poner = (n: number, usada: boolean) => {
+    const s = new Set(usadas);
+    if (usada) s.add(n);
+    else s.delete(n);
+    alCambiar(s);
+  };
+  const soltar = () => setArrastre(null);
+  return {
+    contenedor: { onPointerUp: soltar, onPointerLeave: soltar },
+    posicion: (n: number) => ({
+      'aria-pressed': usadas.has(n),
+      onPointerDown: (e: React.PointerEvent) => {
+        e.preventDefault();
+        const marcar = !usadas.has(n);
+        setArrastre(marcar);
+        poner(n, marcar);
+      },
+      onPointerEnter: () => arrastre !== null && usadas.has(n) !== arrastre && poner(n, arrastre),
+      onKeyDown: (e: React.KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), poner(n, !usadas.has(n))),
+    }),
+  };
+}
+
+/** Las 30 posiciones de la hoja: se tocan las ya usadas (una por una, o arrastrando el dedo o el ratón). */
+function MarcarUsadas({ usadas, alCambiar }: { usadas: Set<number>; alCambiar: (s: Set<number>) => void }) {
+  const m = useMarcarUsadas(usadas, alCambiar);
   return (
-    <div className="grid w-40 grid-cols-3 gap-1 rounded-md bg-fondo p-1.5" role="radiogroup" aria-label="Empezar en la etiqueta">
+    <div className="grid w-52 shrink-0 touch-none select-none grid-cols-3 gap-1 rounded-md bg-fondo p-1.5" role="group" aria-label="Etiquetas usadas de la hoja" {...m.contenedor}>
       {Array.from({ length: HOJA.porHoja }, (_, i) => i + 1).map((n) => (
         <button
           key={n}
           type="button"
-          role="radio"
-          aria-checked={n === inicio}
-          aria-label={`Etiqueta ${n}`}
-          title={`Etiqueta ${n}`}
-          onClick={() => alCambiar(n)}
-          className={cn('h-3 rounded-sm transition-colors', n < inicio ? 'bg-black/10' : n === inicio ? 'bg-marca-500 ring-1 ring-tinta' : 'bg-white ring-1 ring-black/10 hover:bg-marca-100')}
-        />
+          {...m.posicion(n)}
+          aria-label={`Etiqueta ${n}${usadas.has(n) ? ', usada' : ''}`}
+          title={`Etiqueta ${n}${usadas.has(n) ? ' (usada)' : ''}`}
+          className={cn(
+            'h-7 cursor-pointer rounded-sm text-[11px] tabular-nums transition-colors',
+            usadas.has(n) ? 'bg-[repeating-linear-gradient(135deg,rgba(0,0,0,0.18)_0_2px,rgba(0,0,0,0.06)_2px_5px)] text-tinta/50 line-through ring-1 ring-black/20' : 'bg-white text-tenue ring-1 ring-black/10 hover:bg-marca-100',
+          )}
+        >
+          {n}
+        </button>
       ))}
     </div>
   );
 }
 
-/** Las hojas como van a salir, una a la vez (en la primera, las ya usadas en gris). */
-function VistaHoja({ lotes, inicio }: { lotes: Lote[]; inicio: number }) {
+/** Las hojas como van a salir, una a la vez. En la primera se tocan las etiquetas ya usadas (quedan rayadas). */
+function VistaHoja({ reparto, usadas, alCambiar }: { reparto: (LineaEtiqueta[] | null)[][]; usadas: Set<number>; alCambiar: (s: Set<number>) => void }) {
+  const m = useMarcarUsadas(usadas, alCambiar);
   const escala = 40; // px por pulgada: la hoja mide 340 × 440
-  // Todas las posiciones en orden: las usadas de la primera hoja vacías, luego cada lote seguido del anterior.
-  const posiciones: (LineaEtiqueta[] | null)[] = Array.from({ length: inicio - 1 }, () => null);
-  for (const l of lotes) for (let i = 0; i < l.cantidad; i++) posiciones.push(l.lineas);
-  const hojas = Math.max(1, Math.ceil(posiciones.length / HOJA.porHoja));
+  const hojas = reparto.length;
   const [hoja, setHoja] = useState(0);
   const actual = Math.min(hoja, hojas - 1);
   return (
@@ -494,21 +614,41 @@ function VistaHoja({ lotes, inicio }: { lotes: Lote[]; inicio: number }) {
       }
     >
       {/* En el teléfono la hoja se puede deslizar de lado; nunca empuja la página */}
+      {actual === 0 && <p className="px-4 pt-3 text-xs text-tenue">Toca en la hoja las etiquetas que ya están usadas, o arrastra sobre varias. Toca otra vez para dejarla libre.</p>}
       <div className="flex overflow-x-auto p-4">
-        <div className="relative mx-auto shrink-0 bg-white shadow-sm ring-1 ring-black/10" style={{ width: HOJA.ancho * escala, height: HOJA.alto * escala }}>
+        <div className="relative mx-auto shrink-0 touch-none select-none bg-white shadow-sm ring-1 ring-black/10" style={{ width: HOJA.ancho * escala, height: HOJA.alto * escala }} {...(actual === 0 ? m.contenedor : {})}>
           {Array.from({ length: HOJA.porHoja }, (_, i) => {
             const fila = Math.floor(i / HOJA.columnas);
             const col = i % HOJA.columnas;
-            const indice = actual * HOJA.porHoja + i;
-            const lineas = posiciones[indice];
-            const usada = actual === 0 && i < inicio - 1;
-            return (
-              <div key={i} className="absolute" style={{ left: (HOJA.izquierda + col * HOJA.pasoColumna) * escala, top: (HOJA.arriba + fila * HOJA.etiquetaAlto) * escala }}>
-                {lineas ? (
-                  <EtiquetaMuestra lineas={lineas} pulgada={escala} />
-                ) : (
-                  <div className={cn('rounded-[2px] ring-1', usada ? 'bg-black/5 ring-black/5' : 'ring-black/10')} style={{ width: HOJA.etiquetaAncho * escala, height: HOJA.etiquetaAlto * escala }} />
-                )}
+            const lineas = reparto[actual][i];
+            const usada = actual === 0 && usadas.has(i + 1);
+            const lugar = { left: (HOJA.izquierda + col * HOJA.pasoColumna) * escala, top: (HOJA.arriba + fila * HOJA.etiquetaAlto) * escala };
+            const contenido = lineas ? (
+              <EtiquetaMuestra lineas={lineas} pulgada={escala} />
+            ) : (
+              <div
+                className={cn('grid place-items-center rounded-[2px] text-[10px] tabular-nums ring-1', usada ? 'bg-[repeating-linear-gradient(135deg,rgba(0,0,0,0.12)_0_2px,rgba(0,0,0,0.03)_2px_6px)] text-tinta/50 ring-black/15' : 'text-tenue/70 ring-black/10')}
+                style={{ width: HOJA.etiquetaAncho * escala, height: HOJA.etiquetaAlto * escala }}
+              >
+                {actual === 0 && (usada ? 'Usada' : i + 1)}
+              </div>
+            );
+            // En la primera hoja cada etiqueta se toca para marcarla usada o libre
+            return actual === 0 ? (
+              <button
+                key={i}
+                type="button"
+                className="absolute block cursor-pointer rounded-[2px] hover:ring-2 hover:ring-marca-400"
+                style={lugar}
+                {...m.posicion(i + 1)}
+                aria-label={`Etiqueta ${i + 1}${usada ? ', usada' : ''}`}
+                title={usada ? 'Usada: toca para dejarla libre' : 'Toca para marcarla usada'}
+              >
+                {contenido}
+              </button>
+            ) : (
+              <div key={i} className="absolute" style={lugar}>
+                {contenido}
               </div>
             );
           })}

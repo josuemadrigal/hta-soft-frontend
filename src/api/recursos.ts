@@ -395,7 +395,8 @@ export const reporteDonantes = (anio: number, trimestre: number | null) => api<R
 /** Etiquetas Avery 5160 (30 por hoja): cada lote son hasta 3 líneas repetidas `cantidad` veces. */
 export type LineaEtiqueta = { texto: string; negrita?: boolean; rojo?: boolean; numerosEnRojo?: boolean };
 export type LoteEtiquetas = { lineas: LineaEtiqueta[]; cantidad: number };
-export const descargarEtiquetas = (d: { lotes: LoteEtiquetas[]; inicio: number; ajuste: { x: number; y: number } }) => descargarConDatos('/etiquetas/pdf', d, 'etiquetas.pdf');
+/** usadas: posiciones (1–30) de la primera hoja que ya están usadas; el PDF las salta. */
+export const descargarEtiquetas = (d: { lotes: LoteEtiquetas[]; usadas: number[]; ajuste: { x: number; y: number } }) => descargarConDatos('/etiquetas/pdf', d, 'etiquetas.pdf');
 export const indicacionesEtiquetas = () => api<Record<string, string>>('/etiquetas/indicaciones');
 export const guardarIndicacionEtiqueta = (medicationId: number, texto: string) => enviar<Record<string, string>>('/etiquetas/indicaciones', 'PUT', { medicationId, texto });
 export const descargarPdfDonantes = (anio: number, trimestre: number | null) =>
