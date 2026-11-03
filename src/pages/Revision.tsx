@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Check, GitMerge, RotateCcw, Search, ShieldCheck, Split, Trash2, UserPen, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useCasosRevision, useComunidades, usePaciente, usePacientes, useRevisionPaciente } from '../api/consultas';
@@ -85,6 +85,13 @@ export function RevisionDatos() {
   const estado = params.get('estado') ?? '';
   const orden = params.get('orden') ?? '';
   const casos = consulta.data?.casos;
+  // En el teléfono las pestañas se deslizan: la elegida queda a la vista (sin mover la página).
+  const pestanas = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = pestanas.current;
+    const b = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (nav && b) nav.scrollLeft = b.offsetLeft - nav.offsetLeft - 16;
+  }, [tipo]);
 
   // Las opciones salen de los casos de este grupo, con cuántos hay de cada una.
   const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => a[0].localeCompare(b[0], 'es'));
@@ -132,25 +139,44 @@ export function RevisionDatos() {
     <>
       <EncabezadoPagina
         titulo="Revisión de datos"
-        descripcion={consulta.data ? `${total.toLocaleString('es-DO')} casos por revisar · ${consulta.data.decididos} ya resueltos o descartados. Todo cambio queda en Auditoría y se puede deshacer.` : 'Casos detectados en los datos, sobre todo los que dejó la importación del Excel.'}
+        descripcion={consulta.data ? `${total.toLocaleString('es-DO')} ${total === 1 ? 'caso' : 'casos'} por revisar · ${consulta.data.decididos} ya resueltos o descartados. Todo cambio queda en Auditoría y se puede deshacer.` : 'Casos detectados en los datos, sobre todo los que dejó la importación del Excel.'}
       />
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {TIPOS.map((t) => (
-          <button
-            key={t.tipo}
-            onClick={() => cambiar({ tipo: t.tipo, motivo: null, orden: null })}
-            className={cn('rounded-full border px-3 py-1.5 text-sm', tipo === t.tipo ? 'border-tinta bg-marca-500 font-medium' : 'border-borde bg-superficie text-tenue hover:text-tinta')}
-          >
-            {t.texto} <span className="tabular ml-1 text-xs opacity-70">{consulta.data?.totales[t.tipo] ?? 0}</span>
-          </button>
-        ))}
-        <label className="ml-auto flex items-center gap-2 text-sm text-tenue">
-          <input type="checkbox" className="accent-tinta" checked={descartados} onChange={(e) => cambiar({ ver: e.target.checked ? 'descartados' : null, estado: null })} /> Ver resueltos y descartados
-        </label>
-      </div>
-      <p className="mb-4 text-sm text-tenue">{info.ayuda}</p>
+      {/* Un grupo a la vez: las pestañas en una fila (en el teléfono se deslizan) */}
+      <nav ref={pestanas} className="-mx-4 mb-5 flex gap-1 overflow-x-auto border-b border-borde px-4 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label="Grupos de casos">
+        {TIPOS.map((t) => {
+          const n = consulta.data?.totales[t.tipo] ?? 0;
+          const activo = tipo === t.tipo;
+          return (
+            <button
+              key={t.tipo}
+              onClick={() => cambiar({ tipo: t.tipo, motivo: null, orden: null })}
+              aria-current={activo ? 'page' : undefined}
+              className={cn(
+                '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors',
+                activo ? 'border-tinta font-medium text-tinta' : 'border-transparent text-tenue hover:text-tinta',
+              )}
+            >
+              {t.texto}
+              <span className={cn('tabular rounded-full px-1.5 py-px text-xs', activo ? 'bg-marca-500 text-tinta' : n ? 'bg-black/5' : 'text-tenue/60')}>{n}</span>
+            </button>
+          );
+        })}
+      </nav>
 
       <Tarjeta>
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-borde px-5 py-4">
+          <p className="max-w-2xl text-sm text-tenue">{info.ayuda}</p>
+          <Segmentos
+            className="w-full shrink-0 sm:w-64"
+            etiqueta="Qué casos ver"
+            valor={descartados ? 'decididos' : 'pendientes'}
+            alCambiar={(v) => cambiar({ ver: v === 'decididos' ? 'descartados' : null, estado: null })}
+            opciones={[
+              { value: 'pendientes', label: 'Por revisar' },
+              { value: 'decididos', label: 'Ya revisados' },
+            ]}
+          />
+        </div>
         {consulta.isPending ? (
           <Cargando texto="Revisando los datos…" />
         ) : consulta.isError ? (
@@ -161,30 +187,33 @@ export function RevisionDatos() {
           </Vacio>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2 border-b border-borde px-5 py-3">
-              <div className="relative min-w-56 flex-1">
+            <div className="flex flex-wrap items-center gap-2 border-b border-borde bg-fondo/50 px-5 py-3">
+              <div className="relative w-full sm:w-64">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
                 <Entrada placeholder="Buscar nombre o código" aria-label="Buscar" className="pl-8" value={buscar} onChange={(e) => cambiar({ q: e.target.value || null })} />
               </div>
               {bateyes.length > 1 && (
-                <Selector className="w-44" aria-label="Batey" vacio="Todos los bateyes" value={batey} onChange={(e) => cambiar({ batey: e.target.value || null })} opciones={bateyes.map(([b, n]) => ({ value: b, label: `${b} (${n})` }))} />
+                <Selector className="w-auto max-sm:flex-1" aria-label="Batey" vacio="Todos los bateyes" value={batey} onChange={(e) => cambiar({ batey: e.target.value || null })} opciones={bateyes.map(([b, n]) => ({ value: b, label: `${b} (${n})` }))} />
               )}
-              <Selector className="w-36" aria-label="Sexo" vacio="Ambos sexos" value={sexo} onChange={(e) => cambiar({ sexo: e.target.value || null })} opciones={opciones(GENEROS)} />
+              <Selector className="w-auto max-sm:flex-1" aria-label="Sexo" vacio="Ambos sexos" value={sexo} onChange={(e) => cambiar({ sexo: e.target.value || null })} opciones={opciones(GENEROS)} />
               {motivos.length > 0 && (
-                <Selector className="w-60" aria-label="Motivo" vacio="Cualquier motivo" value={motivo} onChange={(e) => cambiar({ motivo: e.target.value || null })} opciones={motivos.map(([m, n]) => ({ value: m, label: `${m[0].toUpperCase()}${m.slice(1)} (${n})` }))} />
+                <Selector className="w-auto max-w-64 max-sm:max-w-none max-sm:flex-1" aria-label="Motivo" vacio="Cualquier motivo" value={motivo} onChange={(e) => cambiar({ motivo: e.target.value || null })} opciones={motivos.map(([m, n]) => ({ value: m, label: `${m[0].toUpperCase()}${m.slice(1)} (${n})` }))} />
               )}
               {descartados && (
-                <Selector className="w-52" aria-label="Decisión" vacio="Resueltos y descartados" value={estado} onChange={(e) => cambiar({ estado: e.target.value || null })} opciones={[{ value: 'RESUELTO', label: 'Resueltos' }, { value: 'DESCARTADO', label: 'Descartados' }]} />
+                <Selector className="w-auto max-sm:flex-1" aria-label="Decisión" vacio="Resueltos y descartados" value={estado} onChange={(e) => cambiar({ estado: e.target.value || null })} opciones={[{ value: 'RESUELTO', label: 'Resueltos' }, { value: 'DESCARTADO', label: 'Descartados' }]} />
               )}
-              <Selector className="w-52" aria-label="Ordenar" value={orden} onChange={(e) => cambiar({ orden: e.target.value || null })} opciones={conFecha ? [...ORDENES, ...ORDEN_FECHA] : ORDENES} />
               {hayFiltros && (
-                <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
+                <Boton variante="fantasma" className="h-9 px-2.5" icono={<X className="size-4" />} onClick={limpiar}>
                   Limpiar
                 </Boton>
               )}
+              <label className="flex items-center gap-2 text-sm text-tenue max-sm:w-full sm:ml-auto">
+                <span className="shrink-0">Ordenar</span>
+                <Selector className="w-auto max-sm:flex-1" aria-label="Ordenar" value={orden} onChange={(e) => cambiar({ orden: e.target.value || null })} opciones={conFecha ? [...ORDENES, ...ORDEN_FECHA] : ORDENES} />
+              </label>
             </div>
             {hayFiltros && (
-              <p className="border-b border-borde px-5 py-2 text-xs text-tenue">
+              <p className="border-b border-borde px-5 py-2 text-xs text-tenue tabular">
                 {filas.length.toLocaleString('es-DO')} de {consulta.data.casos.length.toLocaleString('es-DO')} casos
               </p>
             )}
@@ -251,47 +280,49 @@ function FilaCaso({ caso: c }: { caso: CasoRevision }) {
   }[c.tipo];
 
   return (
-    <li className="flex flex-wrap items-start gap-x-6 gap-y-3 px-5 py-4">
-      <div className="grid min-w-64 flex-1 gap-3 sm:grid-cols-2">
+    // Tres columnas fijas: quién, qué pasa y qué hacer; así todas las filas se leen igual.
+    <li className="grid gap-x-8 gap-y-3 px-5 py-4 transition-colors hover:bg-fondo/40 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto]">
+      <div className="space-y-2.5">
         {c.pacientes.map((x) => (
           <FichaCorta key={x.id} p={x} />
         ))}
-        <div className={cn('text-sm', c.pacientes.length === 1 && 'sm:col-span-1', c.pacientes.length === 2 && 'sm:col-span-2')}>
-          <p>{c.resumen}</p>
-          {!!c.motivos?.length && (
-            <p className="mt-1 flex flex-wrap gap-1">
-              {c.motivos.map((m) => (
-                <Insignia key={m}>{m}</Insignia>
-              ))}
-            </p>
-          )}
-          {c.tipo === 'MISMO_DIA' && c.visitas && (
-            <ul className="mt-2 space-y-1">
-              {c.visitas.map((v) => (
-                <li key={v.id} className="flex items-center gap-3 text-xs">
-                  <span className="tabular w-16 font-mono text-[13px]">{v.presion}</span>
-                  <span className="w-16 text-tenue">{v.peso ? `${v.peso} kg` : '—'}</span>
-                  <span className="flex-1 text-tenue">{v.atendio ?? '—'}</span>
-                  {tiene('visitas.administrar') && !c.decision && (
-                    <button
-                      className="rounded p-1 text-tenue hover:bg-red-50 hover:text-red-600"
-                      title="Eliminar esta visita"
-                      onClick={() => eliminar({ id: v.id, visitDate: `${c.fecha}T16:00:00Z`, doctorNombre: v.atendio, importada: true, patient: { firstName: p.nombre, lastName: '' } } as unknown as Visita)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="min-w-0 text-sm">
+        <p>{c.resumen}</p>
+        {!!c.motivos?.length && (
+          <p className="mt-1.5 flex flex-wrap gap-1">
+            {c.motivos.map((m) => (
+              <Insignia key={m}>{m}</Insignia>
+            ))}
+          </p>
+        )}
+        {c.tipo === 'MISMO_DIA' && c.visitas && (
+          <ul className="mt-2 space-y-1">
+            {c.visitas.map((v) => (
+              <li key={v.id} className="flex items-center gap-3 text-xs">
+                <span className="tabular w-16 font-mono text-[13px]">{v.presion}</span>
+                <span className="w-16 text-tenue">{v.peso ? `${v.peso} kg` : '—'}</span>
+                <span className="flex-1 text-tenue">{v.atendio ?? '—'}</span>
+                {tiene('visitas.administrar') && !c.decision && (
+                  <button
+                    className="rounded p-1 text-tenue hover:bg-red-50 hover:text-red-600"
+                    title="Eliminar esta visita"
+                    onClick={() => eliminar({ id: v.id, visitDate: `${c.fecha}T16:00:00Z`, doctorNombre: v.atendio, importada: true, patient: { firstName: p.nombre, lastName: '' } } as unknown as Visita)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 self-start md:col-start-2 xl:col-start-auto xl:justify-end">
         {c.decision ? (
           <>
-            <span className="text-xs text-tenue">
-              {c.decision.estado === 'RESUELTO' ? 'Resuelto' : 'Descartado'} por {c.decision.userName ?? '—'} el {fecha(c.decision.createdAt)}
+            <span className="text-xs text-tenue xl:max-w-48 xl:text-right">
+              <Insignia className="mr-1">{c.decision.estado === 'RESUELTO' ? 'Resuelto' : 'Descartado'}</Insignia>
+              por {c.decision.userName ?? '—'} el {fecha(c.decision.createdAt)}
             </span>
             <Boton variante="secundario" className="h-8 text-xs" icono={<RotateCcw className="size-3.5" />} cargando={reabrir.isPending} onClick={() => reabrir.mutate()}>
               Reabrir
