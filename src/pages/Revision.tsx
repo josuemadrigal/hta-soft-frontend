@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, GitMerge, RotateCcw, Search, ShieldCheck, Split, Trash2, UserPen } from 'lucide-react';
+import { ArrowRight, Check, GitMerge, RotateCcw, Search, ShieldCheck, Split, Trash2, UserPen, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
@@ -23,6 +23,25 @@ const TIPOS: { tipo: TipoCaso; texto: string; ayuda: string }[] = [
 ];
 const COLORES = ['#2563eb', '#db2777', '#059669', '#d97706', '#7c3aed', '#0891b2'];
 const POR_PAGINA = 30;
+
+const ORDENES = [
+  { value: '', label: 'Orden sugerido' },
+  { value: 'visitas', label: 'Más visitas primero' },
+  { value: 'pocas', label: 'Menos visitas primero' },
+  { value: 'nombre', label: 'Nombre (A–Z)' },
+  { value: 'codigo', label: 'Código' },
+  { value: 'batey', label: 'Batey' },
+];
+const ORDEN_FECHA = [
+  { value: 'reciente', label: 'Más recientes primero' },
+  { value: 'antigua', label: 'Más antiguas primero' },
+];
+/** "edades distintas (nacidos hacia 1950 y 1979)" → "edades distintas": el motivo sin los datos de cada caso. */
+const motivoBase = (m: string) => m.replace(/\s*\(.*\)\s*$/, '');
+const sinAcentos = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const visitasDe = (c: CasoRevision) => c.pacientes.reduce((a, p) => a + p.visitas, 0);
+/** La fecha del caso: la del día repetido o la de la decisión. */
+const fechaDe = (c: CasoRevision) => c.fecha ?? c.decision?.createdAt ?? '';
 
 function useInvalidar() {
   const cliente = useQueryClient();
@@ -59,6 +78,44 @@ export function RevisionDatos() {
   const [mostrar, setMostrar] = useState(POR_PAGINA);
   const info = TIPOS.find((t) => t.tipo === tipo)!;
   const total = Object.values(consulta.data?.totales ?? {}).reduce((a, n) => a + (n ?? 0), 0);
+  const buscar = params.get('q') ?? '';
+  const batey = params.get('batey') ?? '';
+  const sexo = params.get('sexo') ?? '';
+  const motivo = params.get('motivo') ?? '';
+  const estado = params.get('estado') ?? '';
+  const orden = params.get('orden') ?? '';
+  const casos = consulta.data?.casos;
+
+  // Las opciones salen de los casos de este grupo, con cuántos hay de cada una.
+  const contar = (xs: string[]) => [...xs.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>())].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  const bateyes = useMemo(() => contar((casos ?? []).flatMap((c) => [...new Set(c.pacientes.map((p) => p.batey))])), [casos]);
+  const motivos = useMemo(() => contar((casos ?? []).flatMap((c) => [...new Set((c.motivos ?? []).map(motivoBase))])), [casos]);
+  const conFecha = !!casos?.some((c) => c.fecha) || descartados;
+
+  const filas = useMemo(() => {
+    const q = sinAcentos(buscar.trim());
+    const xs = (casos ?? []).filter(
+      (c) =>
+        (!q || c.pacientes.some((p) => sinAcentos(`${p.nombre} ${p.codigo}`).includes(q)) || sinAcentos(c.resumen).includes(q)) &&
+        (!batey || c.pacientes.some((p) => p.batey === batey)) &&
+        (!sexo || c.pacientes.some((p) => p.sexo === sexo)) &&
+        (!motivo || (c.motivos ?? []).some((m) => motivoBase(m) === motivo)) &&
+        (!estado || c.decision?.estado === estado),
+    );
+    const p0 = (c: CasoRevision) => c.pacientes[0];
+    const comparar: Record<string, (a: CasoRevision, b: CasoRevision) => number> = {
+      visitas: (a, b) => visitasDe(b) - visitasDe(a),
+      pocas: (a, b) => visitasDe(a) - visitasDe(b),
+      nombre: (a, b) => p0(a).nombre.localeCompare(p0(b).nombre, 'es'),
+      codigo: (a, b) => p0(a).codigo.localeCompare(p0(b).codigo, 'es', { numeric: true }),
+      batey: (a, b) => p0(a).batey.localeCompare(p0(b).batey, 'es') || p0(a).codigo.localeCompare(p0(b).codigo, 'es', { numeric: true }),
+      reciente: (a, b) => fechaDe(b).localeCompare(fechaDe(a)),
+      antigua: (a, b) => fechaDe(a).localeCompare(fechaDe(b)),
+    };
+    return comparar[orden] ? [...xs].sort(comparar[orden]) : xs;
+  }, [casos, buscar, batey, sexo, motivo, estado, orden]);
+  const hayFiltros = !!(buscar || batey || sexo || motivo || estado);
+  const limpiar = () => cambiar({ q: null, batey: null, sexo: null, motivo: null, estado: null });
 
   const cambiar = (cambios: Record<string, string | null>) => {
     setMostrar(POR_PAGINA);
@@ -81,14 +138,14 @@ export function RevisionDatos() {
         {TIPOS.map((t) => (
           <button
             key={t.tipo}
-            onClick={() => cambiar({ tipo: t.tipo })}
+            onClick={() => cambiar({ tipo: t.tipo, motivo: null, orden: null })}
             className={cn('rounded-full border px-3 py-1.5 text-sm', tipo === t.tipo ? 'border-tinta bg-marca-500 font-medium' : 'border-borde bg-superficie text-tenue hover:text-tinta')}
           >
             {t.texto} <span className="tabular ml-1 text-xs opacity-70">{consulta.data?.totales[t.tipo] ?? 0}</span>
           </button>
         ))}
         <label className="ml-auto flex items-center gap-2 text-sm text-tenue">
-          <input type="checkbox" className="accent-tinta" checked={descartados} onChange={(e) => cambiar({ ver: e.target.checked ? 'descartados' : null })} /> Ver resueltos y descartados
+          <input type="checkbox" className="accent-tinta" checked={descartados} onChange={(e) => cambiar({ ver: e.target.checked ? 'descartados' : null, estado: null })} /> Ver resueltos y descartados
         </label>
       </div>
       <p className="mb-4 text-sm text-tenue">{info.ayuda}</p>
@@ -104,15 +161,50 @@ export function RevisionDatos() {
           </Vacio>
         ) : (
           <>
-            <ul className="divide-y divide-borde">
-              {consulta.data.casos.slice(0, mostrar).map((c) => (
-                <FilaCaso key={c.clave} caso={c} />
-              ))}
-            </ul>
-            {consulta.data.casos.length > mostrar && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-borde px-5 py-3">
+              <div className="relative min-w-56 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-tenue" />
+                <Entrada placeholder="Buscar nombre o código" aria-label="Buscar" className="pl-8" value={buscar} onChange={(e) => cambiar({ q: e.target.value || null })} />
+              </div>
+              {bateyes.length > 1 && (
+                <Selector className="w-44" aria-label="Batey" vacio="Todos los bateyes" value={batey} onChange={(e) => cambiar({ batey: e.target.value || null })} opciones={bateyes.map(([b, n]) => ({ value: b, label: `${b} (${n})` }))} />
+              )}
+              <Selector className="w-36" aria-label="Sexo" vacio="Ambos sexos" value={sexo} onChange={(e) => cambiar({ sexo: e.target.value || null })} opciones={opciones(GENEROS)} />
+              {motivos.length > 0 && (
+                <Selector className="w-60" aria-label="Motivo" vacio="Cualquier motivo" value={motivo} onChange={(e) => cambiar({ motivo: e.target.value || null })} opciones={motivos.map(([m, n]) => ({ value: m, label: `${m[0].toUpperCase()}${m.slice(1)} (${n})` }))} />
+              )}
+              {descartados && (
+                <Selector className="w-52" aria-label="Decisión" vacio="Resueltos y descartados" value={estado} onChange={(e) => cambiar({ estado: e.target.value || null })} opciones={[{ value: 'RESUELTO', label: 'Resueltos' }, { value: 'DESCARTADO', label: 'Descartados' }]} />
+              )}
+              <Selector className="w-52" aria-label="Ordenar" value={orden} onChange={(e) => cambiar({ orden: e.target.value || null })} opciones={conFecha ? [...ORDENES, ...ORDEN_FECHA] : ORDENES} />
+              {hayFiltros && (
+                <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
+                  Limpiar
+                </Boton>
+              )}
+            </div>
+            {hayFiltros && (
+              <p className="border-b border-borde px-5 py-2 text-xs text-tenue">
+                {filas.length.toLocaleString('es-DO')} de {consulta.data.casos.length.toLocaleString('es-DO')} casos
+              </p>
+            )}
+            {!filas.length ? (
+              <Vacio icono={<Search className="size-8" />} titulo="Ningún caso con esos filtros">
+                <button className="underline" onClick={limpiar}>
+                  Quitar los filtros
+                </button>
+              </Vacio>
+            ) : (
+              <ul className="divide-y divide-borde">
+                {filas.slice(0, mostrar).map((c) => (
+                  <FilaCaso key={c.clave} caso={c} />
+                ))}
+              </ul>
+            )}
+            {filas.length > mostrar && (
               <div className="border-t border-borde p-3 text-center">
                 <Boton variante="fantasma" onClick={() => setMostrar((n) => n + POR_PAGINA)}>
-                  Ver más ({consulta.data.casos.length - mostrar} restantes)
+                  Ver más ({filas.length - mostrar} restantes)
                 </Boton>
               </div>
             )}
