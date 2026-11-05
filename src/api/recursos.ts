@@ -1,6 +1,8 @@
 import { api, descargar, descargarConDatos, enviar, type Sesion } from './client';
 import type {
   AnaliticaPaciente,
+  MotivoExtraordinaria,
+  MotivoRetiro,
   Comunidad,
   ConfigPA,
   EstadisticasAvanzadas,
@@ -148,7 +150,11 @@ export type DatosVisita = {
   visitDate: string;
   visitType: Visita['visitType'];
   isHomeVisit?: boolean;
-  /** Opcionales en la visita a domicilio. */
+  extraordinaria?: boolean;
+  motivoExtraordinaria?: MotivoExtraordinaria;
+  /** Medicamentos que se le quitan en esta visita. */
+  retiros?: { medicationId: number; motivo: MotivoRetiro; detalle?: string }[];
+  /** Opcionales en la visita a domicilio o extraordinaria. */
   weightKg?: number;
   heightM?: number;
   systolicManual?: number;
@@ -187,6 +193,11 @@ export const obtenerVisita = (id: number) => api<(Visita & { patient: Paciente }
 export type RecetaEdicion = { id?: number; medicationId: number; dailyDose: number; bufferDays: number; patientSupplyRemaining: number; entregadas: number };
 export type CambiosVisita = { [K in keyof Omit<DatosVisita, 'patientId' | 'prescriptions'>]?: DatosVisita[K] | null } & { recetas?: RecetaEdicion[] };
 export const editarVisita = (id: number, d: CambiosVisita) => enviar<Visita>(`/visits/${id}`, 'PATCH', d);
+/** Retirar medicamentos directo en la ficha, sin registrar una consulta. */
+export const retirarTratamiento = (patientId: number, d: { medicamentos: number[]; motivo: MotivoRetiro; detalle?: string; fecha?: string }) =>
+  enviar<{ retirados: number }>(`/patients/${patientId}/retiros`, 'POST', d);
+/** Deshacer un retiro: el medicamento vuelve a su tratamiento. */
+export const deshacerRetiro = (id: number) => enviar<{ ok: boolean }>(`/retiros/${id}`, 'DELETE');
 export const borrarVisita = (id: number) => enviar<{ id: number; inventarioDevuelto: boolean }>(`/visits/${id}`, 'DELETE');
 
 /* Configuración general */
@@ -325,6 +336,7 @@ export type ComentarioVisita = {
   comentario: string | null;
   motivo: string | null;
   domicilio: boolean;
+  extraordinaria?: boolean;
   nueva: boolean;
   paciente: { id: number; patientCode: string; firstName: string; lastName: string; gender: Genero; birthDate: string; birthDateIsEstimated: boolean };
   batey: { id: number; name: string };

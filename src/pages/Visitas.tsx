@@ -194,6 +194,7 @@ export function Visitas() {
                             <Home className="size-3" />
                           </Insignia>
                         )}
+                        {v.extraordinaria && <Insignia color="#6d28d9">Extraordinaria</Insignia>}
                       </span>
                     </td>
                     <td className="tabular px-5 py-3 font-mono">{tensionDe(v)}</td>

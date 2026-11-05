@@ -17,6 +17,7 @@ import { MedicoDetalle } from './pages/MedicoDetalle';
 import { Medicos } from './pages/Medicos';
 import { MedicosComparar } from './pages/MedicosComparar';
 import { NuevaVisita } from './pages/NuevaVisita';
+import { RetirarTratamiento } from './pages/RetirarTratamiento';
 import { Paciente } from './pages/Paciente';
 import { PacienteEditor } from './pages/PacienteEditor';
 import { Pacientes } from './pages/Pacientes';
@@ -97,6 +98,7 @@ export function App() {
         <Route path="pacientes/:id/indicaciones" element={<ConPermiso permiso="pacientes.ver"><HojaIndicaciones /></ConPermiso>} />
         <Route path="pacientes/:id/reposicion" element={<ConPermiso permiso="entregas.registrar"><Reposicion /></ConPermiso>} />
         <Route path="pacientes/:id/visita" element={<ConPermiso permiso="visitas.registrar"><NuevaVisita /></ConPermiso>} />
+        <Route path="pacientes/:id/retirar-tratamiento" element={<ConPermiso permiso="visitas.registrar"><RetirarTratamiento /></ConPermiso>} />
         <Route path="visitas/:id/editar" element={<EditarVisita />} />
         <Route path="revision" element={<ConPermiso permiso="datos.revisar"><RevisionDatos /></ConPermiso>} />
         <Route path="revision/separar/:id" element={<ConPermiso permiso="datos.revisar"><SepararPaciente /></ConPermiso>} />

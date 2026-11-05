@@ -1,5 +1,7 @@
 import type {
   DestinoDevolucion,
+  MotivoExtraordinaria,
+  MotivoRetiro,
   Parentesco,
   MotivoDevolucion,
   MotivoReposicion,
@@ -64,6 +66,21 @@ export const MOTIVOS_INASISTENCIA: Record<MotivoInasistencia, string> = {
   ENFERMO: 'Enfermo u hospitalizado',
   NO_QUISO: 'No quiso venir',
   SE_MUDO: 'Se mudó',
+  OTRO: 'Otro motivo',
+};
+
+export const MOTIVOS_EXTRAORDINARIA: Record<MotivoExtraordinaria, string> = {
+  CAMBIO_TRATAMIENTO: 'Cambiar el tratamiento',
+  CONTROL_PRESION: 'Volver a revisar la presión',
+  MALESTAR: 'Se sentía mal',
+  OTRO: 'Otro motivo',
+};
+
+export const MOTIVOS_RETIRO: Record<MotivoRetiro, string> = {
+  PRESION_CONTROLADA: 'La presión está controlada',
+  EFECTO_ADVERSO: 'Le hizo daño (efecto adverso)',
+  CAMBIO_MEDICAMENTO: 'Se cambió por otro medicamento',
+  OTRO_MEDICO: 'Lo indicó otro médico',
   OTRO: 'Otro motivo',
 };
 

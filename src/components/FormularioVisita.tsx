@@ -8,11 +8,11 @@ import { z } from 'zod';
 import { useConfigPA, useConfiguracion, useMedicamentos } from '../api/consultas';
 import { crearVisita, editarVisita, type CambiosVisita, type DatosVisita } from '../api/recursos';
 import { agregarPendiente, esFaltaDeConexion, nuevoId } from '../offline/cola';
-import type { ConfigPA, Medicamento, Paciente, Receta, Visita } from '../api/tipos';
+import type { ConfigPA, Medicamento, MotivoExtraordinaria, MotivoRetiro, Paciente, Receta, Visita } from '../api/tipos';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from './confirmar';
 import { alertasClinicas } from '../lib/alertas';
-import { opciones, TIPOS_VISITA } from '../lib/etiquetas';
+import { MOTIVOS_EXTRAORDINARIA, MOTIVOS_RETIRO, opciones, TIPOS_VISITA } from '../lib/etiquetas';
 import { margenDe, mensajeEntrega } from '../lib/entregas';
 import { clasificar, cn, colorCumplimiento, DIA_MS, fecha as fechaCorta, nombreCompleto } from '../lib/formato';
 import { ListaAlertas, useUmbrales } from './Alertas';
@@ -26,6 +26,9 @@ const base = z.object({
     visitDate: z.string().min(1, 'Requerida'),
     visitType: z.enum(['NEW', 'FOLLOW_UP']),
     isHomeVisit: z.boolean(),
+    /** Fuera de la jornada (cambiar el tratamiento, volver a revisarlo): no cuenta como visto en la ronda. */
+    extraordinaria: z.boolean(),
+    motivoExtraordinaria: z.string(),
     /** Entregar los medicamentos al guardar; si no, quedan para la mesa de farmacia. */
     entregar: z.boolean(),
     // Obligatorios al registrar; al corregir pueden quedar vacíos (visitas viejas del Excel).
@@ -68,8 +71,10 @@ const crearEsquema = (edicion: boolean) =>
     path: ['systolicManual'],
   })
   // En la casa del paciente a veces no hay báscula ni cinta: ahí el peso y la estatura son opcionales.
-  .refine((d) => edicion || d.isHomeVisit || d.weightKg !== undefined, { message: 'Requerido', path: ['weightKg'] })
-  .refine((d) => edicion || d.isHomeVisit || d.heightM !== undefined, { message: 'Requerida', path: ['heightM'] })
+  // En la extraordinaria tampoco: a veces es en la casa o en la oficina, sin báscula.
+  .refine((d) => edicion || d.isHomeVisit || d.extraordinaria || d.weightKg !== undefined, { message: 'Requerido', path: ['weightKg'] })
+  .refine((d) => edicion || d.isHomeVisit || d.extraordinaria || d.heightM !== undefined, { message: 'Requerida', path: ['heightM'] })
+  .refine((d) => !d.extraordinaria || d.motivoExtraordinaria, { message: 'Elige el motivo', path: ['motivoExtraordinaria'] })
   // Casi siempre es un error al teclear: la diastólica es la de abajo.
   .refine((d) => !(d.systolicManual && d.diastolicManual && d.diastolicManual >= d.systolicManual), { message: 'La diastólica debe ser menor que la sistólica', path: ['diastolicManual'] })
   .refine((d) => !(d.systolicAuto && d.diastolicAuto && d.diastolicAuto >= d.systolicAuto), { message: 'La diastólica debe ser menor que la sistólica', path: ['diastolicAuto'] })
@@ -312,6 +317,8 @@ type Props = {
   visita?: Visita;
   /** Al corregir, la administración puede cambiar quién atendió. */
   medicos?: { value: number; label: string }[];
+  /** Empezar como visita extraordinaria (desde la ficha: "Visita extraordinaria"). */
+  extraordinaria?: boolean;
   /** En la jornada va en un modal: una sola columna, sin resumen lateral fijo. */
   enModal?: boolean;
   /** Sin visita cuando quedó guardada sin internet (se envía después) o al corregir. */
@@ -336,6 +343,8 @@ function valoresDe(v: Visita): Datos {
     visitDate: local(v.visitDate),
     visitType: v.visitType,
     isHomeVisit: v.isHomeVisit,
+    extraordinaria: !!v.extraordinaria,
+    motivoExtraordinaria: v.motivoExtraordinaria ?? '',
     entregar: true,
     weightKg: aNumero(v.weightKg),
     heightM: aNumero(v.heightM),
@@ -363,7 +372,7 @@ function valoresDe(v: Visita): Datos {
   };
 }
 
-function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, configs, medicamentos }: Props & { configs: ConfigPA[]; medicamentos: Medicamento[] }) {
+function Formulario({ paciente, visita: editada, medicos, enModal, extraordinaria: comoExtraordinaria, alGuardar, configs, medicamentos }: Props & { configs: ConfigPA[]; medicamentos: Medicamento[] }) {
   const { usuario } = useSesion();
   const edicion = !!editada;
   const confirmar = useConfirmar();
@@ -373,6 +382,10 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   // Al corregir, las "anteriores" son las de antes de esa visita.
   const historial = (paciente.clinicalVisits ?? []).filter((v) => !editada || (v.id !== editada.id && new Date(v.visitDate) < new Date(editada.visitDate)));
   const ultima = historial[0];
+  // Su tratamiento vigente (sin lo que se le retiró; una extraordinaria pudo cambiarlo). Sin él, la última visita.
+  const actuales = edicion ? [] : (paciente.tratamiento?.recetas ?? ultima?.prescriptions ?? []);
+  // Al quitar un medicamento de su tratamiento se registra el retiro, con su motivo.
+  const [motivosRetiro, setMotivosRetiro] = useState<Record<number, MotivoRetiro | ''>>({});
 
   const { register, handleSubmit, control, formState, setValue } = useForm<Datos>({
     resolver: zodResolver(crearEsquema(edicion)),
@@ -382,6 +395,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
           visitDate: ymd(new Date()),
           visitType: ultima ? 'FOLLOW_UP' : 'NEW',
           isHomeVisit: false,
+          extraordinaria: !!comoExtraordinaria,
+          motivoExtraordinaria: '',
           entregar: entregaInmediata,
           // La estatura casi no cambia: se toma la última registrada.
           heightM: (() => {
@@ -392,8 +407,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
           notes: '',
           prescriptionText: '',
           intervalo: '90',
-          // Lo normal es repetir el tratamiento: se precargan los medicamentos de la última visita.
-          recetas: (ultima?.prescriptions ?? []).map((r) => ({
+          // Lo normal es repetir el tratamiento: se precarga su tratamiento vigente.
+          recetas: actuales.map((r) => ({
             medicationId: String(r.medicationId),
             dailyDose: r.dailyDose,
             // Las recetas importadas del Excel traen 0 días de margen: se proponen los 5 de siempre.
@@ -405,10 +420,15 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   const recetas = useFieldArray({ control, name: 'recetas' });
   const e = formState.errors;
 
-  const [sm, dm, sa, da, peso, talla, intervalo, diasOtro, fc, spo2, temperatura, recetasHoy, fechaHoy, tipo, enCasa] = useWatch({
+  const [sm, dm, sa, da, peso, talla, intervalo, diasOtro, fc, spo2, temperatura, recetasHoy, fechaHoy, tipo, enCasaMarcado, extra] = useWatch({
     control,
-    name: ['systolicManual', 'diastolicManual', 'systolicAuto', 'diastolicAuto', 'weightKg', 'heightM', 'intervalo', 'diasOtro', 'heartRate', 'oxygenSaturation', 'temperature', 'recetas', 'visitDate', 'visitType', 'isHomeVisit'],
+    name: ['systolicManual', 'diastolicManual', 'systolicAuto', 'diastolicAuto', 'weightKg', 'heightM', 'intervalo', 'diasOtro', 'heartRate', 'oxygenSaturation', 'temperature', 'recetas', 'visitDate', 'visitType', 'isHomeVisit', 'extraordinaria'],
   });
+  const motivoExtra = useWatch({ control, name: 'motivoExtraordinaria' });
+  // Peso y estatura opcionales: en su casa o en una extraordinaria.
+  const enCasa = enCasaMarcado || extra;
+  // Lo que estaba en su tratamiento y ya no está en la lista: se le retira.
+  const quitados = actuales.filter((r) => !recetasHoy.some((x) => Number(x.medicationId) === r.medicationId));
   const s = sm ?? sa;
   const d = dm ?? da;
   const categoria = s && d ? clasificar(configs, s, d) : null;
@@ -450,6 +470,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
       nextVisitDate: new Date(fecha.getTime() + diasDe(datos) * DIA_MS).toISOString(),
       visitType: datos.visitType,
       isHomeVisit: datos.isHomeVisit,
+      extraordinaria: datos.extraordinaria,
+      motivoExtraordinaria: datos.extraordinaria ? (datos.motivoExtraordinaria as MotivoExtraordinaria) : null,
       weightKg: nulo(datos.weightKg),
       heightM: nulo(datos.heightM),
       systolicManual: nulo(datos.systolicManual),
@@ -507,6 +529,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
   const enviar = handleSubmit(async (datos) => {
     setError(null);
     if (edicion) return corregir(datos);
+    if (quitados.some((r) => !motivosRetiro[r.medicationId])) return setError('Elige por qué se le retira cada medicamento que quitaste.');
     const fecha = conHora(datos.visitDate, new Date());
     const dias = diasDe(datos);
     const visita: DatosVisita = {
@@ -518,6 +541,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
       nextVisitDate: new Date(fecha.getTime() + dias * DIA_MS).toISOString(),
       visitType: datos.visitType,
       isHomeVisit: datos.isHomeVisit,
+      ...(datos.extraordinaria && { extraordinaria: true, motivoExtraordinaria: datos.motivoExtraordinaria as MotivoExtraordinaria }),
+      ...(quitados.length && { retiros: quitados.map((r) => ({ medicationId: r.medicationId, motivo: motivosRetiro[r.medicationId] as MotivoRetiro })) }),
       weightKg: datos.weightKg!,
       heightM: datos.heightM!,
       systolicManual: datos.systolicManual,
@@ -541,7 +566,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
         ruta: '/visits',
         metodo: 'POST',
         cuerpo: visita,
-        resumen: { pacienteId: paciente.id, paciente: `${nombreCompleto(paciente)} · ${paciente.patientCode}`, detalle: `Visita del ${fecha.toLocaleDateString('es-DO')} · PA ${s ?? '—'}/${d ?? '—'}` },
+        resumen: { pacienteId: paciente.id, paciente: `${nombreCompleto(paciente)} · ${paciente.patientCode}`, detalle: `${datos.extraordinaria ? 'Visita extraordinaria' : 'Visita'} del ${fecha.toLocaleDateString('es-DO')} · PA ${s ?? '—'}/${d ?? '—'}` },
       });
       toast.success('Sin conexión: la visita quedó guardada en este dispositivo y se enviará sola al volver la señal.');
       alGuardar();
@@ -614,6 +639,8 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
     !edicion && !enCasa && !(peso && Number.isFinite(peso)) && 'el peso',
     !edicion && !enCasa && !(talla && Number.isFinite(talla)) && 'la estatura',
     recetasHoy.some((r) => !r.medicationId) && 'elegir el medicamento',
+    extra && !motivoExtra && 'el motivo de la visita extraordinaria',
+    quitados.some((r) => !motivosRetiro[r.medicationId]) && 'el motivo del retiro',
   ].filter(Boolean) as string[];
   const sinCambios = edicion && !formState.isDirty;
   const listo = falta.length === 0;
@@ -709,7 +736,7 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
             {tomaInvertida && !enModal && <p className="hidden w-full text-sm font-medium text-red-700 xl:block">La diastólica debe ser menor que la sistólica. Revisa la toma.</p>}
           </div>
           <div className="grid grid-cols-2 content-start gap-x-4 gap-y-3 border-t border-borde px-5 py-4 sm:grid-cols-[9rem_9rem_minmax(0,1fr)] 2xl:grid-cols-2 2xl:border-t-0 2xl:border-l 2xl:py-5">
-            <Campo etiqueta={enCasa ? 'Peso (kg) · opcional en casa' : 'Peso (kg)'} error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
+            <Campo etiqueta={enCasa ? `Peso (kg) · opcional${extra ? '' : ' en casa'}` : 'Peso (kg)'} error={e.weightKg?.message} ayuda={pesoAnterior ? `${edicion ? 'Antes' : 'Último'}: ${Number(pesoAnterior)} kg` : undefined}>
               <Entrada
                 type="number"
                 inputMode="decimal"
@@ -782,6 +809,38 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
               )}
             </>
           )}
+          {/* Lo que estaba en su tratamiento y se quitó: se le retira, con el motivo */}
+          {quitados.length > 0 && (
+            <div className="border-t border-borde bg-amber-50/60 px-5 py-3">
+              <p className="mb-2 text-[13px] font-medium text-amber-900">Se le retira del tratamiento</p>
+              <ul className="space-y-2">
+                {quitados.map((r) => (
+                  <li key={r.medicationId} className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="min-w-40 flex-1 text-sm">
+                      {r.medication?.name} {r.medication?.concentration}
+                      <span className="block text-xs text-tenue">Deja de salir en Qué llevar, Dejar TX, reposición y entregas pendientes.</span>
+                    </span>
+                    <Selector
+                      className="h-9 w-auto max-sm:flex-1"
+                      aria-label={`Por qué se le retira ${r.medication?.name ?? 'el medicamento'}`}
+                      vacio="¿Por qué se retira?"
+                      value={motivosRetiro[r.medicationId] ?? ''}
+                      onChange={(ev) => setMotivosRetiro((m) => ({ ...m, [r.medicationId]: ev.target.value as MotivoRetiro | '' }))}
+                      opciones={opciones(MOTIVOS_RETIRO)}
+                      aria-invalid={!!errorGeneral && !motivosRetiro[r.medicationId]}
+                    />
+                    <Boton
+                      variante="fantasma"
+                      className="h-9 px-2.5 text-xs"
+                      onClick={() => recetas.append({ medicationId: String(r.medicationId), dailyDose: r.dailyDose, bufferDays: margenDe(r), patientSupplyRemaining: undefined })}
+                    >
+                      Volver a recetarlo
+                    </Boton>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* Quitar uno que ya existía devuelve al inventario todo lo que se le entregó */}
           {edicion && !editada!.importada && (() => {
             const quitados = (editada!.prescriptions ?? []).filter((r) => r.quantityDispensed > 0 && !recetasHoy.some((x) => x.id === r.id && Number(x.medicationId) === r.medicationId));
@@ -803,23 +862,31 @@ function Formulario({ paciente, visita: editada, medicos, enModal, alGuardar, co
                 render={({ field }) => <SelectorFecha className="h-10" value={field.value} onChange={field.onChange} max={ymd(new Date())} aria-invalid={!!e.visitDate} aria-label="Fecha de la visita" />}
               />
             </Campo>
-            <Campo etiqueta="Dónde" grupo>
-              <Controller
-                control={control}
-                name="isHomeVisit"
-                render={({ field }) => (
-                  <Segmentos
-                    etiqueta="Dónde fue la visita"
-                    valor={field.value ? 'casa' : 'batey'}
-                    alCambiar={(v) => field.onChange(v === 'casa')}
-                    opciones={[
-                      { value: 'batey', label: 'En la jornada' },
-                      { value: 'casa', label: 'En su casa' },
-                    ]}
-                  />
-                )}
+            <Campo
+              etiqueta="Dónde"
+              grupo
+              className="sm:col-span-2 xl:col-span-1 2xl:col-span-2"
+              ayuda={extra ? 'Fuera de la jornada: queda en su historial y puede cambiar su tratamiento, pero no cuenta como visto en la ronda.' : undefined}
+            >
+              <Segmentos
+                etiqueta="Dónde fue la visita"
+                valor={extra ? 'extra' : enCasaMarcado ? 'casa' : 'batey'}
+                alCambiar={(v) => {
+                  setValue('isHomeVisit', v === 'casa', { shouldDirty: true });
+                  setValue('extraordinaria', v === 'extra', { shouldDirty: true, shouldValidate: formState.isSubmitted });
+                }}
+                opciones={[
+                  { value: 'batey', label: 'Jornada' },
+                  { value: 'casa', label: 'En casa' },
+                  { value: 'extra', label: 'Extraordinaria' },
+                ]}
               />
             </Campo>
+            {extra && (
+              <Campo etiqueta="Motivo de la visita extraordinaria" error={e.motivoExtraordinaria?.message}>
+                <Selector className="h-10" vacio="Elegir…" opciones={opciones(MOTIVOS_EXTRAORDINARIA)} {...register('motivoExtraordinaria')} aria-invalid={!!e.motivoExtraordinaria} />
+              </Campo>
+            )}
             <Campo etiqueta="Próxima visita" error={e.diasOtro?.message} grupo ayuda={proxima && `Le toca volver el ${proxima}`}>
               <input type="hidden" {...register('intervalo')} />
               <Segmentos

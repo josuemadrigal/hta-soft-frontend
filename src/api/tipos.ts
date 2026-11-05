@@ -223,6 +223,25 @@ export type Receta = {
   medication?: Medicamento;
 };
 
+export type MotivoExtraordinaria = 'CAMBIO_TRATAMIENTO' | 'CONTROL_PRESION' | 'MALESTAR' | 'OTRO';
+export type MotivoRetiro = 'PRESION_CONTROLADA' | 'EFECTO_ADVERSO' | 'CAMBIO_MEDICAMENTO' | 'OTRO_MEDICO' | 'OTRO';
+
+/** Un medicamento que se le quitó (en una visita o directo en la ficha). */
+export type RetiroTratamiento = {
+  id: number;
+  patientId: number;
+  medicationId: number;
+  visitId: number | null;
+  fecha: string;
+  motivo: MotivoRetiro;
+  detalle: string | null;
+  registradoPorNombre: string | null;
+  medication?: { name: string; concentration: string };
+};
+
+/** Su tratamiento vigente: las recetas de la última visita que lo fijó, sin lo que se le retiró. */
+export type TratamientoVigente = { visitaId: number | null; recetas: Receta[] };
+
 export type Visita = {
   id: number;
   patientId: number;
@@ -238,6 +257,9 @@ export type Visita = {
   visitDate: string;
   visitType: TipoVisita;
   isHomeVisit: boolean;
+  /** Consulta fuera de la jornada: no cuenta como visto en la ronda. */
+  extraordinaria?: boolean;
+  motivoExtraordinaria?: MotivoExtraordinaria | null;
   nextVisitDate: string | null;
   // Pueden faltar en visitas históricas importadas del Excel.
   weightKg: Decimal | null;
@@ -283,6 +305,10 @@ export type Paciente = {
   smokingStatus: Tabaquismo;
   community?: Comunidad;
   clinicalVisits?: Visita[];
+  /** En la ficha y en la lista del batey: su tratamiento vigente. */
+  tratamiento?: TratamientoVigente;
+  /** En la ficha: lo que se le ha retirado (lo más reciente primero). */
+  retirosTratamiento?: RetiroTratamiento[];
   // Resumen de la última visita (para listar y filtrar)
   lastVisitDate?: string | null;
   lastSystolic?: number | null;

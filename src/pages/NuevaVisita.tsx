@@ -13,13 +13,14 @@ import { useVolver } from '../lib/navegacion';
 
 const HORA = new Intl.DateTimeFormat('es-DO', { hour: 'numeric', minute: '2-digit' });
 
-/** /pacientes/:id/visita. Con ?volver=/jornada?batey=X regresa a la jornada al guardar. */
+/** /pacientes/:id/visita. Con ?volver=/jornada?batey=X regresa a la jornada al guardar; con ?extraordinaria=1 empieza como visita extraordinaria. */
 export function NuevaVisita() {
   const id = Number(useParams().id);
   const [params] = useSearchParams();
   // Solo rutas internas: evita que un enlace manipulado mande a otro sitio.
   const pedido = params.get('volver');
   const volver = pedido?.startsWith('/') && !pedido.startsWith('//') ? pedido : `/pacientes/${id}`;
+  const extraordinaria = params.get('extraordinaria') === '1';
   const navegar = useNavigate();
   const volverA = useVolver();
   const paciente = usePaciente(id);
@@ -39,7 +40,7 @@ export function NuevaVisita() {
   return (
     <>
       <EncabezadoPagina
-        titulo={`Visita · ${nombreCompleto(p)}`}
+        titulo={`${extraordinaria ? 'Visita extraordinaria' : 'Visita'} · ${nombreCompleto(p)}`}
         descripcion={
           <>
             <span className="font-mono">{p.patientCode}</span> · {edadTexto(p)} · {p.community?.name}
@@ -47,7 +48,7 @@ export function NuevaVisita() {
         }
         volver={{ a: volver, texto: volver.startsWith('/jornada') ? 'Jornada' : nombreCompleto(p) }}
       />
-      <FormularioVisita paciente={p} alGuardar={() => volverA(volver)} />
+      <FormularioVisita paciente={p} extraordinaria={extraordinaria} alGuardar={() => volverA(volver)} />
       {!otra && (deHoy || pendienteHoy) && (
         <AvisoVisitaHoy
           paciente={p}

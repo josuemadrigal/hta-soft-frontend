@@ -68,6 +68,7 @@ export function DetalleVisita({ visitas, indice, alCambiar, alCerrar }: { visita
           <h2 id="detalle-visita-titulo" className="font-semibold">
             Visita del {fecha(v.visitDate)}
             {v.isHomeVisit && <Home className="ml-1.5 inline size-4 text-tenue" aria-label="Domiciliaria" />}
+            {v.extraordinaria && <span className="ml-1.5 text-sm font-normal text-violet-700">· extraordinaria</span>}
           </h2>
           <p className="text-xs text-tenue">
             {indice === 0 ? 'La última · ' : ''}

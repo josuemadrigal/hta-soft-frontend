@@ -5,8 +5,8 @@ import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useAuditoria, useFiltrosAuditoria } from '../api/consultas';
 import { restaurarRegistro, type FiltroAuditoria } from '../api/recursos';
-import type { MotivoBaja, MotivoInasistencia, MotivoReposicion, Parentesco, RegistroAuditoria } from '../api/tipos';
-import { conQuien, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION } from '../lib/etiquetas';
+import type { MotivoBaja, MotivoExtraordinaria, MotivoInasistencia, MotivoReposicion, MotivoRetiro, Parentesco, RegistroAuditoria } from '../api/tipos';
+import { conQuien, MOTIVOS_BAJA, MOTIVOS_EXTRAORDINARIA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, MOTIVOS_RETIRO } from '../lib/etiquetas';
 import { useSesion } from '../auth/sesion';
 import { useConfirmar } from '../components/confirmar';
 import { BotonesTrimestre } from '../components/Periodo';
@@ -28,6 +28,8 @@ const ACCIONES: Record<string, { texto: string; color: string }> = {
   NO_VINO: { texto: 'No vino', color: '#6b665e' },
   DESCARGA: { texto: 'Descargó para usar sin internet', color: '#7c3aed' },
   NO_VINO_DESHECHO: { texto: 'Quitó "No vino"', color: '#6b665e' },
+  RETIRO_TX: { texto: 'Retiró tratamiento', color: '#b91c1c' },
+  RETIRO_TX_DESHECHO: { texto: 'Deshizo un retiro', color: '#6b665e' },
   EXPORT: { texto: 'Exportó', color: '#7c3aed' },
   LOGIN: { texto: 'Inició sesión', color: '#6b665e' },
   BLOQUEO: { texto: 'Cuenta bloqueada', color: '#dc2626' },
@@ -52,6 +54,8 @@ const CAMPOS: Record<string, string> = {
   visitDate: 'Fecha',
   visitType: 'Tipo',
   isHomeVisit: 'Domiciliaria',
+  extraordinaria: 'Extraordinaria',
+  motivoExtraordinaria: 'Motivo extraordinaria',
   weightKg: 'Peso',
   heightM: 'Estatura',
   bmi: 'IMC',
@@ -104,7 +108,8 @@ const legible = (campo: string, v: unknown) => {
   if (campo === 'gender') return ({ MALE: 'Masculino', FEMALE: 'Femenino', OTHER: 'Otro' } as Record<string, string>)[String(v)] ?? String(v);
   if (campo === 'birthDateIsEstimated') return v ? 'Sí' : 'No';
   if (['weightKg', 'heightM', 'bmi', 'temperature'].includes(campo)) return String(Math.round(Number(v) * 100) / 100);
-  if (campo === 'isHomeVisit') return v === 'true' || v === true ? 'Sí' : 'No';
+  if (campo === 'isHomeVisit' || campo === 'extraordinaria') return v === 'true' || v === true ? 'Sí' : 'No';
+  if (campo === 'motivoExtraordinaria') return MOTIVOS_EXTRAORDINARIA[String(v) as MotivoExtraordinaria] ?? String(v);
   const s = String(v);
   return s.length > 40 ? `${s.slice(0, 40)}…` : s;
 };
@@ -126,6 +131,14 @@ function Detalle({ r }: { r: RegistroAuditoria }): ReactNode {
   if (r.action === 'DESCARGA') {
     const x = JSON.parse(r.details) as { batey: string; pacientes: number };
     return `Descargó ${x.batey} (${x.pacientes} fichas) en su dispositivo para usar sin internet`;
+  }
+  if (r.action === 'RETIRO_TX') {
+    const x = JSON.parse(r.details) as { medicamentos: string[]; motivo: MotivoRetiro; detalle: string | null };
+    return `Le retiró ${x.medicamentos.join(' · ')} (${MOTIVOS_RETIRO[x.motivo].toLowerCase()})${x.detalle ? ` · ${x.detalle}` : ''}`;
+  }
+  if (r.action === 'RETIRO_TX_DESHECHO') {
+    const x = JSON.parse(r.details) as { medicamento: string; motivo: MotivoRetiro };
+    return `${x.medicamento} volvió a su tratamiento (se había retirado: ${MOTIVOS_RETIRO[x.motivo].toLowerCase()})`;
   }
   if (r.action === 'NO_VINO') {
     const x = JSON.parse(r.details) as { codigo: string; nombre: string; fecha: string; motivo: MotivoInasistencia; nota?: string; tratamiento?: { con: string; parentesco: Parentesco | null; medicamentos: string[] } };

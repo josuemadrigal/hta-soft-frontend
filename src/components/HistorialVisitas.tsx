@@ -70,6 +70,7 @@ export function HistorialVisitas({ visitas, cuantas = 5 }: { visitas: Visita[]; 
                   {fecha(v.visitDate)}
                   {i === 0 && <span className="ml-1.5 text-xs font-normal text-tenue">· última</span>}
                   {v.isHomeVisit && <Home className="ml-1 inline size-3 text-tenue" />}
+                  {v.extraordinaria && <span className="ml-1 text-xs font-normal text-violet-700">· extraordinaria</span>}
                 </span>
                 <span className="tabular font-mono font-medium">{s && d ? `${s}/${d}` : '—'}</span>
               </div>

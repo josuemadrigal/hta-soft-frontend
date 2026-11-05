@@ -86,7 +86,8 @@ function Lista({ todos, sufijo }: { todos: ComentarioVisita[]; sufijo: string })
     if (cumplimiento && !CUMPLIMIENTO.find((x) => x.value === cumplimiento)!.entra(c.cumplimiento)) return false;
     if (anterior && c.vinoAnterior !== anterior) return false;
     if (lugar === 'casa' && !c.domicilio) return false;
-    if (lugar === 'jornada' && c.domicilio) return false;
+    if (lugar === 'jornada' && (c.domicilio || c.extraordinaria)) return false;
+    if (lugar === 'extraordinaria' && !c.extraordinaria) return false;
     return true;
   });
   // Las opciones salen de la lista, con cuántos tiene cada una.
@@ -115,7 +116,7 @@ function Lista({ todos, sufijo }: { todos: ComentarioVisita[]; sufijo: string })
         cumplimiento: c.cumplimiento ?? '',
         anterior: c.vinoAnterior === 'no' ? `No (${c.rondasSinVenir} rondas sin venir)` : ANTERIOR[c.vinoAnterior],
         medico: c.medico,
-        lugar: c.domicilio ? 'Domicilio' : 'Jornada',
+        lugar: c.extraordinaria ? 'Extraordinaria' : c.domicilio ? 'Domicilio' : 'Jornada',
         motivo: c.motivo ?? '',
         comentario: c.comentario ?? '',
       })),
@@ -181,7 +182,7 @@ function Lista({ todos, sufijo }: { todos: ComentarioVisita[]; sufijo: string })
             />
             <Selector className="w-48" aria-label="Cumplimiento" vacio="Cualquier cumplimiento" value={cumplimiento} onChange={(e) => setCumplimiento(e.target.value)} opciones={CUMPLIMIENTO.map(({ value, label }) => ({ value, label }))} />
             <Selector className="w-52" aria-label="Visita anterior" vacio="Visita anterior: todas" value={anterior} onChange={(e) => setAnterior(e.target.value)} opciones={Object.entries(ANTERIOR).map(([value, label]) => ({ value, label }))} />
-            <Selector className="w-40" aria-label="Lugar" vacio="Jornada y casa" value={lugar} onChange={(e) => setLugar(e.target.value)} opciones={[{ value: 'jornada', label: 'En la jornada' }, { value: 'casa', label: 'En su casa' }]} />
+            <Selector className="w-40" aria-label="Lugar" vacio="Todas las visitas" value={lugar} onChange={(e) => setLugar(e.target.value)} opciones={[{ value: 'jornada', label: 'En la jornada' }, { value: 'casa', label: 'En su casa' }, { value: 'extraordinaria', label: 'Extraordinarias' }]} />
             {hayFiltros && (
               <Boton variante="fantasma" icono={<X className="size-4" />} onClick={limpiar}>
                 Limpiar
@@ -196,6 +197,7 @@ function Lista({ todos, sufijo }: { todos: ComentarioVisita[]; sufijo: string })
                 <td className="px-5 py-2.5 whitespace-nowrap">
                   {fecha(c.fecha)}
                   {c.domicilio && <span className="block text-xs text-tenue">En su casa</span>}
+                  {c.extraordinaria && <span className="block text-xs text-violet-700">Extraordinaria</span>}
                 </td>
                 <td className="px-5 py-2.5">
                   <span className="font-medium whitespace-nowrap">{nombreCompleto(c.paciente)}</span>

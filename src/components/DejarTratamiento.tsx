@@ -37,8 +37,9 @@ export function DejarTratamiento({
 
   const medicamentos = useMedicamentos().data ?? [];
   const meses = useConfiguracion().data?.reposicionMesesMaximo ?? 6;
+  // Su tratamiento vigente (sin lo que se le retiró); sin él, la última visita.
   const ultima = p.clinicalVisits?.[0];
-  const receta = useMemo(() => (ultima?.prescriptions ?? []).filter((r) => r.medicationId), [ultima]);
+  const receta = useMemo(() => (p.tratamiento?.recetas ?? ultima?.prescriptions ?? []).filter((r) => r.medicationId), [p.tratamiento, ultima]);
 
   const [nombre, setNombre] = useState('');
   const [parentesco, setParentesco] = useState<Parentesco | null>(null);

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, CalendarClock, Camera, ChevronDown, ClipboardPlus, GitMerge, History, Home, MoreHorizontal, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
-import { eliminarPaciente, entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
+import { ArrowDown, ArrowUp, CalendarClock, PillBottle, Camera, ChevronDown, ClipboardPlus, GitMerge, History, Home, MoreHorizontal, Pencil, Pill, Printer, RefreshCw, Split, Stethoscope, Trash2, UserX } from 'lucide-react';
+import { deshacerRetiro, eliminarPaciente, entregasDelPaciente, reactivarPaciente, regenerarCodigoPaciente } from '../api/recursos';
 import { useConfirmar } from '../components/confirmar';
 import { useSesion } from '../auth/sesion';
 import { ListaAlertas, useUmbrales } from '../components/Alertas';
@@ -14,10 +14,10 @@ import { toast } from 'sonner';
 import { useJornadas, usePaciente } from '../api/consultas';
 import { hoyYmd } from './Jornadas';
 import { subirFotoPaciente } from '../api/recursos';
-import type { Entrega, Paciente as TPaciente, Visita } from '../api/tipos';
+import type { Entrega, Paciente as TPaciente, RetiroTratamiento, Visita } from '../api/tipos';
 import { LEYENDA } from '../components/graficas';
 import { Avatar, Boton, Cargando, EnlaceVolver, ErrorCarga, Insignia, InsigniaCategoria, Tarjeta, Vacio } from '../components/ui';
-import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
+import { ALCOHOL, ESTADOS, GENEROS, MOTIVOS_BAJA, MOTIVOS_EXTRAORDINARIA, MOTIVOS_INASISTENCIA, MOTIVOS_REPOSICION, MOTIVOS_RETIRO, RECIBIO_ENTREGA, SAL, TABACO, TIPOS_VISITA, conQuien } from '../lib/etiquetas';
 import { atendio, cn, colorCumplimiento, decimal, DIA_MS, edadTexto, fecha, fechaYHora, nombreCompleto, num, tensionDe, ultimasMedidas } from '../lib/formato';
 import { SelectorFecha } from '../components/SelectorFecha';
 import { AYUDA } from '../lib/ayuda-graficas';
@@ -276,6 +276,13 @@ function FilaVisita({ visita }: { visita: Visita }) {
             <Home className="size-3" /> Domicilio
           </Insignia>
         )}
+        {visita.extraordinaria && (
+          <span title={visita.motivoExtraordinaria ? `Fuera de la jornada: ${MOTIVOS_EXTRAORDINARIA[visita.motivoExtraordinaria].toLowerCase()}` : 'Fuera de la jornada'}>
+            <Insignia color="#6d28d9">
+              <CalendarClock className="size-3" /> Extraordinaria
+            </Insignia>
+          </span>
+        )}
         <span className="ml-auto hidden truncate text-sm text-tenue sm:block">{visita.reason}</span>
         <ChevronDown className={cn('ml-auto size-4 shrink-0 text-tenue transition-transform sm:ml-0', abierta && 'rotate-180')} />
       </button>
@@ -369,6 +376,55 @@ function FilaTratamiento({ entrega: e }: { entrega: Entrega }) {
   );
 }
 
+/** Un medicamento que se le retiró: en la línea de tiempo, con quién y por qué. Se puede deshacer. */
+function FilaRetiro({ retiro: r }: { retiro: RetiroTratamiento }) {
+  const { tiene } = useSesion();
+  const confirmar = useConfirmar();
+  const cliente = useQueryClient();
+  const nombre = `${r.medication?.name ?? 'Medicamento'} ${r.medication?.concentration ?? ''}`.trim();
+  const deshacer = useMutation({
+    mutationFn: () => deshacerRetiro(r.id),
+    onSuccess: () => {
+      for (const k of [['paciente'], ['entregas'], ['jornada'], ['auditoria']]) cliente.invalidateQueries({ queryKey: k });
+      toast.success(`${nombre} volvió a su tratamiento`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-fondo/50 px-5 py-3.5">
+      <div className="w-44 shrink-0">
+        <p className="text-sm font-medium">{fecha(r.fecha)}</p>
+        <p className="truncate text-xs text-tenue">{[r.visitId ? 'En la visita' : 'En la ficha', r.registradoPorNombre].filter(Boolean).join(' · ')}</p>
+      </div>
+      <div className="min-w-48 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm">
+          <Insignia color="#b91c1c">
+            <PillBottle className="size-3" /> Se le retiró
+          </Insignia>
+          <span className="font-medium">{nombre}</span>
+        </p>
+        <p className="mt-0.5 text-xs text-tenue">
+          {MOTIVOS_RETIRO[r.motivo]}
+          {r.detalle ? ` · ${r.detalle}` : ''}
+        </p>
+      </div>
+      {tiene('visitas.registrar') && (
+        <Boton
+          variante="fantasma"
+          className="h-8 px-2.5 text-xs"
+          cargando={deshacer.isPending}
+          onClick={async () => {
+            if (await confirmar({ titulo: `¿Volver a poner ${nombre} en su tratamiento?`, mensaje: 'Se quita el retiro: vuelve a salir en Qué llevar, Dejar TX y reposición. Queda en Auditoría.', confirmar: 'Deshacer retiro', peligro: false }))
+              deshacer.mutate();
+          }}
+        >
+          Deshacer
+        </Boton>
+      )}
+    </li>
+  );
+}
+
 export function Paciente() {
   const id = Number(useParams().id);
   // Desde la jornada se vuelve a la jornada (solo rutas internas).
@@ -435,12 +491,16 @@ export function Paciente() {
   })();
   // Se registró en un batey y luego se cambió: el código sigue con el prefijo del anterior.
   const codigoDeOtroBatey = !!p.community?.abbreviation && !new RegExp(`^${p.community.abbreviation}\\d+$`).test(p.patientCode);
-  const ultima = p.clinicalVisits?.[0];
+  // La última de jornada o domiciliaria: de ella salen la próxima visita y el intervalo (una extraordinaria no cuenta).
+  const ultima = p.clinicalVisits?.find((v) => !v.extraordinaria) ?? p.clinicalVisits?.[0];
+  // Su tratamiento vigente: lo que dice el servidor (sin lo retirado); si no viene, la última visita.
+  const vigente = p.tratamiento?.recetas ?? ultima?.prescriptions ?? [];
   // Visitas y reposiciones en una sola línea de tiempo, la más reciente primero.
   const reposiciones = (entregas.data?.entregas ?? []).filter((e) => e.tipo === 'REPOSICION');
   const historial = [
     ...(p.clinicalVisits ?? []).map((v) => ({ tipo: 'visita' as const, fecha: v.visitDate, visita: v })),
     ...reposiciones.map((e) => ({ tipo: 'tratamiento' as const, fecha: e.fecha, entrega: e })),
+    ...(p.retirosTratamiento ?? []).map((r) => ({ tipo: 'retiro' as const, fecha: r.fecha, retiro: r })),
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   // Se le dejó tratamiento después de su última visita: así no parece que lleva meses sin atención.
   const tratamientoReciente = reposiciones.find((e) => !ultima || new Date(e.fecha) > new Date(ultima.visitDate));
@@ -492,7 +552,7 @@ export function Paciente() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!!p.clinicalVisits?.[0]?.prescriptions?.length && (
+          {!!vigente.length && (
             <Boton variante="secundario" icono={<Printer className="size-4" />} title="Hoja para el paciente: sus medicamentos y la próxima visita" onClick={() => navegar(`/pacientes/${p.id}/indicaciones`)}>
               Indicaciones
             </Boton>
@@ -508,6 +568,11 @@ export function Paciente() {
               ...(puedeRevisar ? [{ texto: 'Unir con otra ficha de la misma persona', icono: <GitMerge className="size-4" />, alElegir: () => navegar(`/revision/unir?a=${p.id}`) }] : []),
               ...(puedeRevisar && (p.clinicalVisits?.length ?? 0) > 1
                 ? [{ texto: 'Separar visitas de otra persona', icono: <Split className="size-4" />, alElegir: () => navegar(`/revision/separar/${p.id}`) }]
+                : []),
+              ...(p.status === 'ACTIVE' && tiene('visitas.registrar')
+                ? [
+                    ...(vigente.length ? [{ texto: 'Retirar medicamentos del tratamiento', icono: <PillBottle className="size-4" />, alElegir: () => navegar(`/pacientes/${p.id}/retirar-tratamiento`) }] : []),
+                  ]
                 : []),
               ...(tiene('auditoria.ver') ? [{ texto: 'Quién la ha visto o cambiado', icono: <History className="size-4" />, alElegir: () => navegar(`/auditoria?registro=Patient&id=${p.id}`) }] : []),
               ...(puedeRevisar
@@ -533,6 +598,11 @@ export function Paciente() {
                 : []),
             ]}
           />
+          {p.status === 'ACTIVE' && tiene('visitas.registrar') && (
+            <Boton variante="secundario" icono={<CalendarClock className="size-4" />} title="Consulta fuera de la jornada: cambiar el tratamiento o volver a revisarlo. No cuenta como visto en la ronda." onClick={() => navegar(`/pacientes/${p.id}/visita?extraordinaria=1`)}>
+              Visita extraordinaria
+            </Boton>
+          )}
           {p.status !== 'DECEASED' && (
             <Boton icono={<ClipboardPlus className="size-4" />} onClick={() => navegar(`/pacientes/${p.id}/visita${volver !== '/pacientes' ? `?volver=${encodeURIComponent(volver)}` : ''}`)}>
               Nueva visita
@@ -642,10 +712,17 @@ export function Paciente() {
               ) : null}
             </div>
             <div className="p-5">
-              <p className="text-xs font-medium text-tenue">Tratamiento actual</p>
-              {ultima.prescriptions?.length ? (
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs font-medium text-tenue">Tratamiento actual</p>
+                {!!vigente.length && p.status === 'ACTIVE' && tiene('visitas.registrar') && (
+                  <Link to={`/pacientes/${p.id}/retirar-tratamiento`} className="text-xs text-tenue underline-offset-2 hover:text-tinta hover:underline">
+                    Retirar
+                  </Link>
+                )}
+              </div>
+              {vigente.length ? (
                 <ul className="mt-1.5 space-y-1.5">
-                  {ultima.prescriptions.map((r) => (
+                  {vigente.map((r) => (
                     <li key={r.id} className="flex items-baseline justify-between gap-2 text-sm">
                       <span>
                         <span className="font-medium">{r.medication?.name}</span> <span className="text-tenue">{r.medication?.concentration}</span>
@@ -660,7 +737,7 @@ export function Paciente() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-sm text-tenue">Sin medicamentos en la última visita</p>
+                <p className="mt-1 text-sm text-tenue">{p.retirosTratamiento?.length ? 'Sin medicamentos: se le retiró el tratamiento' : 'Sin medicamentos en la última visita'}</p>
               )}
             </div>
           </div>
@@ -729,7 +806,15 @@ export function Paciente() {
           <Tarjeta titulo={`Visitas (${p.clinicalVisits?.length ?? 0}${reposiciones.length ? ` · ${reposiciones.length} solo con tratamiento` : ''})`}>
             {p.clinicalVisits?.length || reposiciones.length ? (
               <ul className="divide-y divide-borde">
-                {historial.map((h) => (h.tipo === 'visita' ? <FilaVisita key={`v${h.visita.id}`} visita={h.visita} /> : <FilaTratamiento key={`r${h.entrega.id}`} entrega={h.entrega} />))}
+                {historial.map((h) =>
+                  h.tipo === 'visita' ? (
+                    <FilaVisita key={`v${h.visita.id}`} visita={h.visita} />
+                  ) : h.tipo === 'retiro' ? (
+                    <FilaRetiro key={`x${h.retiro.id}`} retiro={h.retiro} />
+                  ) : (
+                    <FilaTratamiento key={`r${h.entrega.id}`} entrega={h.entrega} />
+                  ),
+                )}
               </ul>
             ) : (
               <Vacio icono={<Stethoscope className="size-8" />} titulo="Sin visitas">

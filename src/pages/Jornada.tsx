@@ -177,7 +177,8 @@ export function Jornada() {
     const noVino = new Map<number, MotivoInasistencia>();
     const tratamiento = new Map<number, NonNullable<DatosNoVino['tratamiento']>>();
     for (const x of pendientes) {
-      if (x.tipo === 'visita') visitas.add(x.resumen.pacienteId);
+      // Una extraordinaria guardada sin internet no cuenta como asistencia a la jornada.
+      if (x.tipo === 'visita' && !(x.cuerpo as { extraordinaria?: boolean }).extraordinaria) visitas.add(x.resumen.pacienteId);
       if (x.tipo === 'no-vino') {
         const d = x.cuerpo as DatosNoVino;
         noVino.set(x.resumen.pacienteId, d.motivo);

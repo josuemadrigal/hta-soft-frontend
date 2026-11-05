@@ -45,7 +45,8 @@ export function HojaIndicaciones() {
     );
   // La API devuelve las visitas de la más reciente a la más antigua.
   const v = p.clinicalVisits?.[0];
-  const recetas = (v?.prescriptions ?? []).filter((r): r is Receta => !!r.medication);
+  // Su tratamiento vigente: una extraordinaria pudo cambiarlo, o se le retiró algo.
+  const recetas = (p.tratamiento?.recetas ?? v?.prescriptions ?? []).filter((r): r is Receta => !!r.medication);
   const vacia = !v || recetas.length === 0;
 
   const proxima = v?.nextVisitDate
